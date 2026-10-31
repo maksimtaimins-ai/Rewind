@@ -39,6 +39,8 @@ pub struct Status {
     pub state: State,
     pub buffered_secs: f64,
     pub buffer_secs: u32,
+    /// Every enabled replay length, main one first.
+    pub slots: Vec<SlotStatus>,
     pub fps: f64,
     pub bitrate_kbps: f64,
     pub dropped: u64,
@@ -50,6 +52,16 @@ pub struct Status {
     pub markers: Vec<MarkerInfo>,
     pub error: Option<String>,
     pub written_today_gb: f64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SlotStatus {
+    /// "A", "B" or "C".
+    pub name: String,
+    pub seconds: u32,
+    /// Seconds a save from this slot would hold right now.
+    pub held: f64,
+    pub hotkey: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -184,7 +196,7 @@ impl Engine {
         let (action_tx, action_rx) = unbounded();
         let (hk_err_tx, hk_err_rx) = unbounded::<String>();
         let hk = HotkeyThread::spawn(action_tx, hk_err_tx);
-        for e in hk.bind(&engine.inner.settings.read().hotkeys) {
+        for e in hk.bind(&engine.inner.settings.read()) {
             engine.inner.events.notice(Level::Warning, &format!("Hotkey not set: {e}"));
         }
         *engine.inner.hotkeys.lock() = Some(hk);
@@ -230,9 +242,9 @@ impl Engine {
     pub fn set_settings(&self, new: Settings) -> Result<()> {
         settings::save(&new)?;
         let old = std::mem::replace(&mut *self.inner.settings.write(), new.clone());
-        if old.hotkeys != new.hotkeys {
+        if old.hotkeys != new.hotkeys || old.buffer.extra_slots != new.buffer.extra_slots {
             if let Some(hk) = self.inner.hotkeys.lock().as_ref() {
-                for e in hk.bind(&new.hotkeys) {
+                for e in hk.bind(&new) {
                     self.inner.events.notice(Level::Warning, &format!("Hotkey not set: {e}"));
                 }
             }
@@ -278,6 +290,13 @@ impl Engine {
         tracing::info!("action {action:?}");
         let r = match action {
             Action::SaveClip => self.save_clip(None),
+            Action::SaveSlot(i) => {
+                let slot = self.inner.settings.read().buffer.extra_slots.get(i as usize).cloned();
+                match slot {
+                    Some(slot) if slot.enabled => self.save_clip(Some(slot.seconds)),
+                    _ => Ok(()),
+                }
+            }
             Action::Marker => self.add_marker(),
             Action::Screenshot => self.screenshot(),
             Action::ExtendLast => self.extend_last(),
@@ -299,14 +318,16 @@ impl Engine {
         Ok(dir)
     }
 
-    /// Clip length for a request: the buffer length, or less when asked.
+    /// Clip length for a request: the main buffer length by default, never
+    /// more than the longest enabled slot.
     fn clip_ticks(&self, secs: Option<u32>) -> i64 {
-        let max = self.inner.buffer_secs.load(Ordering::Relaxed);
-        secs.unwrap_or(max).clamp(1, max) as i64 * TICKS_PER_SEC
+        let main = self.inner.buffer_secs.load(Ordering::Relaxed);
+        let max = self.inner.settings.read().longest_slot_secs().max(main);
+        secs.unwrap_or(main).clamp(1, max) as i64 * TICKS_PER_SEC
     }
 
-    /// Save the last `secs` (default and maximum: the buffer length), ending at
-    /// the keypress.
+    /// Save the last `secs` (default: the main buffer length), ending at the
+    /// keypress.
     pub fn save_clip(&self, secs: Option<u32>) -> Result<()> {
         let pipeline = self.inner.pipeline.lock();
         let Some(p) = pipeline.as_ref() else {
@@ -470,8 +491,21 @@ impl Engine {
     }
 
     fn build_status(&self, fps: f64, kbps: f64) -> Status {
+        let s = self.inner.settings.read().clone();
         let pipeline = self.inner.pipeline.lock();
         let buf = self.inner.buffer.lock();
+        let buffered = if pipeline.is_some() { buf.buffered_ticks() as f64 / TICKS_PER_SEC as f64 } else { 0.0 };
+        let main = self.inner.buffer_secs.load(Ordering::Relaxed);
+        let slot = |name: &str, seconds: u32, hotkey: &str| SlotStatus {
+            name: name.into(),
+            seconds,
+            held: buffered.min(seconds as f64),
+            hotkey: hotkey.into(),
+        };
+        let mut slots = vec![slot("A", main, &s.hotkeys.save_clip)];
+        for (i, x) in s.buffer.extra_slots.iter().enumerate().filter(|(_, x)| x.enabled) {
+            slots.push(slot(["B", "C"][i.min(1)], x.seconds, &x.hotkey));
+        }
         let paused = self.inner.flags.blocked();
         let start = buf.earliest_pts();
         let now = qpc_now();
@@ -499,7 +533,8 @@ impl Engine {
                 _ => State::Idle,
             },
             buffered_secs: buf.buffered_ticks() as f64 / TICKS_PER_SEC as f64,
-            buffer_secs: self.inner.buffer_secs.load(Ordering::Relaxed),
+            buffer_secs: main,
+            slots,
             fps,
             bitrate_kbps: kbps,
             dropped: pipeline.as_ref().map(|p| p.stats.dropped.load(Ordering::Relaxed)).unwrap_or(0),
@@ -532,7 +567,8 @@ impl Engine {
         let buffer_secs = profile.as_ref().and_then(|p| p.buffer_seconds).unwrap_or(s.buffer.seconds);
         self.inner.buffer_secs.store(buffer_secs, Ordering::Relaxed);
         // Slack past the clip length: GOP rounding, plus room for "extend last clip".
-        let keep = buffer_secs + s.buffer.extend_secs + 2;
+        let longest = s.buffer.extra_slots.iter().filter(|x| x.enabled).map(|x| x.seconds).fold(buffer_secs, u32::max);
+        let keep = longest + s.buffer.extend_secs + 2;
         *self.inner.buffer.lock() = ReplayBuffer::new(keep, s.buffer.max_memory_mb as usize * MB);
         Pipeline::start(
             PipelineConfig {

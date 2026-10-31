@@ -34,6 +34,12 @@ export interface Hotkeys {
 	extend_last: string;
 }
 
+export interface BufferSlot {
+	enabled: boolean;
+	seconds: number;
+	hotkey: string;
+}
+
 export interface Settings {
 	version: number;
 	first_run_complete: boolean;
@@ -59,6 +65,8 @@ export interface Settings {
 	};
 	buffer: {
 		seconds: number;
+		/** Slots B and C; slot A is `seconds` with `hotkeys.save_clip`. */
+		extra_slots: BufferSlot[];
 		max_memory_mb: number;
 		extend_secs: number;
 	};
@@ -75,6 +83,8 @@ export interface Status {
 	state: EngineState;
 	buffered_secs: number;
 	buffer_secs: number;
+	/** Every enabled replay length, slot A first. */
+	slots: SlotStatus[];
 	fps: number;
 	bitrate_kbps: number;
 	dropped: number;
@@ -87,6 +97,13 @@ export interface Status {
 	markers: MarkerInfo[];
 	error: string | null;
 	written_today_gb: number;
+}
+
+export interface SlotStatus {
+	name: string;
+	seconds: number;
+	held: number;
+	hotkey: string;
 }
 
 export interface MarkerInfo {

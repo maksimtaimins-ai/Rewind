@@ -8,11 +8,13 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-pub const SETTINGS_VERSION: u32 = 3;
+pub const SETTINGS_VERSION: u32 = 4;
 
 /// Allowed range for [`BufferSettings::seconds`].
 pub const MIN_BUFFER_SECS: u32 = 10;
 pub const MAX_BUFFER_SECS: u32 = 300;
+/// Slots besides the main buffer length (B and C).
+pub const EXTRA_SLOTS: usize = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -101,11 +103,22 @@ pub struct VideoSettings {
     pub hdr: HdrMode,
 }
 
+/// An extra replay length with its own save hotkey. All slots read the same
+/// encoded buffer, which is sized to the longest enabled one.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BufferSlot {
+    pub enabled: bool,
+    pub seconds: u32,
+    pub hotkey: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BufferSettings {
     /// Replay length in seconds. A saved clip is the last `seconds` ending at
     /// the keypress, never longer.
     pub seconds: u32,
+    /// Slots B and C. Slot A is `seconds` with `hotkeys.save_clip`.
+    pub extra_slots: Vec<BufferSlot>,
     /// Hard RAM ceiling for the encoded buffer, MiB.
     pub max_memory_mb: u32,
     /// Seconds the "extend last clip" hotkey adds before the clip's start.
@@ -172,6 +185,10 @@ impl Default for Settings {
             },
             buffer: BufferSettings {
                 seconds: 30,
+                extra_slots: vec![
+                    BufferSlot { enabled: true, seconds: 120, hotkey: "Alt+F9".into() },
+                    BufferSlot { enabled: false, seconds: 300, hotkey: String::new() },
+                ],
                 max_memory_mb: 1024,
                 extend_secs: 15,
             },
@@ -251,6 +268,15 @@ impl Settings {
     pub fn sanitize(&mut self) {
         self.buffer.seconds = self.buffer.seconds.clamp(MIN_BUFFER_SECS, MAX_BUFFER_SECS);
         self.buffer.extend_secs = self.buffer.extend_secs.clamp(5, 120);
+        self.buffer.extra_slots.resize(EXTRA_SLOTS, BufferSlot { enabled: false, seconds: 60, hotkey: String::new() });
+        for slot in &mut self.buffer.extra_slots {
+            slot.seconds = slot.seconds.clamp(MIN_BUFFER_SECS, MAX_BUFFER_SECS);
+        }
+    }
+
+    /// Longest enabled replay length, which is what the buffer must hold.
+    pub fn longest_slot_secs(&self) -> u32 {
+        self.buffer.extra_slots.iter().filter(|s| s.enabled).map(|s| s.seconds).fold(self.buffer.seconds, u32::max)
     }
 }
 
@@ -270,6 +296,7 @@ fn migrate(value: &mut toml::Table) -> Result<()> {
             h.remove("save_long_clip");
         }
     }
+    // v3 -> v4: `buffer.extra_slots` added; missing fields take defaults.
     // v2 -> v3: "extend last clip" gets a default hotkey.
     if version < 3 {
         if let Some(toml::Value::Table(h)) = value.get_mut("hotkeys") {
@@ -383,6 +410,17 @@ extend_last = \"\"
 extend_last = \"Ctrl+E\"
 ").unwrap();
         assert_eq!(s.hotkeys.extend_last, "Ctrl+E");
+    }
+
+    #[test]
+    fn slots_default_and_clamp() {
+        let s = parse("version = 3\n").unwrap();
+        assert_eq!(s.buffer.extra_slots.len(), EXTRA_SLOTS);
+        assert_eq!(s.buffer.extra_slots[0].hotkey, "Alt+F9");
+        assert_eq!(s.longest_slot_secs(), 120);
+        let s = parse("version = 4\n[[buffer.extra_slots]]\nenabled = true\nseconds = 9999\nhotkey = \"\"\n").unwrap();
+        assert_eq!(s.buffer.extra_slots.len(), EXTRA_SLOTS);
+        assert_eq!(s.longest_slot_secs(), MAX_BUFFER_SECS);
     }
 
     #[test]

@@ -9,6 +9,8 @@ use crossbeam_channel::Sender;
 #[serde(rename_all = "snake_case")]
 pub enum Action {
     SaveClip,
+    /// Save an extra buffer slot (0 = slot B).
+    SaveSlot(u8),
     Marker,
     Screenshot,
     ExtendLast,
@@ -103,13 +105,17 @@ pub fn parse(s: &str) -> Result<Option<Combo>> {
     }
 }
 
-pub fn bindings(h: &crate::settings::Hotkeys) -> Vec<(Action, String)> {
-    vec![
+pub fn bindings(s: &crate::settings::Settings) -> Vec<(Action, String)> {
+    let h = &s.hotkeys;
+    let slots = s.buffer.extra_slots.iter().enumerate().filter(|(_, slot)| slot.enabled);
+    let mut v: Vec<(Action, String)> = slots.map(|(i, slot)| (Action::SaveSlot(i as u8), slot.hotkey.clone())).collect();
+    v.extend([
         (Action::SaveClip, h.save_clip.clone()),
         (Action::Marker, h.marker.clone()),
         (Action::Screenshot, h.screenshot.clone()),
         (Action::ExtendLast, h.extend_last.clone()),
-    ]
+    ]);
+    v
 }
 
 #[cfg(windows)]
@@ -176,10 +182,10 @@ mod win {
         }
 
         /// Replace all registrations. Returns parse errors immediately.
-        pub fn bind(&self, hotkeys: &crate::settings::Hotkeys) -> Vec<String> {
+        pub fn bind(&self, settings: &crate::settings::Settings) -> Vec<String> {
             let mut list = Vec::new();
             let mut errors = Vec::new();
-            for (action, text) in bindings(hotkeys) {
+            for (action, text) in bindings(settings) {
                 match parse(&text) {
                     Ok(Some(c)) => list.push((action, c)),
                     Ok(None) => {}

@@ -13,6 +13,9 @@
 	const capacity = $derived(s?.buffer_secs ?? settings.buffer.seconds);
 	// The buffer keeps a little slack past its length; show what a save would hold.
 	const held = $derived(Math.min(capacity, live ? (s?.buffered_secs ?? 0) : 0));
+	const extraSlots = $derived((s?.slots ?? []).slice(1));
+	// The tape spans the longest slot, since that's how far back the buffer reaches.
+	const reach = $derived(Math.max(capacity, ...extraSlots.map((x) => x.seconds)));
 	const recent = $derived(app.clips.slice(0, 3));
 	const markers = $derived(s?.markers ?? []);
 	const onTape = $derived(live ? markers.filter((m) => m.in_buffer) : []);
@@ -30,6 +33,9 @@
 	const hotkeys = $derived(
 		[
 			{ keys: settings.hotkeys.save_clip, what: `Save the last ${fmtDuration(settings.buffer.seconds)}` },
+			...settings.buffer.extra_slots
+				.filter((x) => x.enabled)
+				.map((x) => ({ keys: x.hotkey, what: `Save the last ${fmtDuration(x.seconds)}` })),
 			{ keys: settings.hotkeys.marker, what: 'Mark this moment' },
 			{ keys: settings.hotkeys.screenshot, what: 'Screenshot' },
 			{ keys: settings.hotkeys.extend_last, what: `Add ${settings.buffer.extend_secs}s before the last clip` }
@@ -57,7 +63,7 @@
 		<div class="counter">
 			<span class="rec" aria-hidden="true"></span>
 			<span class="held num" aria-live="off">Buffer: {Math.floor(held)}s / {capacity}s</span>
-			<span class="of">held in memory</span>
+			<span class="of">{extraSlots.length ? 'slot A, held in memory' : 'held in memory'}</span>
 			{#if markers.length}
 				<button class="markers" aria-expanded={showMarkers} onclick={() => (showMarkers = !showMarkers)}>
 					{markers.length} {markers.length === 1 ? 'marker' : 'markers'}
@@ -65,13 +71,25 @@
 			{/if}
 		</div>
 		<Tape
-			{capacity}
-			buffered={held}
+			capacity={reach}
+			buffered={Math.min(reach, live ? (s?.buffered_secs ?? 0) : 0)}
 			markers={onTape.map((m) => m.ago)}
 			recording={s?.state === 'recording'}
 			keyframeSecs={settings.video.keyframe_secs}
 			onmarker={(i) => run(() => api.saveMarker(onTape[i].id, 30))}
 		/>
+		{#if extraSlots.length}
+			<ul class="slots">
+				{#each extraSlots as x (x.name)}
+					<li>
+						<span class="slot-name">Slot {x.name}</span>
+						<span class="meter" aria-hidden="true"><span style="width: {(x.held / x.seconds) * 100}%"></span></span>
+						<span class="num">Buffer: {Math.floor(x.held)}s / {x.seconds}s</span>
+						{#if x.hotkey}<span class="combo">{#each x.hotkey.split('+') as k, i (i)}<kbd>{k}</kbd>{/each}</span>{/if}
+					</li>
+				{/each}
+			</ul>
+		{/if}
 		{#if showMarkers && markers.length}
 			<MarkerList {markers} maxSecs={capacity} onclip={(id, secs) => run(() => api.saveMarker(id, secs))} />
 		{:else if onTape.length}
@@ -225,6 +243,35 @@
 	.markers:hover,
 	.markers[aria-expanded='true'] {
 		background: var(--line);
+	}
+	.slots {
+		list-style: none;
+		margin: 12px 0 0;
+		padding: 0;
+		display: grid;
+		gap: 6px;
+	}
+	.slots li {
+		display: grid;
+		grid-template-columns: 56px 160px auto 1fr;
+		align-items: center;
+		gap: 12px;
+		color: var(--muted);
+	}
+	.slot-name {
+		color: var(--text);
+		font-weight: 500;
+	}
+	.meter {
+		height: 6px;
+		border-radius: 3px;
+		background: var(--sunken);
+		overflow: hidden;
+	}
+	.meter span {
+		display: block;
+		height: 100%;
+		background: var(--line-strong);
 	}
 	.note {
 		margin: 0;

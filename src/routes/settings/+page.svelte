@@ -59,9 +59,9 @@
 	};
 
 	// Rough RAM use of the encoded buffer, to make the cost of a long buffer visible.
-	const ramEstimate = $derived(
-		Math.round(((s.video.bitrate_kbps * 1000) / 8 / 1e6) * s.buffer.seconds)
-	);
+	// Slots share one buffer, so its size follows the longest enabled one.
+	const longest = $derived(Math.max(s.buffer.seconds, ...s.buffer.extra_slots.filter((x) => x.enabled).map((x) => x.seconds)));
+	const ramEstimate = $derived(Math.round(((s.video.bitrate_kbps * 1000) / 8 / 1e6) * longest));
 
 	function sourceLabel(src: AudioSource) {
 		switch (src.kind) {
@@ -169,6 +169,19 @@
 				<input class="numbox num" type="number" min="10" max="300" value={s.buffer.seconds} onchange={(e) => set((x) => (x.buffer.seconds = Math.min(300, Math.max(10, num(e)))))} aria-label="Buffer length in seconds" />
 				<span class="unit">s</span>
 			</Row>
+			{#each s.buffer.extra_slots as slot, i (i)}
+				<Row label="Slot {'BC'[i]}" hint={slot.enabled ? `Saves the last ${slot.seconds} seconds${slot.hotkey ? ` with ${slot.hotkey}` : ''}. Shares the buffer above, no extra encoding.` : 'Off. A second replay length with its own hotkey.'}>
+					{#if slot.enabled}
+						<input class="numbox num" type="number" min="10" max="300" value={slot.seconds} onchange={(e) => set((x) => (x.buffer.extra_slots[i].seconds = Math.min(300, Math.max(10, num(e)))))} aria-label="Slot {'BC'[i]} length in seconds" />
+						<span class="unit">s</span>
+						<HotkeyInput label="Slot {'BC'[i]} hotkey" value={slot.hotkey} onchange={(v) => set((x) => (x.buffer.extra_slots[i].hotkey = v))} />
+					{/if}
+					<Toggle checked={slot.enabled} label="Use slot {'BC'[i]}" onchange={(v) => set((x) => (x.buffer.extra_slots[i].enabled = v))} />
+				</Row>
+			{/each}
+			{#if ramEstimate > 2048}
+				<p class="warn">The buffer needs about {(ramEstimate / 1024).toFixed(1)} GB of RAM for a {longest}-second slot at this bitrate. Shorten the longest slot or lower the bitrate.</p>
+			{/if}
 			<Row label="Extend last clip by" hint="Footage added before the start of your last clip, if the buffer still has it.">
 				<input class="numbox num" type="number" min="5" max="120" value={s.buffer.extend_secs} onchange={(e) => set((x) => (x.buffer.extend_secs = Math.min(120, Math.max(5, num(e)))))} aria-label="Extend seconds" />
 				<span class="unit">s</span>
@@ -340,7 +353,7 @@
 
 		<section id="hotkeys">
 			<h2>Hotkeys</h2>
-			<Row label="Save clip" hint="Saves the last {s.buffer.seconds} seconds.">
+			<Row label="Save clip" hint="Saves the last {s.buffer.seconds} seconds (slot A). Slots B and C have their hotkeys under Replay buffer.">
 				<HotkeyInput label="Save clip" value={s.hotkeys.save_clip} onchange={(v) => set((x) => (x.hotkeys.save_clip = v))} />
 			</Row>
 			<Row label="Mark this moment" hint="Decide how much to keep later, from the Live tab.">
@@ -533,6 +546,14 @@
 	}
 	.unit {
 		color: var(--faint);
+	}
+	.warn {
+		margin: 0 0 8px;
+		padding: 8px 12px;
+		border-radius: 4px;
+		background: var(--raised);
+		box-shadow: inset 2px 0 0 var(--signal);
+		max-width: 60ch;
 	}
 	.readout {
 		width: 64px;
