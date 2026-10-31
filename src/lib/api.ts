@@ -3,7 +3,6 @@ import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 export type Codec = 'h264' | 'hevc';
 export type EncoderChoice = 'auto' | 'nvenc' | 'amf' | 'qsv' | 'software';
 export type RateControl = 'cbr' | 'vbr' | 'quality';
-export type RecordMode = 'when_game_detected' | 'always' | 'manual';
 export type HdrMode = 'tonemap_to_sdr' | 'passthrough';
 
 export type AudioSource =
@@ -33,7 +32,6 @@ export interface Hotkeys {
 	save_long_clip: string;
 	marker: string;
 	screenshot: string;
-	toggle_pause: string;
 	extend_last: string;
 }
 
@@ -43,7 +41,6 @@ export interface Settings {
 	pro_mode: boolean;
 	theme: 'system' | 'dark' | 'light';
 	clips_dir: string;
-	record_mode: RecordMode;
 	launch_on_startup: boolean;
 	start_minimized: boolean;
 	play_sound_on_save: boolean;
@@ -91,7 +88,6 @@ export interface Status {
 	/** Seconds ago each marker was set. */
 	markers: number[];
 	error: string | null;
-	manual_on: boolean;
 	written_today_gb: number;
 }
 
@@ -145,8 +141,6 @@ export const api = {
 	saveNow: (secs?: number) => invoke<void>('save_clip_now', { secs: secs ?? null }),
 	saveMarker: (index: number, before: number, after: number) =>
 		invoke<void>('save_marker', { index, before, after }),
-	setRecording: (on: boolean) => invoke<void>('set_recording', { on }),
-	togglePause: () => invoke<boolean>('toggle_pause'),
 	screenshot: () => invoke<void>('take_screenshot'),
 	trim: (path: string, from: number, to: number) => invoke<Clip>('trim_clip', { path, from, to }),
 	merge: (paths: string[]) => invoke<Clip>('merge_clips', { paths }),

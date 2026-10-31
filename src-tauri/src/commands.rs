@@ -25,7 +25,8 @@ pub fn get_settings(engine: State<Engine>) -> Settings {
 }
 
 #[tauri::command]
-pub fn set_settings(engine: State<Engine>, settings: Settings) -> R<()> {
+pub fn set_settings(engine: State<Engine>, mut settings: Settings) -> R<()> {
+    settings.sanitize();
     engine.set_settings(settings).map_err(err)
 }
 
@@ -98,16 +99,6 @@ pub fn save_clip_now(engine: State<Engine>, secs: Option<u32>) -> R<()> {
 #[tauri::command]
 pub fn save_marker(engine: State<Engine>, index: usize, before: u32, after: u32) -> R<()> {
     engine.save_marker(index, before, after).map_err(err)
-}
-
-#[tauri::command]
-pub fn set_recording(engine: State<Engine>, on: bool) {
-    engine.set_manual(on);
-}
-
-#[tauri::command]
-pub fn toggle_pause(engine: State<Engine>) -> bool {
-    engine.toggle_pause()
 }
 
 #[tauri::command]

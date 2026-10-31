@@ -10,6 +10,8 @@
 	const settings = $derived(app.settings!);
 	const live = $derived(s?.state === 'recording' || s?.state === 'paused');
 	const capacity = $derived(s?.buffer_secs ?? settings.buffer.seconds);
+	// The buffer keeps a little slack past its length; show what a save would hold.
+	const held = $derived(Math.min(capacity, live ? (s?.buffered_secs ?? 0) : 0));
 	const recent = $derived(app.clips.slice(0, 3));
 
 	async function run(fn: () => Promise<unknown>) {
@@ -30,7 +32,6 @@
 			},
 			{ keys: settings.hotkeys.marker, what: 'Mark this moment' },
 			{ keys: settings.hotkeys.screenshot, what: 'Screenshot' },
-			{ keys: settings.hotkeys.toggle_pause, what: 'Pause or resume' },
 			{ keys: settings.hotkeys.extend_last, what: `Add ${settings.buffer.extend_secs}s to the last clip` }
 		].filter((h): h is { keys: string; what: string } => !!h && !!h.keys)
 	);
@@ -42,52 +43,25 @@
 	<section class="head">
 		<div class="who">
 			<StatusLine status={s} />
-			<h1>
-				{#if s?.game}
-					{s.game}
-				{:else if live}
-					Desktop
-				{:else}
-					Nothing to record yet
-				{/if}
-			</h1>
-			{#if !live && !s?.game}
-				<p class="lede">
-					{#if settings.record_mode === 'manual'}
-						Recording starts when you press Start.
-					{:else if settings.record_mode === 'when_game_detected'}
-						Rewind starts buffering as soon as a game is in focus. Nothing is kept until you save.
-					{:else}
-						Starting capture…
-					{/if}
-				</p>
-			{/if}
+			<h1>{s?.game ?? 'Desktop'}</h1>
+			<p class="lede">
+				The replay buffer runs the whole time Rewind is open. Nothing is kept until you save.
+			</p>
 		</div>
 		<div class="actions">
-			{#if live}
-				<button class="secondary" onclick={() => run(() => api.togglePause())}>
-					{s?.state === 'paused' ? 'Resume' : 'Pause'}
-				</button>
-				{#if s?.manual_on}
-					<button class="secondary" onclick={() => run(() => api.setRecording(false))}>Stop</button>
-				{/if}
-				<button class="primary" onclick={() => run(() => api.saveNow())}>Save clip</button>
-			{:else}
-				<button class="primary" onclick={() => run(() => api.setRecording(true))}>
-					{settings.record_mode === 'manual' ? 'Start' : 'Record desktop now'}
-				</button>
-			{/if}
+			<button class="primary" onclick={() => run(() => api.saveNow())}>Save clip</button>
 		</div>
 	</section>
 
-	<section class="buffer" class:dim={!live} aria-label="Replay buffer">
+	<section class="buffer" aria-label="Replay buffer">
 		<div class="counter">
-			<span class="held num">{fmtDuration(live ? (s?.buffered_secs ?? 0) : 0)}</span>
-			<span class="of">of <span class="num">{fmtDuration(capacity)}</span> held in memory</span>
+			<span class="rec" aria-hidden="true"></span>
+			<span class="held num" aria-live="off">Buffer: {Math.floor(held)}s / {capacity}s</span>
+			<span class="of">held in memory</span>
 		</div>
 		<Tape
 			{capacity}
-			buffered={live ? (s?.buffered_secs ?? 0) : 0}
+			buffered={held}
 			markers={live ? (s?.markers ?? []) : []}
 			recording={s?.state === 'recording'}
 			keyframeSecs={settings.video.keyframe_secs}
@@ -195,8 +169,7 @@
 		flex: none;
 		padding-top: 24px;
 	}
-	button.primary,
-	button.secondary {
+	button.primary {
 		height: 36px;
 		padding: 0 16px;
 		border-radius: 4px;
@@ -208,25 +181,23 @@
 		background: var(--text);
 		color: var(--ground);
 	}
-	.secondary {
-		background: var(--raised);
-		color: var(--text);
-	}
-	.secondary:hover {
-		background: var(--line);
-	}
 
-	.buffer.dim {
-		opacity: 0.5;
-	}
 	.counter {
 		display: flex;
-		align-items: baseline;
+		align-items: center;
 		gap: 12px;
 		margin-bottom: 12px;
 	}
+	/* Always on: the buffer never stops while the app is open. */
+	.rec {
+		flex: none;
+		width: 14px;
+		height: 14px;
+		border-radius: 50%;
+		background: var(--signal);
+	}
 	.held {
-		font-size: 56px;
+		font-size: 40px;
 		line-height: 1;
 		font-weight: 500;
 		letter-spacing: -0.04em;

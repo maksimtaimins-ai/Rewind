@@ -5,16 +5,16 @@
 	let { status, compact = false }: { status: Status | null; compact?: boolean } = $props();
 
 	const line = $derived.by(() => {
-		if (!status) return 'Starting';
+		if (!status) return 'Starting capture';
 		switch (status.state) {
 			case 'recording':
-				return `Recording · ${fmtDuration(status.buffered_secs)} buffered`;
+				return `Buffering · ${fmtDuration(Math.min(status.buffered_secs, status.buffer_secs))} held`;
 			case 'paused':
-				return status.privacy ? 'Paused while a private app is focused' : 'Paused';
+				return 'Paused while a private app is focused';
 			case 'error':
 				return status.error ?? 'Capture failed';
 			default:
-				return 'Waiting for a game';
+				return 'Starting capture';
 		}
 	});
 </script>

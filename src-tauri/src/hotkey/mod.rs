@@ -12,7 +12,6 @@ pub enum Action {
     SaveLongClip,
     Marker,
     Screenshot,
-    TogglePause,
     ExtendLast,
 }
 
@@ -111,7 +110,6 @@ pub fn bindings(h: &crate::settings::Hotkeys) -> Vec<(Action, String)> {
         (Action::SaveLongClip, h.save_long_clip.clone()),
         (Action::Marker, h.marker.clone()),
         (Action::Screenshot, h.screenshot.clone()),
-        (Action::TogglePause, h.toggle_pause.clone()),
         (Action::ExtendLast, h.extend_last.clone()),
     ]
 }

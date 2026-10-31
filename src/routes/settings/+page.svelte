@@ -38,7 +38,7 @@
 	const sections = $derived(
 		[
 			['general', 'General'],
-			['recording', 'Recording'],
+			['recording', 'Replay buffer'],
 			['video', 'Video'],
 			['audio', 'Audio'],
 			['hotkeys', 'Hotkeys'],
@@ -147,7 +147,7 @@
 					onchange={(v) => set((x) => (x.theme = v))}
 				/>
 			</Row>
-			<Row label="Launch when Windows starts" hint="Starts in the tray. Recording still waits for a game.">
+			<Row label="Launch when Windows starts" hint="Starts in the tray with the replay buffer running.">
 				<Toggle checked={s.launch_on_startup} label="Launch when Windows starts" onchange={(v) => set((x) => (x.launch_on_startup = v))} />
 			</Row>
 			<Row label="Open minimized to the tray">
@@ -159,24 +159,13 @@
 		</section>
 
 		<section id="recording">
-			<h2>Recording</h2>
-			<Row label="When to record" hint="Rewind never records around the clock unless you ask it to.">
+			<h2>Replay buffer</h2>
+			<Row label="Buffer length" hint="How far back a saved clip reaches, 10 to 300 seconds. The buffer runs whenever Rewind is open. About {ramEstimate} MB of RAM at this bitrate.">
 				<Segmented
-					label="When to record"
-					value={s.record_mode}
-					options={[
-						{ value: 'when_game_detected', label: 'While gaming' },
-						{ value: 'always', label: 'Always' },
-						{ value: 'manual', label: 'Manually' }
-					]}
-					onchange={(v) => set((x) => (x.record_mode = v))}
-				/>
-			</Row>
-			<Row label="Replay length" hint="How far back a saved clip reaches. About {ramEstimate} MB of RAM at this bitrate.">
-				<Segmented
-					label="Replay length"
+					label="Buffer length"
 					value={s.buffer.seconds}
 					options={[
+						{ value: 10, label: '10s' },
 						{ value: 30, label: '30s' },
 						{ value: 60, label: '1m' },
 						{ value: 120, label: '2m' },
@@ -184,10 +173,8 @@
 					]}
 					onchange={(v) => set((x) => (x.buffer.seconds = v))}
 				/>
-				{#if pro}
-					<input class="numbox num" type="number" min="5" max="1800" value={s.buffer.seconds} onchange={(e) => set((x) => (x.buffer.seconds = num(e)))} aria-label="Replay length in seconds" />
-					<span class="unit">s</span>
-				{/if}
+				<input class="numbox num" type="number" min="10" max="300" value={s.buffer.seconds} onchange={(e) => set((x) => (x.buffer.seconds = Math.min(300, Math.max(10, num(e)))))} aria-label="Buffer length in seconds" />
+				<span class="unit">s</span>
 			</Row>
 			{#if pro}
 				<Row label="Second replay length" hint="A longer save bound to its own hotkey. Shares the same memory, no extra encoding. 0 turns it off.">
@@ -376,9 +363,6 @@
 			</Row>
 			<Row label="Screenshot">
 				<HotkeyInput label="Screenshot" value={s.hotkeys.screenshot} onchange={(v) => set((x) => (x.hotkeys.screenshot = v))} />
-			</Row>
-			<Row label="Pause or resume" hint="Nothing is captured while paused.">
-				<HotkeyInput label="Pause" value={s.hotkeys.toggle_pause} onchange={(v) => set((x) => (x.hotkeys.toggle_pause = v))} />
 			</Row>
 			{#if pro}
 				<Row label="Save second replay length" hint={s.buffer.long_seconds ? `Saves the last ${s.buffer.long_seconds} seconds.` : 'Set a second replay length under Recording first.'}>

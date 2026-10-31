@@ -10,6 +10,10 @@ use serde::{Deserialize, Serialize};
 
 pub const SETTINGS_VERSION: u32 = 1;
 
+/// Allowed range for [`BufferSettings::seconds`].
+pub const MIN_BUFFER_SECS: u32 = 10;
+pub const MAX_BUFFER_SECS: u32 = 300;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Codec {
@@ -36,17 +40,6 @@ pub enum RateControl {
     Vbr,
     /// Constant quality; `quality` (1-100) is used instead of bitrate.
     Quality,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum RecordMode {
-    /// Buffer only while a known game (or a fullscreen app) is in the foreground.
-    WhenGameDetected,
-    /// Buffer whenever the app is running.
-    Always,
-    /// Buffer only after the user presses "Start".
-    Manual,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -86,7 +79,6 @@ pub struct Hotkeys {
     pub save_long_clip: String,
     pub marker: String,
     pub screenshot: String,
-    pub toggle_pause: String,
     pub extend_last: String,
 }
 
@@ -144,7 +136,6 @@ pub struct Settings {
     /// "system" | "dark" | "light"
     pub theme: String,
     pub clips_dir: PathBuf,
-    pub record_mode: RecordMode,
     pub launch_on_startup: bool,
     pub start_minimized: bool,
     pub play_sound_on_save: bool,
@@ -167,7 +158,6 @@ impl Default for Settings {
             pro_mode: false,
             theme: "system".into(),
             clips_dir: default_clips_dir(),
-            record_mode: RecordMode::WhenGameDetected,
             launch_on_startup: false,
             start_minimized: false,
             play_sound_on_save: true,
@@ -185,7 +175,7 @@ impl Default for Settings {
                 hdr: HdrMode::TonemapToSdr,
             },
             buffer: BufferSettings {
-                seconds: 60,
+                seconds: 30,
                 long_seconds: 0,
                 post_roll_secs: 0,
                 max_memory_mb: 1024,
@@ -211,7 +201,6 @@ impl Default for Settings {
                 save_long_clip: String::new(),
                 marker: "Alt+F7".into(),
                 screenshot: "Alt+F12".into(),
-                toggle_pause: "Alt+F11".into(),
                 extend_last: String::new(),
             },
             profiles: Vec::new(),
@@ -259,7 +248,16 @@ pub fn parse(text: &str) -> Result<Settings> {
     // Unknown/missing fields: merge onto defaults so new fields get default values.
     let mut merged = toml::Table::try_from(Settings::default())?;
     merge(&mut merged, value);
-    Ok(merged.try_into()?)
+    let mut s: Settings = merged.try_into()?;
+    s.sanitize();
+    Ok(s)
+}
+
+impl Settings {
+    /// Clamp values the engine relies on into their supported ranges.
+    pub fn sanitize(&mut self) {
+        self.buffer.seconds = self.buffer.seconds.clamp(MIN_BUFFER_SECS, MAX_BUFFER_SECS);
+    }
 }
 
 /// Upgrade an older settings table in place to [`SETTINGS_VERSION`].
@@ -320,6 +318,28 @@ mod tests {
         let s = parse("pro_mode = true\n").unwrap();
         assert!(s.pro_mode);
         assert_eq!(s.version, SETTINGS_VERSION);
+    }
+
+    #[test]
+    fn buffer_length_clamped() {
+        assert_eq!(parse("version = 1
+[buffer]
+seconds = 2
+").unwrap().buffer.seconds, MIN_BUFFER_SECS);
+        assert_eq!(parse("version = 1
+[buffer]
+seconds = 9000
+").unwrap().buffer.seconds, MAX_BUFFER_SECS);
+    }
+
+    #[test]
+    fn legacy_record_mode_ignored() {
+        let s = parse("version = 1
+record_mode = \"manual\"
+[hotkeys]
+toggle_pause = \"Alt+F11\"
+").unwrap();
+        assert_eq!(s.hotkeys.save_clip, "Alt+F8");
     }
 
     #[test]

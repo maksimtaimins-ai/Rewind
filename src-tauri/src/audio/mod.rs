@@ -15,7 +15,6 @@ use parking_lot::Mutex;
 
 use crate::buffer::{AudioConfig, Packet, ReplayBuffer, TICKS_PER_SEC};
 use crate::mux::codec::aac_asc;
-use crate::pipeline::Flags;
 use crate::platform::{find_pid, qpc_now};
 use crate::settings::{AudioSource, AudioTrack};
 use wasapi::{Capture, Source, CHANNELS, SAMPLE_RATE};
@@ -120,7 +119,7 @@ fn resolve(source: &AudioSource) -> Option<Source> {
     })
 }
 
-pub fn start_track(track: &AudioTrack, buffer: Arc<Mutex<ReplayBuffer>>, flags: Arc<Flags>) -> Result<AudioTrackHandle> {
+pub fn start_track(track: &AudioTrack, buffer: Arc<Mutex<ReplayBuffer>>) -> Result<AudioTrackHandle> {
     let index = buffer.lock().add_audio_track(AudioConfig {
         name: track.name.clone(),
         sample_rate: SAMPLE_RATE,
@@ -133,7 +132,7 @@ pub fn start_track(track: &AudioTrack, buffer: Arc<Mutex<ReplayBuffer>>, flags: 
     let track = track.clone();
     let thread = std::thread::Builder::new().name(format!("rewind-audio-{}", track.name)).spawn(move || {
         crate::platform::com_init();
-        if let Err(e) = run_track(&track, index, &buffer, &flags, &st) {
+        if let Err(e) = run_track(&track, index, &buffer, &st) {
             tracing::error!("audio track {} stopped: {e:#}", track.name);
         }
     })?;
@@ -144,7 +143,6 @@ fn run_track(
     track: &AudioTrack,
     index: usize,
     buffer: &Mutex<ReplayBuffer>,
-    flags: &Flags,
     stop: &AtomicBool,
 ) -> Result<()> {
     let mut tl = Timeline {
@@ -177,10 +175,8 @@ fn run_track(
 
         let mut err = None;
         if let Some(cap) = capture.as_mut() {
-            let paused = flags.paused.load(Ordering::Relaxed);
             let r = cap.read(Duration::from_millis(20), &mut |chunk| {
-                let samples = if paused { None } else { chunk.samples };
-                if let Err(e) = tl.push(chunk.qpc, samples, chunk.frames) {
+                if let Err(e) = tl.push(chunk.qpc, chunk.samples, chunk.frames) {
                     err = Some(e);
                 }
             });

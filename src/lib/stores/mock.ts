@@ -8,7 +8,6 @@ export function mockSettings(): Settings {
 		pro_mode: false,
 		theme: 'system',
 		clips_dir: 'C:\\Users\\you\\AppData\\Roaming\\Rewind\\Clips',
-		record_mode: 'when_game_detected',
 		launch_on_startup: false,
 		start_minimized: false,
 		play_sound_on_save: true,
@@ -25,7 +24,7 @@ export function mockSettings(): Settings {
 			capture_cursor: true,
 			hdr: 'tonemap_to_sdr'
 		},
-		buffer: { seconds: 60, long_seconds: 0, post_roll_secs: 0, max_memory_mb: 1024, extend_secs: 15 },
+		buffer: { seconds: 30, long_seconds: 0, post_roll_secs: 0, max_memory_mb: 1024, extend_secs: 15 },
 		audio: [
 			{ name: 'Desktop', enabled: true, source: { kind: 'system' }, volume: 1 },
 			{ name: 'Microphone', enabled: false, source: { kind: 'mic', device_id: null }, volume: 1 },
@@ -36,7 +35,6 @@ export function mockSettings(): Settings {
 			save_long_clip: '',
 			marker: 'Alt+F7',
 			screenshot: 'Alt+F12',
-			toggle_pause: 'Alt+F11',
 			extend_last: ''
 		},
 		profiles: [],
@@ -48,8 +46,8 @@ export function mockSettings(): Settings {
 export function mockStatus(): Status {
 	return {
 		state: 'recording',
-		buffered_secs: 47.3,
-		buffer_secs: 60,
+		buffered_secs: 24.3,
+		buffer_secs: 30,
 		fps: 59.9,
 		bitrate_kbps: 18420,
 		dropped: 0,
@@ -60,7 +58,6 @@ export function mockStatus(): Status {
 		privacy: false,
 		markers: [12.4, 31],
 		error: null,
-		manual_on: false,
 		written_today_gb: 0.31
 	};
 }

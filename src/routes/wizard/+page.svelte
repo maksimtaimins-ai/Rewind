@@ -127,6 +127,7 @@
 					label="Replay length"
 					value={s.buffer.seconds}
 					options={[
+						{ value: 10, label: '10s' },
 						{ value: 30, label: '30s' },
 						{ value: 60, label: '1m' },
 						{ value: 120, label: '2m' },
@@ -152,20 +153,10 @@
 			</div>
 		{:else}
 			<h1>Ready</h1>
-			<p class="lede">Choose when Rewind keeps the replay buffer running. You can change this in Settings.</p>
-			<div class="choices" role="radiogroup" aria-label="When to record">
-				{#each [{ v: 'when_game_detected', t: 'While a game is running', d: 'Recommended. Starts with fullscreen games and known titles, stops when they close.' }, { v: 'always', t: 'Always', d: 'Keeps the buffer running whenever Rewind is open.' }, { v: 'manual', t: 'Only when I start it', d: 'Nothing is captured until you press Start.' }] as c (c.v)}
-					<button
-						role="radio"
-						aria-checked={s.record_mode === c.v}
-						class:on={s.record_mode === c.v}
-						onclick={() => updateSettings((x) => (x.record_mode = c.v as typeof x.record_mode))}
-					>
-						<span class="t">{c.t}</span>
-						<span class="d">{c.d}</span>
-					</button>
-				{/each}
-			</div>
+			<p class="lede">
+				The replay buffer is already running and keeps the last {s.buffer.seconds} seconds in memory while Rewind is open.
+				Press {s.hotkeys.save_clip} any time to save them. Nothing touches the disk until you do.
+			</p>
 			<div class="nav">
 				<button class="secondary" onclick={() => (step = 2)}>Back</button>
 				<button class="primary" onclick={finish}>Start using Rewind</button>
@@ -274,30 +265,6 @@
 		text-overflow: ellipsis;
 		white-space: nowrap;
 		color: var(--muted);
-	}
-	.choices {
-		display: grid;
-		gap: 8px;
-	}
-	.choices button {
-		text-align: left;
-		padding: 12px 16px;
-		border: 1px solid var(--line);
-		border-radius: 4px;
-		background: transparent;
-		cursor: pointer;
-		display: grid;
-		gap: 4px;
-	}
-	.choices button.on {
-		border-color: var(--text);
-	}
-	.t {
-		font-weight: 600;
-	}
-	.d {
-		color: var(--muted);
-		font-size: 13px;
 	}
 	.nav {
 		display: flex;

@@ -20,15 +20,16 @@ use crate::mux;
 use crate::pipeline::{FrameGrab, Flags, Pipeline, PipelineConfig};
 use crate::platform::{self, qpc_now, ImageFormat};
 use crate::profiles::{self, Detector, Game};
-use crate::settings::{self, RecordMode, Settings};
+use crate::settings::{self, Settings};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum State {
-    /// Not recording; waiting for a game (or for the user in manual mode).
+    /// Pipeline not running yet (starting up, or restarting after a settings change).
     Idle,
+    /// Replay buffer is filling.
     Recording,
-    /// Recording, but frames are being dropped (pause hotkey / privacy app).
+    /// Buffer running, but frames are being dropped while a privacy app has focus.
     Paused,
     Error,
 }
@@ -48,7 +49,6 @@ pub struct Status {
     pub privacy: bool,
     pub markers: Vec<f64>,
     pub error: Option<String>,
-    pub manual_on: bool,
     pub written_today_gb: f64,
 }
 
@@ -89,7 +89,6 @@ struct Inner {
     pipeline: Mutex<Option<Pipeline>>,
     encoders: Mutex<Vec<EncoderInfo>>,
     events: Box<dyn Events>,
-    manual_on: AtomicBool,
     restart: AtomicBool,
     game: Mutex<Option<Game>>,
     markers: Mutex<Vec<i64>>,
@@ -113,7 +112,7 @@ impl Engine {
         platform::com_init();
         encode::mf::mf_startup();
         let settings = settings::load();
-        tracing::info!("settings: mode {:?}, first run done {}, clips {}", settings.record_mode, settings.first_run_complete, settings.clips_dir.display());
+        tracing::info!("settings: buffer {}s, first run done {}, clips {}", settings.buffer.seconds, settings.first_run_complete, settings.clips_dir.display());
         let (save_tx, save_rx) = unbounded();
         let inner = Arc::new(Inner {
             buffer: Arc::new(Mutex::new(ReplayBuffer::new(1, MB))),
@@ -121,7 +120,6 @@ impl Engine {
             pipeline: Mutex::new(None),
             encoders: Mutex::new(Vec::new()),
             events,
-            manual_on: AtomicBool::new(false),
             restart: AtomicBool::new(false),
             game: Mutex::new(None),
             markers: Mutex::new(Vec::new()),
@@ -220,16 +218,6 @@ impl Engine {
         encode::benchmark(&list, w, h, per.max(0.4))
     }
 
-    pub fn set_manual(&self, on: bool) {
-        self.inner.manual_on.store(on, Ordering::Relaxed);
-    }
-
-    pub fn toggle_pause(&self) -> bool {
-        let p = !self.inner.flags.paused.load(Ordering::Relaxed);
-        self.inner.flags.paused.store(p, Ordering::Relaxed);
-        p
-    }
-
     pub fn shutdown(&self) {
         self.inner.shutdown.store(true, Ordering::Relaxed);
         if let Some(mut p) = self.inner.pipeline.lock().take() {
@@ -248,11 +236,6 @@ impl Engine {
             }
             Action::Marker => self.add_marker(),
             Action::Screenshot => self.screenshot(),
-            Action::TogglePause => {
-                let p = self.toggle_pause();
-                self.inner.events.notice(Level::Info, if p { "Buffer paused" } else { "Buffer resumed" });
-                Ok(())
-            }
             Action::ExtendLast => self.extend_last(),
         };
         if let Err(e) = r {
@@ -277,7 +260,7 @@ impl Engine {
         let s = self.inner.settings.read().clone();
         let pipeline = self.inner.pipeline.lock();
         let Some(p) = pipeline.as_ref() else {
-            return Err(anyhow!("Not recording right now"));
+            return Err(anyhow!("Capture is still starting"));
         };
         let now = qpc_now();
         let secs = secs.unwrap_or(s.buffer.seconds) as i64;
@@ -309,7 +292,7 @@ impl Engine {
 
     fn add_marker(&self) -> Result<()> {
         if self.inner.pipeline.lock().is_none() {
-            return Err(anyhow!("Not recording right now"));
+            return Err(anyhow!("Capture is still starting"));
         }
         self.inner.markers.lock().push(qpc_now());
         self.inner.events.notice(Level::Info, "Marker set");
@@ -327,7 +310,7 @@ impl Engine {
     pub fn screenshot(&self) -> Result<()> {
         let rx = {
             let p = self.inner.pipeline.lock();
-            p.as_ref().ok_or_else(|| anyhow!("Not recording right now"))?.request_frame()
+            p.as_ref().ok_or_else(|| anyhow!("Capture is still starting"))?.request_frame()
         };
         let dir = self.clips_dir()?.join("Screenshots");
         let path = library::unique_path(&dir, &self.clip_stem(), "png");
@@ -435,21 +418,7 @@ impl Engine {
             privacy: self.inner.flags.privacy.load(Ordering::Relaxed),
             markers,
             error,
-            manual_on: self.inner.manual_on.load(Ordering::Relaxed),
             written_today_gb: self.inner.written_today.load(Ordering::Relaxed) as f64 / 1e9,
-        }
-    }
-
-    fn should_record(&self, s: &Settings) -> bool {
-        if !s.first_run_complete {
-            return false;
-        }
-        match s.record_mode {
-            RecordMode::Always => true,
-            RecordMode::Manual => self.inner.manual_on.load(Ordering::Relaxed),
-            RecordMode::WhenGameDetected => {
-                self.inner.game.lock().is_some() || self.inner.manual_on.load(Ordering::Relaxed)
-            }
         }
     }
 
@@ -522,7 +491,7 @@ impl Engine {
                 *self.inner.game.lock() = g;
             }
 
-            let want = self.should_record(&s);
+            // The buffer is always on while the app runs; saving never starts or stops it.
             let running = self.inner.pipeline.lock().is_some();
             if self.inner.restart.swap(false, Ordering::Relaxed) && running {
                 if let Some(mut p) = self.inner.pipeline.lock().take() {
@@ -531,7 +500,7 @@ impl Engine {
                 *self.inner.error.lock() = None;
             }
             let running = self.inner.pipeline.lock().is_some();
-            if want && !running && Instant::now() >= retry_after {
+            if !running && Instant::now() >= retry_after {
                 match self.start_pipeline(&s) {
                     Ok(p) => {
                         tracing::info!("recording: {} at {}x{}", p.encoder_name, p.output.0, p.output.1);
@@ -548,11 +517,6 @@ impl Engine {
                         retry_after = Instant::now() + Duration::from_secs(10);
                     }
                 }
-            } else if !want && running {
-                if let Some(mut p) = self.inner.pipeline.lock().take() {
-                    p.stop();
-                }
-                self.inner.buffer.lock().clear();
             }
 
             if last_status.elapsed() >= Duration::from_millis(500) {

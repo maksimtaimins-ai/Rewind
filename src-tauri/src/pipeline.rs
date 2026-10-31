@@ -19,15 +19,13 @@ use crate::settings::AudioTrack;
 /// Flags the engine flips while the pipeline runs.
 #[derive(Default)]
 pub struct Flags {
-    /// User pressed pause (privacy hotkey).
-    pub paused: AtomicBool,
     /// A privacy-listed app has focus.
     pub privacy: AtomicBool,
 }
 
 impl Flags {
     pub fn blocked(&self) -> bool {
-        self.paused.load(Ordering::Relaxed) || self.privacy.load(Ordering::Relaxed)
+        self.privacy.load(Ordering::Relaxed)
     }
 }
 
@@ -129,7 +127,7 @@ impl Pipeline {
 
         let mut audio = Vec::new();
         for track in cfg.audio.iter().filter(|t| t.enabled) {
-            match audio::start_track(track, buffer.clone(), flags.clone()) {
+            match audio::start_track(track, buffer.clone()) {
                 Ok(h) => audio.push(h),
                 Err(e) => tracing::warn!("audio track {}: {e:#}", track.name),
             }

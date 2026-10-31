@@ -26,9 +26,11 @@ impl Events for UiEvents {
         let _ = self.0.emit("status", status);
         if let Some(tray) = self.0.tray_by_id("main") {
             let text = match status.state {
-                engine::State::Recording => format!("Rewind · Recording · {:.0}s buffered", status.buffered_secs),
-                engine::State::Paused => "Rewind · Paused".to_string(),
-                engine::State::Idle => "Rewind · Waiting for a game".to_string(),
+                engine::State::Recording => {
+                    format!("Rewind · Buffer {:.0}s / {}s", status.buffered_secs.min(status.buffer_secs as f64), status.buffer_secs)
+                }
+                engine::State::Paused => "Rewind · Paused while a private app is focused".to_string(),
+                engine::State::Idle => "Rewind · Starting capture".to_string(),
                 engine::State::Error => "Rewind · Error".to_string(),
             };
             let _ = tray.set_tooltip(Some(text));
@@ -59,11 +61,10 @@ fn show_main(app: &AppHandle) {
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let open = MenuItem::with_id(app, "open", "Open Rewind", true, None::<&str>)?;
     let save = MenuItem::with_id(app, "save", "Save clip", true, None::<&str>)?;
-    let pause = MenuItem::with_id(app, "pause", "Pause / resume buffer", true, None::<&str>)?;
     let folder = MenuItem::with_id(app, "folder", "Open clips folder", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit Rewind", true, None::<&str>)?;
     let sep = PredefinedMenuItem::separator(app)?;
-    let menu = Menu::with_items(app, &[&open, &save, &pause, &folder, &sep, &quit])?;
+    let menu = Menu::with_items(app, &[&open, &save, &folder, &sep, &quit])?;
     TrayIconBuilder::with_id("main")
         .icon(app.default_window_icon().cloned().expect("app icon"))
         .tooltip("Rewind")
@@ -74,7 +75,6 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
             match event.id.as_ref() {
                 "open" => show_main(app),
                 "save" => engine.handle(hotkey::Action::SaveClip),
-                "pause" => engine.handle(hotkey::Action::TogglePause),
                 "folder" => {
                     let dir = engine.clips_dir_path();
                     let _ = std::fs::create_dir_all(&dir);
@@ -118,6 +118,8 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .setup(move |app| {
             let handle = app.handle().clone();
+            // Starts the always-on capture -> encode -> replay buffer pipeline on
+            // background threads. It runs until the app quits; saving only reads it.
             let engine = Engine::start(Box::new(UiEvents(handle.clone())));
             let settings = engine.settings();
             app.manage(engine);
@@ -150,8 +152,6 @@ pub fn run() {
             commands::clips_dir,
             commands::save_clip_now,
             commands::save_marker,
-            commands::set_recording,
-            commands::toggle_pause,
             commands::take_screenshot,
             commands::trim_clip,
             commands::merge_clips,
