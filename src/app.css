@@ -1,0 +1,123 @@
+@import '@fontsource-variable/schibsted-grotesk';
+@import '@fontsource/martian-mono/400.css';
+@import '@fontsource/martian-mono/500.css';
+@import 'tailwindcss';
+
+/* Tokens. Dark is the default; light follows the system unless the user picks. */
+:root {
+	--ground: #141517;
+	--raised: #1b1c1f;
+	--sunken: #0f1012;
+	--line: #2a2b2f;
+	--line-strong: #3a3b40;
+	--text: #e7e7e5;
+	--muted: #8b8c90;
+	--faint: #5a5b60;
+	--signal: #ff4d3d; /* recording only */
+	color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+	--ground: #f4f5f6;
+	--raised: #eaebed;
+	--sunken: #e4e5e8;
+	--line: #d9dadd;
+	--line-strong: #c4c5c9;
+	--text: #17181a;
+	--muted: #63656b;
+	--faint: #9a9ca1;
+	--signal: #e5352a;
+	color-scheme: light;
+}
+
+@media (prefers-color-scheme: light) {
+	:root:not([data-theme='dark']) {
+		--ground: #f4f5f6;
+		--raised: #eaebed;
+		--sunken: #e4e5e8;
+		--line: #d9dadd;
+		--line-strong: #c4c5c9;
+		--text: #17181a;
+		--muted: #63656b;
+		--faint: #9a9ca1;
+		--signal: #e5352a;
+		color-scheme: light;
+	}
+}
+
+@theme inline {
+	--color-ground: var(--ground);
+	--color-raised: var(--raised);
+	--color-sunken: var(--sunken);
+	--color-line: var(--line);
+	--color-line-strong: var(--line-strong);
+	--color-text: var(--text);
+	--color-muted: var(--muted);
+	--color-faint: var(--faint);
+	--color-signal: var(--signal);
+	--font-sans: 'Schibsted Grotesk Variable', system-ui, sans-serif;
+	--font-mono: 'Martian Mono', ui-monospace, monospace;
+}
+
+html,
+body {
+	height: 100%;
+	margin: 0;
+	background: var(--ground);
+	color: var(--text);
+	font-family: var(--font-sans);
+	font-size: 14px;
+	line-height: 1.45;
+	-webkit-font-smoothing: antialiased;
+	user-select: none;
+	overflow: hidden;
+}
+
+/* Numbers are always mono and tabular. */
+.num {
+	font-family: var(--font-mono);
+	font-variant-numeric: tabular-nums;
+	font-size: 0.86em;
+	letter-spacing: -0.01em;
+}
+
+:focus-visible {
+	outline: 2px solid var(--text);
+	outline-offset: 2px;
+	border-radius: 4px;
+}
+
+input,
+select,
+button,
+textarea {
+	font: inherit;
+	color: inherit;
+}
+
+input[type='text'],
+input[type='number'],
+select {
+	user-select: text;
+}
+
+::-webkit-scrollbar {
+	width: 8px;
+	height: 8px;
+}
+::-webkit-scrollbar-thumb {
+	background: var(--line);
+	border-radius: 4px;
+}
+::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		transition-duration: 0.01ms !important;
+	}
+}
