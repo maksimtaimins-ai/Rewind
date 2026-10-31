@@ -55,7 +55,11 @@ export function mockStatus(): Status {
 		resolution: [2580, 1080],
 		game: 'Counter-Strike 2',
 		privacy: false,
-		markers: [12.4, 31],
+		markers: [
+			{ id: 1, ago: 340, at_ms: Date.now() - 340e3, in_buffer: false },
+			{ id: 2, ago: 21.6, at_ms: Date.now() - 21.6e3, in_buffer: true },
+			{ id: 3, ago: 8.2, at_ms: Date.now() - 8.2e3, in_buffer: true }
+		],
 		error: null,
 		written_today_gb: 0.31
 	};

@@ -47,9 +47,50 @@ pub struct Status {
     pub resolution: Option<(u32, u32)>,
     pub game: Option<String>,
     pub privacy: bool,
-    pub markers: Vec<f64>,
+    pub markers: Vec<MarkerInfo>,
     pub error: Option<String>,
     pub written_today_gb: f64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct MarkerInfo {
+    pub id: u64,
+    /// Seconds since the marker was set.
+    pub ago: f64,
+    /// Wall clock, Unix milliseconds.
+    pub at_ms: i64,
+    /// The buffer still holds footage at the marker.
+    pub in_buffer: bool,
+}
+
+#[derive(Clone, Copy)]
+struct Marker {
+    id: u64,
+    at: i64,
+    at_ms: i64,
+}
+
+/// Where a marker clip of `len` ticks lands: centred on `at`, then shifted
+/// into what the buffer holds (`[start, end]`). `None` when the marker itself
+/// is older than the buffer. The flag says the window had to move.
+fn marker_window(at: i64, len: i64, start: i64, end: i64) -> Option<(i64, i64, bool)> {
+    if at < start || start >= end {
+        return None;
+    }
+    let mut from = at - len / 2;
+    let mut to = from + len;
+    let mut shifted = false;
+    if to > end {
+        to = end;
+        from = end - len;
+        shifted = true;
+    }
+    if from < start {
+        from = start;
+        to = (start + len).min(end);
+        shifted = true;
+    }
+    Some((from, to, shifted))
 }
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
@@ -91,7 +132,10 @@ struct Inner {
     events: Box<dyn Events>,
     restart: AtomicBool,
     game: Mutex<Option<Game>>,
-    markers: Mutex<Vec<i64>>,
+    /// Markers set this session. Kept until the app quits, even once their
+    /// footage has left the buffer.
+    markers: Mutex<Vec<Marker>>,
+    next_marker: AtomicU64,
     last_save: Mutex<Option<LastSave>>,
     save_tx: Sender<SaveJob>,
     error: Mutex<Option<String>>,
@@ -125,6 +169,7 @@ impl Engine {
             restart: AtomicBool::new(false),
             game: Mutex::new(None),
             markers: Mutex::new(Vec::new()),
+            next_marker: AtomicU64::new(1),
             last_save: Mutex::new(None),
             save_tx,
             error: Mutex::new(None),
@@ -280,12 +325,23 @@ impl Engine {
         Ok(())
     }
 
-    /// Save the `secs` (at most the buffer length) ending at a marker.
-    pub fn save_marker(&self, index: usize, secs: u32) -> Result<()> {
-        let at = *self.inner.markers.lock().get(index).ok_or_else(|| anyhow!("Marker no longer in the buffer"))?;
+    /// Save `secs` (at most the buffer length) around a marker, or as close to
+    /// it as the buffer still holds.
+    pub fn save_marker(&self, id: u64, secs: u32) -> Result<()> {
+        let m = self.inner.markers.lock().iter().find(|m| m.id == id).copied().ok_or_else(|| anyhow!("Unknown marker"))?;
+        let held = {
+            let b = self.inner.buffer.lock();
+            b.earliest_pts().zip(b.latest_pts())
+        };
+        let (start, end) = held.ok_or_else(|| anyhow!("Nothing in the buffer to save yet"))?;
+        let (from, to, shifted) = marker_window(m.at, self.clip_ticks(Some(secs)), start, end)
+            .ok_or_else(|| anyhow!("That marker is older than the buffer, so its footage is gone"))?;
+        if shifted {
+            self.inner.events.notice(Level::Warning, "The buffer doesn't reach far enough on one side, so the clip is shifted to what it still holds");
+        }
         let job = SaveJob {
-            from: at - self.clip_ticks(Some(secs)),
-            to: at,
+            from,
+            to,
             path: library::unique_path(&self.clips_dir()?, &format!("{} marker", self.clip_stem()), "mp4"),
             thumb: None,
             replaces: false,
@@ -298,7 +354,9 @@ impl Engine {
         if self.inner.pipeline.lock().is_none() {
             return Err(anyhow!("Capture is still starting"));
         }
-        self.inner.markers.lock().push(qpc_now());
+        let id = self.inner.next_marker.fetch_add(1, Ordering::Relaxed);
+        let at_ms = chrono::Local::now().timestamp_millis();
+        self.inner.markers.lock().push(Marker { id, at: qpc_now(), at_ms });
         self.inner.events.notice(Level::Info, "Marker set");
         Ok(())
     }
@@ -391,12 +449,19 @@ impl Engine {
         let pipeline = self.inner.pipeline.lock();
         let buf = self.inner.buffer.lock();
         let paused = self.inner.flags.blocked();
+        let start = buf.earliest_pts();
+        let now = qpc_now();
         let markers = self
             .inner
             .markers
             .lock()
             .iter()
-            .map(|&m| (qpc_now() - m) as f64 / TICKS_PER_SEC as f64)
+            .map(|m| MarkerInfo {
+                id: m.id,
+                ago: (now - m.at) as f64 / TICKS_PER_SEC as f64,
+                at_ms: m.at_ms,
+                in_buffer: pipeline.is_some() && start.is_some_and(|s| m.at >= s),
+            })
             .collect();
         // Read once: a guard in the tail expression would live until the end of
         // the struct literal and deadlock a second lock below.
@@ -445,7 +510,6 @@ impl Engine {
         // Slack past the clip length: GOP rounding, plus room for "extend last clip".
         let keep = buffer_secs + s.buffer.extend_secs + 2;
         *self.inner.buffer.lock() = ReplayBuffer::new(keep, s.buffer.max_memory_mb as usize * MB);
-        self.inner.markers.lock().clear();
         Pipeline::start(
             PipelineConfig {
                 monitor,
@@ -538,10 +602,6 @@ impl Engine {
                 let kbps = bytes.saturating_sub(last_bytes) as f64 * 8.0 / 1000.0 / dt;
                 last_frames = frames;
                 last_bytes = bytes;
-                // Drop markers that have fallen out of the buffer.
-                let window = self.inner.buffer.lock().buffered_ticks();
-                let now = qpc_now();
-                self.inner.markers.lock().retain(|&m| now - m <= window);
                 self.inner.events.status(&self.build_status(fps, kbps));
             }
             std::thread::sleep(Duration::from_millis(250));
@@ -599,4 +659,23 @@ fn load_usage() -> u64 {
 fn save_usage(bytes: u64) {
     let today = chrono::Local::now().format("%Y-%m-%d").to_string();
     let _ = settings::write_atomic(&usage_path(), serde_json::json!({ "date": today, "bytes": bytes }).to_string().as_bytes());
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const S: i64 = TICKS_PER_SEC;
+
+    #[test]
+    fn marker_window_centres_and_shifts() {
+        // Buffer holds 100..200 s.
+        assert_eq!(marker_window(150 * S, 30 * S, 100 * S, 200 * S), Some((135 * S, 165 * S, false)));
+        // Too close to now: shifted back to end at the newest frame.
+        assert_eq!(marker_window(195 * S, 30 * S, 100 * S, 200 * S), Some((170 * S, 200 * S, true)));
+        // Near the oldest frame: shifted forward.
+        assert_eq!(marker_window(105 * S, 30 * S, 100 * S, 200 * S), Some((100 * S, 130 * S, true)));
+        // Older than the buffer.
+        assert_eq!(marker_window(90 * S, 30 * S, 100 * S, 200 * S), None);
+    }
 }

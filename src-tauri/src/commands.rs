@@ -97,8 +97,8 @@ pub fn save_clip_now(engine: State<Engine>, secs: Option<u32>) -> R<()> {
 }
 
 #[tauri::command]
-pub fn save_marker(engine: State<Engine>, index: usize, secs: u32) -> R<()> {
-    engine.save_marker(index, secs).map_err(err)
+pub fn save_marker(engine: State<Engine>, id: u64, secs: u32) -> R<()> {
+    engine.save_marker(id, secs).map_err(err)
 }
 
 #[tauri::command]

@@ -165,6 +165,11 @@ impl ReplayBuffer {
         self.video.last_end()
     }
 
+    /// Timestamp of the oldest video frame held.
+    pub fn earliest_pts(&self) -> Option<i64> {
+        self.video.packets.front().map(|p| p.pts)
+    }
+
     /// Drop whole GOPs from the front while the remainder still covers the window
     /// (or while over the memory cap).
     fn trim(&mut self) {

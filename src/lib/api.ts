@@ -83,10 +83,20 @@ export interface Status {
 	resolution: [number, number] | null;
 	game: string | null;
 	privacy: boolean;
-	/** Seconds ago each marker was set. */
-	markers: number[];
+	/** Markers set this session, oldest first. */
+	markers: MarkerInfo[];
 	error: string | null;
 	written_today_gb: number;
+}
+
+export interface MarkerInfo {
+	id: number;
+	/** Seconds since it was set. */
+	ago: number;
+	/** Unix milliseconds. */
+	at_ms: number;
+	/** The buffer still holds footage at the marker. */
+	in_buffer: boolean;
 }
 
 export interface Clip {
@@ -137,7 +147,7 @@ export const api = {
 	deleteClips: (paths: string[]) => invoke<void>('delete_clips', { paths }),
 	clipsDir: () => invoke<string>('clips_dir'),
 	saveNow: (secs?: number) => invoke<void>('save_clip_now', { secs: secs ?? null }),
-	saveMarker: (index: number, secs: number) => invoke<void>('save_marker', { index, secs }),
+	saveMarker: (id: number, secs: number) => invoke<void>('save_marker', { id, secs }),
 	screenshot: () => invoke<void>('take_screenshot'),
 	trim: (path: string, from: number, to: number) => invoke<Clip>('trim_clip', { path, from, to }),
 	merge: (paths: string[]) => invoke<Clip>('merge_clips', { paths }),

@@ -4,6 +4,7 @@
 	import Tape from '#lib/components/Tape.svelte';
 	import StatusLine from '#lib/components/StatusLine.svelte';
 	import ClipTile from '#lib/components/ClipTile.svelte';
+	import MarkerList from '#lib/components/MarkerList.svelte';
 	import { goto } from '$app/navigation';
 
 	const s = $derived(app.status);
@@ -13,6 +14,9 @@
 	// The buffer keeps a little slack past its length; show what a save would hold.
 	const held = $derived(Math.min(capacity, live ? (s?.buffered_secs ?? 0) : 0));
 	const recent = $derived(app.clips.slice(0, 3));
+	const markers = $derived(s?.markers ?? []);
+	const onTape = $derived(live ? markers.filter((m) => m.in_buffer) : []);
+	let showMarkers = $state(false);
 
 	async function run(fn: () => Promise<unknown>) {
 		if (!inApp) return;
@@ -54,17 +58,24 @@
 			<span class="rec" aria-hidden="true"></span>
 			<span class="held num" aria-live="off">Buffer: {Math.floor(held)}s / {capacity}s</span>
 			<span class="of">held in memory</span>
+			{#if markers.length}
+				<button class="markers" aria-expanded={showMarkers} onclick={() => (showMarkers = !showMarkers)}>
+					{markers.length} {markers.length === 1 ? 'marker' : 'markers'}
+				</button>
+			{/if}
 		</div>
 		<Tape
 			{capacity}
 			buffered={held}
-			markers={live ? (s?.markers ?? []) : []}
+			markers={onTape.map((m) => m.ago)}
 			recording={s?.state === 'recording'}
 			keyframeSecs={settings.video.keyframe_secs}
-			onmarker={(i) => run(() => api.saveMarker(i, 20))}
+			onmarker={(i) => run(() => api.saveMarker(onTape[i].id, 30))}
 		/>
-		{#if live && s?.markers.length}
-			<p class="note">Click a marker to save the 20 seconds leading up to it.</p>
+		{#if showMarkers && markers.length}
+			<MarkerList {markers} maxSecs={capacity} onclip={(id, secs) => run(() => api.saveMarker(id, secs))} />
+		{:else if onTape.length}
+			<p class="note">Click a marker to save 30 seconds around it.</p>
 		{/if}
 	</section>
 
@@ -200,6 +211,20 @@
 	}
 	.of {
 		color: var(--muted);
+	}
+	.markers {
+		margin-left: auto;
+		height: 28px;
+		padding: 0 12px;
+		border: 0;
+		border-radius: 4px;
+		background: var(--raised);
+		font-weight: 500;
+		cursor: pointer;
+	}
+	.markers:hover,
+	.markers[aria-expanded='true'] {
+		background: var(--line);
 	}
 	.note {
 		margin: 0;
