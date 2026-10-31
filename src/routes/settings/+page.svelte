@@ -359,7 +359,7 @@
 			<Row label="Mark this moment" hint="Decide how much to keep later, from the Live tab.">
 				<HotkeyInput label="Marker" value={s.hotkeys.marker} onchange={(v) => set((x) => (x.hotkeys.marker = v))} />
 			</Row>
-			<Row label="Screenshot">
+			<Row label="Screenshot" hint="Saves the current frame as a PNG in your clips folder.">
 				<HotkeyInput label="Screenshot" value={s.hotkeys.screenshot} onchange={(v) => set((x) => (x.hotkeys.screenshot = v))} />
 			</Row>
 			<Row label="Extend last clip" hint="Adds {s.buffer.extend_secs} seconds before the start of your last clip and replaces it.">

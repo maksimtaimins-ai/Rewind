@@ -166,6 +166,22 @@ impl Gpu {
         tex.ok_or_else(|| anyhow!("CreateTexture2D returned null"))
     }
 
+    /// Copy `src` into `dst`, (re)creating `dst` when the size or format differs.
+    pub fn copy_into(&self, src: &ID3D11Texture2D, dst: &mut Option<ID3D11Texture2D>) -> Result<()> {
+        let mut desc = D3D11_TEXTURE2D_DESC::default();
+        unsafe { src.GetDesc(&mut desc) };
+        let fits = dst.as_ref().is_some_and(|d| {
+            let mut dd = D3D11_TEXTURE2D_DESC::default();
+            unsafe { d.GetDesc(&mut dd) };
+            (dd.Width, dd.Height, dd.Format) == (desc.Width, desc.Height, desc.Format)
+        });
+        if !fits {
+            *dst = Some(self.texture(desc.Width, desc.Height, desc.Format, D3D11_BIND_FLAG(0))?);
+        }
+        unsafe { self.context.CopyResource(dst.as_ref().unwrap(), src) };
+        Ok(())
+    }
+
     /// Copy a BGRA texture to CPU memory as tightly packed BGRA rows.
     pub fn read_bgra(&self, tex: &ID3D11Texture2D) -> Result<(u32, u32, Vec<u8>)> {
         let mut desc = D3D11_TEXTURE2D_DESC::default();

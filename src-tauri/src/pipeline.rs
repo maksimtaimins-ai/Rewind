@@ -13,7 +13,7 @@ use crate::buffer::{ReplayBuffer, TICKS_PER_SEC};
 use crate::capture::wgc::{self, WgcSession};
 use crate::capture::{CaptureSession, MonitorInfo};
 use crate::encode::{self, EncoderEvent, EncoderHandle, EncoderInfo, EncoderParams, EncoderStats};
-use crate::gpu::{output_size, Converter, Gpu};
+use crate::gpu::{output_size, Converter, Gpu, SendPtr};
 use crate::settings::AudioTrack;
 
 /// Flags the engine flips while the pipeline runs.
@@ -48,6 +48,10 @@ pub struct Pipeline {
     pub output: (u32, u32),
     pub encoder_name: String,
     grab: Arc<Mutex<Vec<Sender<FrameGrab>>>>,
+    /// GPU copy of the newest recorded frame, so a screenshot works even when
+    /// the screen is static and capture delivers no new frames.
+    latest: Arc<Mutex<SendPtr<Option<ID3D11Texture2D>>>>,
+    gpu: Gpu,
 }
 
 impl Pipeline {
@@ -81,6 +85,8 @@ impl Pipeline {
         let gpu_cb = gpu.clone();
         let fps = params.fps;
         let flags_cb = flags.clone();
+        let latest: Arc<Mutex<SendPtr<Option<ID3D11Texture2D>>>> = Arc::new(Mutex::new(SendPtr(None)));
+        let latest_cb = latest.clone();
         let on_frame: wgc::FrameCallback = Box::new(move |tex: &ID3D11Texture2D, pts: i64| {
             // Screenshot/thumbnail requests get the full-res frame even when paced out.
             let waiting: Vec<_> = std::mem::take(&mut *grab_ref.lock());
@@ -100,6 +106,10 @@ impl Pipeline {
                 return;
             }
             next_due = if pts - next_due > interval { pts + interval } else { next_due + interval };
+
+            if let Err(e) = gpu_cb.copy_into(tex, &mut latest_cb.lock().0) {
+                tracing::warn!("keep latest frame: {e:#}");
+            }
 
             let mut desc = D3D11_TEXTURE2D_DESC::default();
             unsafe { tex.GetDesc(&mut desc) };
@@ -141,6 +151,8 @@ impl Pipeline {
             output: out,
             encoder_name: cfg.encoder.name.clone(),
             grab,
+            latest,
+            gpu,
         })
     }
 
@@ -149,6 +161,12 @@ impl Pipeline {
         let (tx, rx) = crossbeam_channel::bounded(1);
         self.grab.lock().push(tx);
         rx
+    }
+
+    /// The newest recorded frame as BGRA, if any frame has arrived yet.
+    pub fn latest_frame(&self) -> Option<FrameGrab> {
+        let latest = self.latest.lock();
+        latest.0.as_ref().and_then(|t| self.gpu.read_bgra(t).ok())
     }
 
     pub fn stop(&mut self) {

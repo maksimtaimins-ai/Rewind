@@ -402,23 +402,32 @@ impl Engine {
         Ok(())
     }
 
+    /// Save the current frame as `Screenshot <date> <time>.png` in the clips folder.
     pub fn screenshot(&self) -> Result<()> {
+        if self.inner.flags.blocked() {
+            return Err(anyhow!("Screenshots are paused while a private app is focused"));
+        }
         let rx = {
             let p = self.inner.pipeline.lock();
             p.as_ref().ok_or_else(|| anyhow!("Capture is still starting"))?.request_frame()
         };
-        let dir = self.clips_dir()?.join("Screenshots");
-        let path = library::unique_path(&dir, &self.clip_stem(), "png");
-        let events = self.inner.clone();
+        let stem = format!("Screenshot {}", chrono::Local::now().format("%Y-%m-%d %H-%M-%S"));
+        let path = library::unique_path(&self.clips_dir()?, &stem, "png");
+        let inner = self.inner.clone();
         std::thread::spawn(move || {
             platform::com_init();
-            let r = rx
-                .recv_timeout(Duration::from_secs(2))
-                .map_err(|_| anyhow!("No new frame to capture (screen hasn't changed)"))
+            // A fresh frame if one arrives quickly; otherwise the screen is
+            // static and the newest recorded frame is what's on it.
+            let frame = rx
+                .recv_timeout(Duration::from_millis(250))
+                .ok()
+                .or_else(|| inner.pipeline.lock().as_ref().and_then(|p| p.latest_frame()));
+            let r = frame
+                .ok_or_else(|| anyhow!("No frame captured yet"))
                 .and_then(|(w, h, px)| platform::write_image(&path, w, h, &px, ImageFormat::Png));
             match r {
-                Ok(()) => events.events.notice(Level::Success, &format!("Screenshot saved: {}", path.display())),
-                Err(e) => events.events.notice(Level::Error, &format!("Screenshot failed: {e:#}")),
+                Ok(()) => inner.events.notice(Level::Success, "Screenshot saved"),
+                Err(e) => inner.events.notice(Level::Error, &format!("Screenshot failed: {e:#}")),
             }
         });
         Ok(())
