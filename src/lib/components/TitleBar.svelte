@@ -53,8 +53,8 @@
 		color: var(--text);
 	}
 	.close:hover {
-		background: #c42b1c;
-		color: #fff;
+		background: var(--danger);
+		color: var(--on-danger);
 	}
 	svg {
 		width: 10px;

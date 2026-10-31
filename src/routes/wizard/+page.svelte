@@ -281,8 +281,8 @@
 		cursor: pointer;
 	}
 	.primary {
-		background: var(--text);
-		color: var(--ground);
+		background: var(--accent);
+		color: var(--on-accent);
 	}
 	.primary:disabled {
 		background: var(--line);

@@ -7,6 +7,7 @@
 	import TitleBar from '#lib/components/TitleBar.svelte';
 	import Rail from '#lib/components/Rail.svelte';
 	import Toasts from '#lib/components/Toasts.svelte';
+	import { apply as applyTheme, resolve as resolveTheme, SYSTEM } from '#lib/themes.ts';
 
 	let { children } = $props();
 
@@ -14,10 +15,18 @@
 		init();
 	});
 
+	// Windows light/dark, tracked live for the "Follow system" theme.
+	let prefersLight = $state(false);
+	onMount(() => {
+		const mq = matchMedia('(prefers-color-scheme: light)');
+		prefersLight = mq.matches;
+		const on = (e: MediaQueryListEvent) => (prefersLight = e.matches);
+		mq.addEventListener('change', on);
+		return () => mq.removeEventListener('change', on);
+	});
+
 	$effect(() => {
-		const theme = app.settings?.theme ?? 'system';
-		if (theme === 'system') delete document.documentElement.dataset.theme;
-		else document.documentElement.dataset.theme = theme;
+		applyTheme(resolveTheme(app.settings?.theme ?? SYSTEM, prefersLight));
 	});
 
 	$effect(() => {

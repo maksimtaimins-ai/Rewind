@@ -242,7 +242,7 @@
 		color: var(--muted);
 	}
 	.player {
-		background: #000;
+		background: var(--media);
 		border-radius: 4px;
 		overflow: hidden;
 		aspect-ratio: 16 / 9;
@@ -293,7 +293,7 @@
 		bottom: 0;
 		width: 4px;
 		margin-left: -2px;
-		background: var(--text);
+		background: var(--accent);
 		border-radius: 2px;
 	}
 	.head {
@@ -350,8 +350,8 @@
 		cursor: pointer;
 	}
 	.primary {
-		background: var(--text);
-		color: var(--ground);
+		background: var(--accent);
+		color: var(--on-accent);
 	}
 	.primary:disabled {
 		background: var(--line);

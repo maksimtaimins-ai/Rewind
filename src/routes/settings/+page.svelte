@@ -7,6 +7,7 @@
 	import Toggle from '#lib/components/Toggle.svelte';
 	import Segmented from '#lib/components/Segmented.svelte';
 	import HotkeyInput from '#lib/components/HotkeyInput.svelte';
+	import ThemePicker from '#lib/components/ThemePicker.svelte';
 
 	const s = $derived(app.settings!);
 	const pro = $derived(s.pro_mode);
@@ -135,18 +136,10 @@
 	<div class="body">
 		<section id="general">
 			<h2>General</h2>
-			<Row label="Appearance">
-				<Segmented
-					label="Appearance"
-					value={s.theme}
-					options={[
-						{ value: 'system', label: 'System' },
-						{ value: 'dark', label: 'Dark' },
-						{ value: 'light', label: 'Light' }
-					]}
-					onchange={(v) => set((x) => (x.theme = v))}
-				/>
-			</Row>
+			<div class="block">
+				<div class="block-label">Theme</div>
+				<ThemePicker value={s.theme} onchange={(v) => set((x) => (x.theme = v))} />
+			</div>
 			<Row label="Launch when Windows starts" hint="Starts in the tray with the replay buffer running.">
 				<Toggle checked={s.launch_on_startup} label="Launch when Windows starts" onchange={(v) => set((x) => (x.launch_on_startup = v))} />
 			</Row>
@@ -509,6 +502,13 @@
 		font-weight: 600;
 		letter-spacing: -0.01em;
 	}
+	.block {
+		padding: 12px 0 16px;
+	}
+	.block-label {
+		font-weight: 500;
+		margin-bottom: 12px;
+	}
 	.intro {
 		color: var(--muted);
 		margin: 0 0 12px;
@@ -542,7 +542,7 @@
 	}
 	input[type='range'] {
 		width: 160px;
-		accent-color: var(--text);
+		accent-color: var(--accent);
 	}
 	.secondary {
 		height: 32px;

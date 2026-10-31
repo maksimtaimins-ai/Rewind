@@ -129,7 +129,7 @@ pub struct Settings {
     pub version: u32,
     pub first_run_complete: bool,
     pub pro_mode: bool,
-    /// "system" | "dark" | "light"
+    /// "system" (follow Windows light/dark) or a theme id from the UI's theme list.
     pub theme: String,
     pub clips_dir: PathBuf,
     pub launch_on_startup: bool,

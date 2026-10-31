@@ -38,7 +38,8 @@ export interface Settings {
 	version: number;
 	first_run_complete: boolean;
 	pro_mode: boolean;
-	theme: 'system' | 'dark' | 'light';
+	/** 'system' or a theme id from themes.ts. */
+	theme: string;
 	clips_dir: string;
 	launch_on_startup: boolean;
 	start_minimized: boolean;

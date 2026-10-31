@@ -58,7 +58,7 @@
 		cursor: pointer;
 	}
 	.selected .frame {
-		outline: 2px solid var(--text);
+		outline: 2px solid var(--accent);
 		outline-offset: 2px;
 	}
 	img,
@@ -77,8 +77,8 @@
 		bottom: 8px;
 		padding: 2px 4px;
 		border-radius: 4px;
-		background: rgb(0 0 0 / 0.72);
-		color: #fff;
+		background: var(--scrim);
+		color: var(--on-scrim);
 		font-size: 11px;
 	}
 	.check {
@@ -90,14 +90,15 @@
 		display: grid;
 		place-items: center;
 		border-radius: 4px;
-		border: 2px solid #fff;
-		background: rgb(0 0 0 / 0.4);
-		color: #fff;
+		border: 2px solid var(--on-scrim);
+		background: var(--scrim-soft);
+		color: var(--on-scrim);
 		font-size: 12px;
 	}
 	.selected .check {
-		background: #fff;
-		color: #000;
+		background: var(--accent);
+		border-color: var(--accent);
+		color: var(--on-accent);
 	}
 	.meta {
 		padding: 8px 0 0;

@@ -3,7 +3,8 @@
 @import '@fontsource/martian-mono/500.css';
 @import 'tailwindcss';
 
-/* Tokens. Dark is the default; light follows the system unless the user picks. */
+/* Tokens. Dark values are the default until the saved theme loads; every
+   theme (src/lib/themes.ts) overrides these on <html>. */
 :root {
 	--ground: #141517;
 	--raised: #1b1c1f;
@@ -13,25 +14,22 @@
 	--text: #e7e7e5;
 	--muted: #8b8c90;
 	--faint: #5a5b60;
+	--accent: #e7e7e5;
+	--on-accent: #141517;
+	--accent-2: #e7e7e5;
 	--signal: #ff4d3d; /* recording only */
+	/* Theme-independent: overlays on video frames and the window close button. */
+	--media: #000;
+	--scrim: rgb(0 0 0 / 0.72);
+	--scrim-soft: rgb(0 0 0 / 0.4);
+	--on-scrim: #fff;
+	--danger: #c42b1c;
+	--on-danger: #fff;
 	color-scheme: dark;
 }
 
-:root[data-theme='light'] {
-	--ground: #f4f5f6;
-	--raised: #eaebed;
-	--sunken: #e4e5e8;
-	--line: #d9dadd;
-	--line-strong: #c4c5c9;
-	--text: #17181a;
-	--muted: #63656b;
-	--faint: #9a9ca1;
-	--signal: #e5352a;
-	color-scheme: light;
-}
-
 @media (prefers-color-scheme: light) {
-	:root:not([data-theme='dark']) {
+	:root {
 		--ground: #f4f5f6;
 		--raised: #eaebed;
 		--sunken: #e4e5e8;
@@ -40,6 +38,9 @@
 		--text: #17181a;
 		--muted: #63656b;
 		--faint: #9a9ca1;
+		--accent: #17181a;
+		--on-accent: #f4f5f6;
+		--accent-2: #17181a;
 		--signal: #e5352a;
 		color-scheme: light;
 	}
@@ -55,6 +56,8 @@
 	--color-muted: var(--muted);
 	--color-faint: var(--faint);
 	--color-signal: var(--signal);
+	--color-accent: var(--accent);
+	--color-on-accent: var(--on-accent);
 	--font-sans: 'Schibsted Grotesk Variable', system-ui, sans-serif;
 	--font-mono: 'Martian Mono', ui-monospace, monospace;
 }
@@ -82,7 +85,7 @@ body {
 }
 
 :focus-visible {
-	outline: 2px solid var(--text);
+	outline: 2px solid var(--accent);
 	outline-offset: 2px;
 	border-radius: 4px;
 }

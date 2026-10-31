@@ -114,7 +114,7 @@
 		bottom: 0;
 		width: 2px;
 		margin-left: -1px;
-		background: var(--text);
+		background: var(--accent-2);
 	}
 	.marker::after {
 		content: '';
@@ -123,7 +123,7 @@
 		top: 0;
 		margin-left: -6px;
 		border: 6px solid transparent;
-		border-top-color: var(--text);
+		border-top-color: var(--accent-2);
 	}
 	.scale {
 		position: relative;
