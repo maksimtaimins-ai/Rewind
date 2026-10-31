@@ -2,7 +2,7 @@
 //! hotkeys, and writes clips on a background thread so capture never blocks.
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -98,6 +98,8 @@ struct Inner {
     hotkeys: Mutex<Option<HotkeyThread>>,
     written_today: AtomicU64,
     shutdown: AtomicBool,
+    /// Buffer length in effect (a game profile may override the setting).
+    buffer_secs: AtomicU32,
 }
 
 #[derive(Clone)]
@@ -129,6 +131,7 @@ impl Engine {
             hotkeys: Mutex::new(None),
             written_today: AtomicU64::new(load_usage()),
             shutdown: AtomicBool::new(false),
+            buffer_secs: AtomicU32::new(settings.buffer.seconds),
             settings: RwLock::new(settings),
         });
         let engine = Engine { inner };
@@ -230,10 +233,6 @@ impl Engine {
         tracing::info!("action {action:?}");
         let r = match action {
             Action::SaveClip => self.save_clip(None),
-            Action::SaveLongClip => {
-                let secs = self.inner.settings.read().buffer.long_seconds;
-                if secs == 0 { Ok(()) } else { self.save_clip(Some(secs)) }
-            }
             Action::Marker => self.add_marker(),
             Action::Screenshot => self.screenshot(),
             Action::ExtendLast => self.extend_last(),
@@ -255,18 +254,23 @@ impl Engine {
         Ok(dir)
     }
 
-    /// Save the last `secs` (default: buffer length) plus post-roll.
+    /// Clip length for a request: the buffer length, or less when asked.
+    fn clip_ticks(&self, secs: Option<u32>) -> i64 {
+        let max = self.inner.buffer_secs.load(Ordering::Relaxed);
+        secs.unwrap_or(max).clamp(1, max) as i64 * TICKS_PER_SEC
+    }
+
+    /// Save the last `secs` (default and maximum: the buffer length), ending at
+    /// the keypress.
     pub fn save_clip(&self, secs: Option<u32>) -> Result<()> {
-        let s = self.inner.settings.read().clone();
         let pipeline = self.inner.pipeline.lock();
         let Some(p) = pipeline.as_ref() else {
             return Err(anyhow!("Capture is still starting"));
         };
         let now = qpc_now();
-        let secs = secs.unwrap_or(s.buffer.seconds) as i64;
         let job = SaveJob {
-            from: now - secs * TICKS_PER_SEC,
-            to: now + s.buffer.post_roll_secs as i64 * TICKS_PER_SEC,
+            from: now - self.clip_ticks(secs),
+            to: now,
             path: library::unique_path(&self.clips_dir()?, &self.clip_stem(), "mp4"),
             thumb: Some(p.request_frame()),
             replaces: false,
@@ -276,12 +280,12 @@ impl Engine {
         Ok(())
     }
 
-    /// Save around a marker: `before` seconds before it to `after` seconds after.
-    pub fn save_marker(&self, index: usize, before: u32, after: u32) -> Result<()> {
+    /// Save the `secs` (at most the buffer length) ending at a marker.
+    pub fn save_marker(&self, index: usize, secs: u32) -> Result<()> {
         let at = *self.inner.markers.lock().get(index).ok_or_else(|| anyhow!("Marker no longer in the buffer"))?;
         let job = SaveJob {
-            from: at - before as i64 * TICKS_PER_SEC,
-            to: at + after as i64 * TICKS_PER_SEC,
+            from: at - self.clip_ticks(Some(secs)),
+            to: at,
             path: library::unique_path(&self.clips_dir()?, &format!("{} marker", self.clip_stem()), "mp4"),
             thumb: None,
             replaces: false,
@@ -330,8 +334,8 @@ impl Engine {
     }
 
     fn run_save(&self, job: SaveJob) {
-        // Wait for post-roll to land in the buffer. A static screen produces no
-        // new frames, so give up shortly after the target time either way.
+        // Wait for the frames up to the keypress to land in the buffer. A static
+        // screen produces no new frames, so give up shortly after either way.
         let grace = TICKS_PER_SEC / 4;
         loop {
             let reached = self.inner.buffer.lock().latest_pts().is_some_and(|p| p >= job.to);
@@ -340,7 +344,7 @@ impl Engine {
             }
             std::thread::sleep(Duration::from_millis(30));
         }
-        let snapshot = self.inner.buffer.lock().snapshot(job.from, job.to);
+        let snapshot = self.inner.buffer.lock().snapshot_within(job.from, job.to);
         let Some(snap) = snapshot else {
             self.inner.events.notice(Level::Error, "Nothing in the buffer to save yet");
             return;
@@ -384,7 +388,6 @@ impl Engine {
     }
 
     fn build_status(&self, fps: f64, kbps: f64) -> Status {
-        let s = self.inner.settings.read();
         let pipeline = self.inner.pipeline.lock();
         let buf = self.inner.buffer.lock();
         let paused = self.inner.flags.blocked();
@@ -407,7 +410,7 @@ impl Engine {
                 _ => State::Idle,
             },
             buffered_secs: buf.buffered_ticks() as f64 / TICKS_PER_SEC as f64,
-            buffer_secs: s.buffer.seconds,
+            buffer_secs: self.inner.buffer_secs.load(Ordering::Relaxed),
             fps,
             bitrate_kbps: kbps,
             dropped: pipeline.as_ref().map(|p| p.stats.dropped.load(Ordering::Relaxed)).unwrap_or(0),
@@ -438,7 +441,9 @@ impl Engine {
             .or_else(|| encode::pick(&list, crate::settings::EncoderChoice::Auto, v.codec))
             .ok_or_else(|| anyhow!("No video encoder available for {:?}", v.codec))?;
         let buffer_secs = profile.as_ref().and_then(|p| p.buffer_seconds).unwrap_or(s.buffer.seconds);
-        let keep = buffer_secs.max(s.buffer.long_seconds) + s.buffer.post_roll_secs + s.buffer.extend_secs + 2;
+        self.inner.buffer_secs.store(buffer_secs, Ordering::Relaxed);
+        // Slack past the clip length: GOP rounding, plus room for "extend last clip".
+        let keep = buffer_secs + s.buffer.extend_secs + 2;
         *self.inner.buffer.lock() = ReplayBuffer::new(keep, s.buffer.max_memory_mb as usize * MB);
         self.inner.markers.lock().clear();
         Pipeline::start(

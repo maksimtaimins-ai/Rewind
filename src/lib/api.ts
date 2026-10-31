@@ -29,7 +29,6 @@ export interface GameProfile {
 
 export interface Hotkeys {
 	save_clip: string;
-	save_long_clip: string;
 	marker: string;
 	screenshot: string;
 	extend_last: string;
@@ -59,8 +58,6 @@ export interface Settings {
 	};
 	buffer: {
 		seconds: number;
-		long_seconds: number;
-		post_roll_secs: number;
 		max_memory_mb: number;
 		extend_secs: number;
 	};
@@ -139,8 +136,7 @@ export const api = {
 	deleteClips: (paths: string[]) => invoke<void>('delete_clips', { paths }),
 	clipsDir: () => invoke<string>('clips_dir'),
 	saveNow: (secs?: number) => invoke<void>('save_clip_now', { secs: secs ?? null }),
-	saveMarker: (index: number, before: number, after: number) =>
-		invoke<void>('save_marker', { index, before, after }),
+	saveMarker: (index: number, secs: number) => invoke<void>('save_marker', { index, secs }),
 	screenshot: () => invoke<void>('take_screenshot'),
 	trim: (path: string, from: number, to: number) => invoke<Clip>('trim_clip', { path, from, to }),
 	merge: (paths: string[]) => invoke<Clip>('merge_clips', { paths }),

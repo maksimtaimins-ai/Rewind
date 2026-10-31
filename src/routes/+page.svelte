@@ -26,10 +26,6 @@
 	const hotkeys = $derived(
 		[
 			{ keys: settings.hotkeys.save_clip, what: `Save the last ${fmtDuration(settings.buffer.seconds)}` },
-			settings.buffer.long_seconds > 0 && {
-				keys: settings.hotkeys.save_long_clip,
-				what: `Save the last ${fmtDuration(settings.buffer.long_seconds)}`
-			},
 			{ keys: settings.hotkeys.marker, what: 'Mark this moment' },
 			{ keys: settings.hotkeys.screenshot, what: 'Screenshot' },
 			{ keys: settings.hotkeys.extend_last, what: `Add ${settings.buffer.extend_secs}s to the last clip` }
@@ -65,10 +61,10 @@
 			markers={live ? (s?.markers ?? []) : []}
 			recording={s?.state === 'recording'}
 			keyframeSecs={settings.video.keyframe_secs}
-			onmarker={(i) => run(() => api.saveMarker(i, 20, 5))}
+			onmarker={(i) => run(() => api.saveMarker(i, 20))}
 		/>
 		{#if live && s?.markers.length}
-			<p class="note">Click a marker to save 20 seconds before it and 5 after.</p>
+			<p class="note">Click a marker to save the 20 seconds leading up to it.</p>
 		{/if}
 	</section>
 

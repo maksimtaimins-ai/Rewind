@@ -3,7 +3,7 @@ import type { Clip, Settings, Status } from '#lib/api.ts';
 
 export function mockSettings(): Settings {
 	return {
-		version: 1,
+		version: 2,
 		first_run_complete: true,
 		pro_mode: false,
 		theme: 'system',
@@ -24,7 +24,7 @@ export function mockSettings(): Settings {
 			capture_cursor: true,
 			hdr: 'tonemap_to_sdr'
 		},
-		buffer: { seconds: 30, long_seconds: 0, post_roll_secs: 0, max_memory_mb: 1024, extend_secs: 15 },
+		buffer: { seconds: 30, max_memory_mb: 1024, extend_secs: 15 },
 		audio: [
 			{ name: 'Desktop', enabled: true, source: { kind: 'system' }, volume: 1 },
 			{ name: 'Microphone', enabled: false, source: { kind: 'mic', device_id: null }, volume: 1 },
@@ -32,7 +32,6 @@ export function mockSettings(): Settings {
 		],
 		hotkeys: {
 			save_clip: 'Alt+F8',
-			save_long_clip: '',
 			marker: 'Alt+F7',
 			screenshot: 'Alt+F12',
 			extend_last: ''

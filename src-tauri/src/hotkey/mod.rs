@@ -9,7 +9,6 @@ use crossbeam_channel::Sender;
 #[serde(rename_all = "snake_case")]
 pub enum Action {
     SaveClip,
-    SaveLongClip,
     Marker,
     Screenshot,
     ExtendLast,
@@ -107,7 +106,6 @@ pub fn parse(s: &str) -> Result<Option<Combo>> {
 pub fn bindings(h: &crate::settings::Hotkeys) -> Vec<(Action, String)> {
     vec![
         (Action::SaveClip, h.save_clip.clone()),
-        (Action::SaveLongClip, h.save_long_clip.clone()),
         (Action::Marker, h.marker.clone()),
         (Action::Screenshot, h.screenshot.clone()),
         (Action::ExtendLast, h.extend_last.clone()),

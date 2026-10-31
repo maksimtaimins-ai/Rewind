@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-pub const SETTINGS_VERSION: u32 = 1;
+pub const SETTINGS_VERSION: u32 = 2;
 
 /// Allowed range for [`BufferSettings::seconds`].
 pub const MIN_BUFFER_SECS: u32 = 10;
@@ -76,7 +76,6 @@ pub struct AudioTrack {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Hotkeys {
     pub save_clip: String,
-    pub save_long_clip: String,
     pub marker: String,
     pub screenshot: String,
     pub extend_last: String,
@@ -104,12 +103,9 @@ pub struct VideoSettings {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BufferSettings {
-    /// Main replay length in seconds.
+    /// Replay length in seconds. A saved clip is the last `seconds` ending at
+    /// the keypress, never longer.
     pub seconds: u32,
-    /// Second, longer buffer bound to `hotkeys.save_long_clip` (0 = off).
-    pub long_seconds: u32,
-    /// Seconds kept recording after the hotkey before the clip is written.
-    pub post_roll_secs: u32,
     /// Hard RAM ceiling for the encoded buffer, MiB.
     pub max_memory_mb: u32,
     /// Seconds added by the "extend last clip" hotkey.
@@ -176,8 +172,6 @@ impl Default for Settings {
             },
             buffer: BufferSettings {
                 seconds: 30,
-                long_seconds: 0,
-                post_roll_secs: 0,
                 max_memory_mb: 1024,
                 extend_secs: 15,
             },
@@ -198,7 +192,6 @@ impl Default for Settings {
             ],
             hotkeys: Hotkeys {
                 save_clip: "Alt+F8".into(),
-                save_long_clip: String::new(),
                 marker: "Alt+F7".into(),
                 screenshot: "Alt+F12".into(),
                 extend_last: String::new(),
@@ -265,6 +258,17 @@ fn migrate(value: &mut toml::Table) -> Result<()> {
     let version = value.get("version").and_then(|v| v.as_integer()).unwrap_or(0) as u32;
     anyhow::ensure!(version <= SETTINGS_VERSION, "settings from a newer Rewind (v{version})");
     // v0 -> v1: files written before versioning existed. Shape is identical.
+    // v1 -> v2: clip length is the buffer length; post-roll and the second
+    // replay length are gone.
+    if version < 2 {
+        if let Some(toml::Value::Table(b)) = value.get_mut("buffer") {
+            b.remove("post_roll_secs");
+            b.remove("long_seconds");
+        }
+        if let Some(toml::Value::Table(h)) = value.get_mut("hotkeys") {
+            h.remove("save_long_clip");
+        }
+    }
     value.insert("version".into(), toml::Value::Integer(SETTINGS_VERSION as i64));
     Ok(())
 }
@@ -340,6 +344,22 @@ record_mode = \"manual\"
 toggle_pause = \"Alt+F11\"
 ").unwrap();
         assert_eq!(s.hotkeys.save_clip, "Alt+F8");
+    }
+
+    #[test]
+    fn v1_post_roll_dropped() {
+        let s = parse("version = 1
+[buffer]
+seconds = 45
+post_roll_secs = 10
+long_seconds = 600
+[hotkeys]
+save_long_clip = \"Alt+F9\"
+").unwrap();
+        assert_eq!(s.buffer.seconds, 45);
+        assert_eq!(s.version, 2);
+        let text = toml::to_string_pretty(&s).unwrap();
+        assert!(!text.contains("post_roll") && !text.contains("long_seconds") && !text.contains("save_long_clip"));
     }
 
     #[test]

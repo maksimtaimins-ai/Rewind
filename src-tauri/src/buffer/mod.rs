@@ -201,12 +201,28 @@ impl ReplayBuffer {
     /// Copy out `[from, to)`. `from` snaps back to the nearest keyframe at or
     /// before it so the clip decodes; returns `None` when there's no video yet.
     pub fn snapshot(&self, from: i64, to: i64) -> Option<Snapshot> {
-        let cfg = self.video_config.clone()?;
         let pk = &self.video.packets;
         let start_idx = pk
             .iter()
             .rposition(|p| p.keyframe && p.pts <= from)
             .or_else(|| pk.iter().position(|p| p.keyframe))?;
+        self.snapshot_from(start_idx, to)
+    }
+
+    /// Like [`snapshot`](Self::snapshot), but `from` snaps forward to the next
+    /// keyframe so the clip never runs longer than `to - from`.
+    pub fn snapshot_within(&self, from: i64, to: i64) -> Option<Snapshot> {
+        let pk = &self.video.packets;
+        let start_idx = pk
+            .iter()
+            .position(|p| p.keyframe && p.pts >= from && p.pts < to)
+            .or_else(|| pk.iter().rposition(|p| p.keyframe && p.pts <= from))?;
+        self.snapshot_from(start_idx, to)
+    }
+
+    fn snapshot_from(&self, start_idx: usize, to: i64) -> Option<Snapshot> {
+        let cfg = self.video_config.clone()?;
+        let pk = &self.video.packets;
         let video: Vec<Packet> = pk.iter().skip(start_idx).take_while(|p| p.pts < to).cloned().collect();
         if video.is_empty() {
             return None;
@@ -277,5 +293,18 @@ mod tests {
         assert_eq!(s.start(), 3 * TICKS_PER_SEC);
         assert!(s.video[0].keyframe);
         assert_eq!(s.end(), 8 * TICKS_PER_SEC);
+    }
+
+    #[test]
+    fn snapshot_within_never_exceeds_length() {
+        // Buffer holds more than the clip length (slack); the clip must not.
+        let mut b = ReplayBuffer::new(60, usize::MAX);
+        b.set_video_config(cfg());
+        fill(&mut b, 40);
+        let to = 40 * TICKS_PER_SEC;
+        let s = b.snapshot_within(to - 105 * TICKS_PER_SEC / 10, to).unwrap();
+        assert!(s.video[0].keyframe);
+        assert!(s.end() - s.start() <= 105 * TICKS_PER_SEC / 10, "{}", s.end() - s.start());
+        assert_eq!(s.start(), 30 * TICKS_PER_SEC);
     }
 }

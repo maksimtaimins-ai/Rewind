@@ -59,7 +59,7 @@
 
 	// Rough RAM use of the encoded buffer, to make the cost of a long buffer visible.
 	const ramEstimate = $derived(
-		Math.round(((s.video.bitrate_kbps * 1000) / 8 / 1e6) * Math.max(s.buffer.seconds, s.buffer.long_seconds))
+		Math.round(((s.video.bitrate_kbps * 1000) / 8 / 1e6) * s.buffer.seconds)
 	);
 
 	function sourceLabel(src: AudioSource) {
@@ -160,7 +160,7 @@
 
 		<section id="recording">
 			<h2>Replay buffer</h2>
-			<Row label="Buffer length" hint="How far back a saved clip reaches, 10 to 300 seconds. The buffer runs whenever Rewind is open. About {ramEstimate} MB of RAM at this bitrate.">
+			<Row label="Buffer length" hint="A saved clip is the last this-many seconds before you press the hotkey, 10 to 300 seconds. The buffer runs whenever Rewind is open. About {ramEstimate} MB of RAM at this bitrate.">
 				<Segmented
 					label="Buffer length"
 					value={s.buffer.seconds}
@@ -177,14 +177,6 @@
 				<span class="unit">s</span>
 			</Row>
 			{#if pro}
-				<Row label="Second replay length" hint="A longer save bound to its own hotkey. Shares the same memory, no extra encoding. 0 turns it off.">
-					<input class="numbox num" type="number" min="0" max="1800" value={s.buffer.long_seconds} onchange={(e) => set((x) => (x.buffer.long_seconds = num(e)))} aria-label="Second replay length in seconds" />
-					<span class="unit">s</span>
-				</Row>
-				<Row label="Keep recording after the hotkey" hint="Seconds added after you press save.">
-					<input class="numbox num" type="number" min="0" max="60" value={s.buffer.post_roll_secs} onchange={(e) => set((x) => (x.buffer.post_roll_secs = num(e)))} aria-label="Post-roll seconds" />
-					<span class="unit">s</span>
-				</Row>
 				<Row label="Extend last clip by">
 					<input class="numbox num" type="number" min="5" max="120" value={s.buffer.extend_secs} onchange={(e) => set((x) => (x.buffer.extend_secs = num(e)))} aria-label="Extend seconds" />
 					<span class="unit">s</span>
@@ -365,9 +357,6 @@
 				<HotkeyInput label="Screenshot" value={s.hotkeys.screenshot} onchange={(v) => set((x) => (x.hotkeys.screenshot = v))} />
 			</Row>
 			{#if pro}
-				<Row label="Save second replay length" hint={s.buffer.long_seconds ? `Saves the last ${s.buffer.long_seconds} seconds.` : 'Set a second replay length under Recording first.'}>
-					<HotkeyInput label="Save long clip" value={s.hotkeys.save_long_clip} onchange={(v) => set((x) => (x.hotkeys.save_long_clip = v))} />
-				</Row>
 				<Row label="Extend last clip" hint="Re-saves your last clip with {s.buffer.extend_secs} more seconds.">
 					<HotkeyInput label="Extend last clip" value={s.hotkeys.extend_last} onchange={(v) => set((x) => (x.hotkeys.extend_last = v))} />
 				</Row>
