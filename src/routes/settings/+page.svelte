@@ -169,11 +169,11 @@
 				<input class="numbox num" type="number" min="10" max="300" value={s.buffer.seconds} onchange={(e) => set((x) => (x.buffer.seconds = Math.min(300, Math.max(10, num(e)))))} aria-label="Buffer length in seconds" />
 				<span class="unit">s</span>
 			</Row>
+			<Row label="Extend last clip by" hint="Footage added before the start of your last clip, if the buffer still has it.">
+				<input class="numbox num" type="number" min="5" max="120" value={s.buffer.extend_secs} onchange={(e) => set((x) => (x.buffer.extend_secs = Math.min(120, Math.max(5, num(e)))))} aria-label="Extend seconds" />
+				<span class="unit">s</span>
+			</Row>
 			{#if pro}
-				<Row label="Extend last clip by">
-					<input class="numbox num" type="number" min="5" max="120" value={s.buffer.extend_secs} onchange={(e) => set((x) => (x.buffer.extend_secs = num(e)))} aria-label="Extend seconds" />
-					<span class="unit">s</span>
-				</Row>
 				<Row label="Memory limit" hint="Oldest seconds are dropped first if the buffer would exceed this.">
 					<input class="numbox num" type="number" min="128" max="16384" step="128" value={s.buffer.max_memory_mb} onchange={(e) => set((x) => (x.buffer.max_memory_mb = num(e)))} aria-label="Memory limit in MB" />
 					<span class="unit">MB</span>
@@ -349,11 +349,9 @@
 			<Row label="Screenshot">
 				<HotkeyInput label="Screenshot" value={s.hotkeys.screenshot} onchange={(v) => set((x) => (x.hotkeys.screenshot = v))} />
 			</Row>
-			{#if pro}
-				<Row label="Extend last clip" hint="Re-saves your last clip with {s.buffer.extend_secs} more seconds.">
-					<HotkeyInput label="Extend last clip" value={s.hotkeys.extend_last} onchange={(v) => set((x) => (x.hotkeys.extend_last = v))} />
-				</Row>
-			{/if}
+			<Row label="Extend last clip" hint="Adds {s.buffer.extend_secs} seconds before the start of your last clip and replaces it.">
+				<HotkeyInput label="Extend last clip" value={s.hotkeys.extend_last} onchange={(v) => set((x) => (x.hotkeys.extend_last = v))} />
+			</Row>
 		</section>
 
 		{#if pro}

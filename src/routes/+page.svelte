@@ -32,7 +32,7 @@
 			{ keys: settings.hotkeys.save_clip, what: `Save the last ${fmtDuration(settings.buffer.seconds)}` },
 			{ keys: settings.hotkeys.marker, what: 'Mark this moment' },
 			{ keys: settings.hotkeys.screenshot, what: 'Screenshot' },
-			{ keys: settings.hotkeys.extend_last, what: `Add ${settings.buffer.extend_secs}s to the last clip` }
+			{ keys: settings.hotkeys.extend_last, what: `Add ${settings.buffer.extend_secs}s before the last clip` }
 		].filter((h): h is { keys: string; what: string } => !!h && !!h.keys)
 	);
 

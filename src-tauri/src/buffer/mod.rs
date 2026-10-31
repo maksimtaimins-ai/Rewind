@@ -165,6 +165,11 @@ impl ReplayBuffer {
         self.video.last_end()
     }
 
+    /// First keyframe at or after `t`.
+    pub fn keyframe_at_or_after(&self, t: i64) -> Option<i64> {
+        self.video.packets.iter().find(|p| p.keyframe && p.pts >= t).map(|p| p.pts)
+    }
+
     /// Timestamp of the oldest video frame held.
     pub fn earliest_pts(&self) -> Option<i64> {
         self.video.packets.front().map(|p| p.pts)

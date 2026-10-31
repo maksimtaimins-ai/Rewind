@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-pub const SETTINGS_VERSION: u32 = 2;
+pub const SETTINGS_VERSION: u32 = 3;
 
 /// Allowed range for [`BufferSettings::seconds`].
 pub const MIN_BUFFER_SECS: u32 = 10;
@@ -108,7 +108,7 @@ pub struct BufferSettings {
     pub seconds: u32,
     /// Hard RAM ceiling for the encoded buffer, MiB.
     pub max_memory_mb: u32,
-    /// Seconds added by the "extend last clip" hotkey.
+    /// Seconds the "extend last clip" hotkey adds before the clip's start.
     pub extend_secs: u32,
 }
 
@@ -194,7 +194,7 @@ impl Default for Settings {
                 save_clip: "Alt+F8".into(),
                 marker: "Alt+F7".into(),
                 screenshot: "Alt+F12".into(),
-                extend_last: String::new(),
+                extend_last: "Alt+F6".into(),
             },
             profiles: Vec::new(),
             privacy_apps: vec!["KeePassXC.exe".into(), "1Password.exe".into(), "Bitwarden.exe".into()],
@@ -250,6 +250,7 @@ impl Settings {
     /// Clamp values the engine relies on into their supported ranges.
     pub fn sanitize(&mut self) {
         self.buffer.seconds = self.buffer.seconds.clamp(MIN_BUFFER_SECS, MAX_BUFFER_SECS);
+        self.buffer.extend_secs = self.buffer.extend_secs.clamp(5, 120);
     }
 }
 
@@ -267,6 +268,14 @@ fn migrate(value: &mut toml::Table) -> Result<()> {
         }
         if let Some(toml::Value::Table(h)) = value.get_mut("hotkeys") {
             h.remove("save_long_clip");
+        }
+    }
+    // v2 -> v3: "extend last clip" gets a default hotkey.
+    if version < 3 {
+        if let Some(toml::Value::Table(h)) = value.get_mut("hotkeys") {
+            if h.get("extend_last").and_then(|v| v.as_str()).is_some_and(str::is_empty) {
+                h.insert("extend_last".into(), "Alt+F6".into());
+            }
         }
     }
     value.insert("version".into(), toml::Value::Integer(SETTINGS_VERSION as i64));
@@ -357,9 +366,23 @@ long_seconds = 600
 save_long_clip = \"Alt+F9\"
 ").unwrap();
         assert_eq!(s.buffer.seconds, 45);
-        assert_eq!(s.version, 2);
+        assert_eq!(s.version, SETTINGS_VERSION);
         let text = toml::to_string_pretty(&s).unwrap();
         assert!(!text.contains("post_roll") && !text.contains("long_seconds") && !text.contains("save_long_clip"));
+    }
+
+    #[test]
+    fn v2_gets_extend_hotkey() {
+        let s = parse("version = 2
+[hotkeys]
+extend_last = \"\"
+").unwrap();
+        assert_eq!(s.hotkeys.extend_last, "Alt+F6");
+        let s = parse("version = 2
+[hotkeys]
+extend_last = \"Ctrl+E\"
+").unwrap();
+        assert_eq!(s.hotkeys.extend_last, "Ctrl+E");
     }
 
     #[test]

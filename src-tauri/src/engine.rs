@@ -361,11 +361,23 @@ impl Engine {
         Ok(())
     }
 
-    /// Re-save the last clip with `extend_secs` more at the end.
+    /// Re-save the last clip in place with up to `extend_secs` more footage
+    /// before its start, taken from the buffer.
     fn extend_last(&self) -> Result<()> {
         let last = self.inner.last_save.lock().clone().ok_or_else(|| anyhow!("No clip to extend yet"))?;
+        if !last.path.exists() {
+            return Err(anyhow!("The last clip was renamed or deleted"));
+        }
         let extra = self.inner.settings.read().buffer.extend_secs as i64 * TICKS_PER_SEC;
-        self.inner.save_tx.send(SaveJob { from: last.from, to: last.to + extra, path: last.path, thumb: None, replaces: true })?;
+        let start = {
+            let b = self.inner.buffer.lock();
+            b.earliest_pts().and_then(|oldest| b.keyframe_at_or_after((last.from - extra).max(oldest)))
+        };
+        let Some(from) = start.filter(|&s| s < last.from) else {
+            self.inner.events.notice(Level::Warning, "Buffer no longer contains that time range");
+            return Ok(());
+        };
+        self.inner.save_tx.send(SaveJob { from, to: last.to, path: last.path, thumb: None, replaces: true })?;
         Ok(())
     }
 
@@ -407,8 +419,20 @@ impl Engine {
             self.inner.events.notice(Level::Error, "Nothing in the buffer to save yet");
             return;
         };
+        let (start, end) = (snap.start(), snap.end());
         let result = (|| -> Result<ClipInfo> {
-            let bytes = mux::write_snapshot(&job.path, &snap)?;
+            let bytes = if job.replaces {
+                // Write beside the clip, then swap, so a failure leaves the original.
+                let tmp = job.path.with_extension("mp4.tmp");
+                let bytes = mux::write_snapshot(&tmp, &snap)?;
+                std::fs::rename(&tmp, &job.path).map_err(|e| {
+                    let _ = std::fs::remove_file(&tmp);
+                    anyhow!("couldn't replace the clip (is it open in a player?): {e}")
+                })?;
+                bytes
+            } else {
+                mux::write_snapshot(&job.path, &snap)?
+            };
             self.add_written(bytes);
             if let Some(rx) = job.thumb {
                 if let Ok((w, h, px)) = rx.recv_timeout(Duration::from_millis(500)) {
@@ -420,7 +444,7 @@ impl Engine {
         })();
         match result {
             Ok(info) => {
-                *self.inner.last_save.lock() = Some(LastSave { from: job.from, to: job.to, path: job.path.clone() });
+                *self.inner.last_save.lock() = Some(LastSave { from: start, to: end, path: job.path.clone() });
                 self.inner.events.clip_saved(&info);
                 let verb = if job.replaces { "Extended" } else { "Saved" };
                 self.inner.events.notice(Level::Success, &format!("{verb} {:.0}s clip", info.duration));
