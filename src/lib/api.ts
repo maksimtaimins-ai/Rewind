@@ -32,6 +32,7 @@ export interface Hotkeys {
 	marker: string;
 	screenshot: string;
 	extend_last: string;
+	slow_mo: string;
 }
 
 export interface BufferSlot {
@@ -70,6 +71,7 @@ export interface Settings {
 		max_memory_mb: number;
 		extend_secs: number;
 	};
+	slow_mo: { seconds: 2 | 3 | 5; speed: number };
 	audio: AudioTrack[];
 	hotkeys: Hotkeys;
 	profiles: GameProfile[];

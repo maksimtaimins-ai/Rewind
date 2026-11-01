@@ -362,6 +362,21 @@
 			<Row label="Screenshot" hint="Saves the current frame as a PNG in your clips folder.">
 				<HotkeyInput label="Screenshot" value={s.hotkeys.screenshot} onchange={(v) => set((x) => (x.hotkeys.screenshot = v))} />
 			</Row>
+			<Row label="Slow-mo replay" hint="Saves the last {s.slow_mo.seconds} seconds at {s.slow_mo.speed}× speed, {Math.round(s.slow_mo.seconds / s.slow_mo.speed)} seconds long. Video only.">
+				<HotkeyInput label="Slow-mo replay" value={s.hotkeys.slow_mo} onchange={(v) => set((x) => (x.hotkeys.slow_mo = v))} />
+			</Row>
+			<Row label="Slow-mo length">
+				<Segmented
+					label="Slow-mo length"
+					value={s.slow_mo.seconds}
+					options={[2, 3, 5].map((v) => ({ value: v as 2 | 3 | 5, label: `Last ${v}s` }))}
+					onchange={(v) => set((x) => (x.slow_mo.seconds = v))}
+				/>
+			</Row>
+			<Row label="Slow-mo speed">
+				<input type="range" min="0.1" max="0.5" step="0.05" value={s.slow_mo.speed} onchange={(e) => set((x) => (x.slow_mo.speed = num(e)))} aria-label="Slow-mo speed" />
+				<span class="readout num">{s.slow_mo.speed.toFixed(2)}×</span>
+			</Row>
 			<Row label="Extend last clip" hint="Adds {s.buffer.extend_secs} seconds before the start of your last clip and replaces it.">
 				<HotkeyInput label="Extend last clip" value={s.hotkeys.extend_last} onchange={(v) => set((x) => (x.hotkeys.extend_last = v))} />
 			</Row>

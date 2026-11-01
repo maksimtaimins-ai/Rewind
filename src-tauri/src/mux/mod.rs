@@ -86,6 +86,26 @@ pub fn write_snapshot(path: &Path, s: &Snapshot) -> Result<u64> {
     fmp4::write_file(path, &snapshot_to_tracks(s))
 }
 
+/// Slow motion without re-encoding: every video frame keeps its pixels and is
+/// shown `1 / speed` times longer. Audio can't be slowed without resampling,
+/// so only the video track is kept.
+pub fn slow_motion(tracks: Vec<MuxTrack>, speed: f64) -> Result<Vec<MuxTrack>> {
+    ensure!(speed > 0.0 && speed <= 1.0, "speed must be in (0, 1]");
+    let mut video = tracks.into_iter().find(|t| t.handler == Handler::Video).ok_or_else(|| anyhow::anyhow!("no video track"))?;
+    let k = 1.0 / speed;
+    for s in &mut video.samples {
+        s.dts = (s.dts as f64 * k).round() as u64;
+        s.duration = (s.duration as f64 * k).round().max(1.0) as u32;
+    }
+    // Rounding can leave gaps or overlaps: make each sample end where the next starts.
+    for i in 1..video.samples.len() {
+        let next = video.samples[i].dts;
+        let prev = &mut video.samples[i - 1];
+        prev.duration = next.saturating_sub(prev.dts).max(1) as u32;
+    }
+    Ok(vec![video])
+}
+
 /// Clip duration in seconds.
 pub fn duration_secs(tracks: &[MuxTrack]) -> f64 {
     tracks
@@ -217,6 +237,12 @@ mod tests {
         assert_eq!(cut[0].samples.len(), 15);
         assert_eq!(cut[0].samples[0].dts, 0);
         assert!(cut[0].samples[0].keyframe);
+
+        let slow = slow_motion(tracks.clone(), 0.25).unwrap();
+        assert_eq!(slow.len(), 1);
+        assert_eq!(slow[0].samples.len(), 30);
+        assert!((duration_secs(&slow) - 12.0).abs() < 0.01);
+        assert_eq!(keyframe_times(&slow), vec![0.0, 4.0, 8.0]);
 
         let merged = merge(&[tracks.clone(), tracks]).unwrap();
         assert_eq!(merged[0].samples.len(), 60);

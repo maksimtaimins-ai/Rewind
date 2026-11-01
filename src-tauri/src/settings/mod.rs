@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-pub const SETTINGS_VERSION: u32 = 4;
+pub const SETTINGS_VERSION: u32 = 5;
 
 /// Allowed range for [`BufferSettings::seconds`].
 pub const MIN_BUFFER_SECS: u32 = 10;
@@ -81,6 +81,15 @@ pub struct Hotkeys {
     pub marker: String,
     pub screenshot: String,
     pub extend_last: String,
+    pub slow_mo: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SlowMoSettings {
+    /// Seconds of the buffer to slow down: 2, 3 or 5.
+    pub seconds: u32,
+    /// Playback speed, 0.1-0.5 (0.25 turns 3 s into 12 s).
+    pub speed: f32,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -150,6 +159,7 @@ pub struct Settings {
     pub play_sound_on_save: bool,
     pub video: VideoSettings,
     pub buffer: BufferSettings,
+    pub slow_mo: SlowMoSettings,
     pub audio: Vec<AudioTrack>,
     pub hotkeys: Hotkeys,
     pub profiles: Vec<GameProfile>,
@@ -192,6 +202,7 @@ impl Default for Settings {
                 max_memory_mb: 1024,
                 extend_secs: 15,
             },
+            slow_mo: SlowMoSettings { seconds: 3, speed: 0.25 },
             audio: vec![
                 AudioTrack { name: "Desktop".into(), enabled: true, source: AudioSource::System, volume: 1.0 },
                 AudioTrack {
@@ -212,6 +223,7 @@ impl Default for Settings {
                 marker: "Alt+F7".into(),
                 screenshot: "Alt+F12".into(),
                 extend_last: "Alt+F6".into(),
+                slow_mo: "Alt+F5".into(),
             },
             profiles: Vec::new(),
             privacy_apps: vec!["KeePassXC.exe".into(), "1Password.exe".into(), "Bitwarden.exe".into()],
@@ -269,6 +281,10 @@ impl Settings {
         self.buffer.seconds = self.buffer.seconds.clamp(MIN_BUFFER_SECS, MAX_BUFFER_SECS);
         self.buffer.extend_secs = self.buffer.extend_secs.clamp(5, 120);
         self.buffer.extra_slots.resize(EXTRA_SLOTS, BufferSlot { enabled: false, seconds: 60, hotkey: String::new() });
+        if ![2, 3, 5].contains(&self.slow_mo.seconds) {
+            self.slow_mo.seconds = 3;
+        }
+        self.slow_mo.speed = if self.slow_mo.speed.is_finite() { self.slow_mo.speed.clamp(0.1, 0.5) } else { 0.25 };
         for slot in &mut self.buffer.extra_slots {
             slot.seconds = slot.seconds.clamp(MIN_BUFFER_SECS, MAX_BUFFER_SECS);
         }
@@ -296,6 +312,7 @@ fn migrate(value: &mut toml::Table) -> Result<()> {
             h.remove("save_long_clip");
         }
     }
+    // v4 -> v5: `slow_mo` and `hotkeys.slow_mo` added; defaults fill them in.
     // v3 -> v4: `buffer.extra_slots` added; missing fields take defaults.
     // v2 -> v3: "extend last clip" gets a default hotkey.
     if version < 3 {
@@ -421,6 +438,13 @@ extend_last = \"Ctrl+E\"
         let s = parse("version = 4\n[[buffer.extra_slots]]\nenabled = true\nseconds = 9999\nhotkey = \"\"\n").unwrap();
         assert_eq!(s.buffer.extra_slots.len(), EXTRA_SLOTS);
         assert_eq!(s.longest_slot_secs(), MAX_BUFFER_SECS);
+    }
+
+    #[test]
+    fn slow_mo_sanitized() {
+        let s = parse("version = 5\n[slow_mo]\nseconds = 4\nspeed = 2.0\n").unwrap();
+        assert_eq!(s.slow_mo, SlowMoSettings { seconds: 3, speed: 0.5 });
+        assert_eq!(s.hotkeys.slow_mo, "Alt+F5");
     }
 
     #[test]

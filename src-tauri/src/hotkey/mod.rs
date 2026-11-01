@@ -14,6 +14,7 @@ pub enum Action {
     Marker,
     Screenshot,
     ExtendLast,
+    SlowMo,
 }
 
 /// Parsed hotkey: Win32 modifier flags + virtual key.
@@ -114,6 +115,7 @@ pub fn bindings(s: &crate::settings::Settings) -> Vec<(Action, String)> {
         (Action::Marker, h.marker.clone()),
         (Action::Screenshot, h.screenshot.clone()),
         (Action::ExtendLast, h.extend_last.clone()),
+        (Action::SlowMo, h.slow_mo.clone()),
     ]);
     v
 }

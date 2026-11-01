@@ -38,6 +38,10 @@
 				.map((x) => ({ keys: x.hotkey, what: `Save the last ${fmtDuration(x.seconds)}` })),
 			{ keys: settings.hotkeys.marker, what: 'Mark this moment' },
 			{ keys: settings.hotkeys.screenshot, what: 'Screenshot' },
+			{
+				keys: settings.hotkeys.slow_mo,
+				what: `Slow-mo of the last ${settings.slow_mo.seconds}s at ${settings.slow_mo.speed}×`
+			},
 			{ keys: settings.hotkeys.extend_last, what: `Add ${settings.buffer.extend_secs}s before the last clip` }
 		].filter((h): h is { keys: string; what: string } => !!h && !!h.keys)
 	);

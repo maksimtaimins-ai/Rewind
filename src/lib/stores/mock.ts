@@ -3,7 +3,7 @@ import type { Clip, Settings, Status } from '#lib/api.ts';
 
 export function mockSettings(): Settings {
 	return {
-		version: 4,
+		version: 5,
 		first_run_complete: true,
 		pro_mode: false,
 		theme: 'system',
@@ -31,6 +31,7 @@ export function mockSettings(): Settings {
 				{ enabled: false, seconds: 300, hotkey: '' }
 			],
 			max_memory_mb: 1024, extend_secs: 15 },
+		slow_mo: { seconds: 3, speed: 0.25 },
 		audio: [
 			{ name: 'Desktop', enabled: true, source: { kind: 'system' }, volume: 1 },
 			{ name: 'Microphone', enabled: false, source: { kind: 'mic', device_id: null }, volume: 1 },
@@ -40,7 +41,8 @@ export function mockSettings(): Settings {
 			save_clip: 'Alt+F8',
 			marker: 'Alt+F7',
 			screenshot: 'Alt+F12',
-			extend_last: 'Alt+F6'
+			extend_last: 'Alt+F6',
+			slow_mo: 'Alt+F5'
 		},
 		profiles: [],
 		privacy_apps: ['KeePassXC.exe', '1Password.exe', 'Bitwarden.exe'],

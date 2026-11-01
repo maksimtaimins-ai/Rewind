@@ -126,6 +126,8 @@ struct SaveJob {
     path: PathBuf,
     thumb: Option<Receiver<FrameGrab>>,
     replaces: bool,
+    /// Write as slow motion at this speed.
+    slow_mo: Option<f64>,
 }
 
 #[derive(Clone)]
@@ -300,6 +302,7 @@ impl Engine {
             Action::Marker => self.add_marker(),
             Action::Screenshot => self.screenshot(),
             Action::ExtendLast => self.extend_last(),
+            Action::SlowMo => self.save_slow_mo(),
         };
         if let Err(e) = r {
             self.inner.events.notice(Level::Error, &format!("{e:#}"));
@@ -340,6 +343,7 @@ impl Engine {
             path: library::unique_path(&self.clips_dir()?, &self.clip_stem(), "mp4"),
             thumb: Some(p.request_frame()),
             replaces: false,
+            slow_mo: None,
         };
         drop(pipeline);
         self.inner.save_tx.send(job)?;
@@ -366,6 +370,7 @@ impl Engine {
             path: library::unique_path(&self.clips_dir()?, &format!("{} marker", self.clip_stem()), "mp4"),
             thumb: None,
             replaces: false,
+            slow_mo: None,
         };
         self.inner.save_tx.send(job)?;
         Ok(())
@@ -379,6 +384,25 @@ impl Engine {
         let at_ms = chrono::Local::now().timestamp_millis();
         self.inner.markers.lock().push(Marker { id, at: qpc_now(), at_ms });
         self.inner.events.notice(Level::Info, "Marker set");
+        Ok(())
+    }
+
+    /// Save the last few seconds as a slowed-down clip.
+    fn save_slow_mo(&self) -> Result<()> {
+        let sm = self.inner.settings.read().slow_mo.clone();
+        let pipeline = self.inner.pipeline.lock();
+        let p = pipeline.as_ref().ok_or_else(|| anyhow!("Capture is still starting"))?;
+        let now = qpc_now();
+        let job = SaveJob {
+            from: now - self.clip_ticks(Some(sm.seconds)),
+            to: now,
+            path: library::unique_path(&self.clips_dir()?, &format!("{} slowmo", self.clip_stem()), "mp4"),
+            thumb: Some(p.request_frame()),
+            replaces: false,
+            slow_mo: Some(sm.speed as f64),
+        };
+        drop(pipeline);
+        self.inner.save_tx.send(job)?;
         Ok(())
     }
 
@@ -398,7 +422,7 @@ impl Engine {
             self.inner.events.notice(Level::Warning, "Buffer no longer contains that time range");
             return Ok(());
         };
-        self.inner.save_tx.send(SaveJob { from, to: last.to, path: last.path, thumb: None, replaces: true })?;
+        self.inner.save_tx.send(SaveJob { from, to: last.to, path: last.path, thumb: None, replaces: true, slow_mo: None })?;
         Ok(())
     }
 
@@ -460,6 +484,8 @@ impl Engine {
                     anyhow!("couldn't replace the clip (is it open in a player?): {e}")
                 })?;
                 bytes
+            } else if let Some(speed) = job.slow_mo {
+                mux::fmp4::write_file(&job.path, &mux::slow_motion(mux::snapshot_to_tracks(&snap), speed)?)?
             } else {
                 mux::write_snapshot(&job.path, &snap)?
             };
@@ -474,9 +500,12 @@ impl Engine {
         })();
         match result {
             Ok(info) => {
-                *self.inner.last_save.lock() = Some(LastSave { from: start, to: end, path: job.path.clone() });
+                // A slow-mo clip isn't a stretch of the buffer, so it can't be extended.
+                if job.slow_mo.is_none() {
+                    *self.inner.last_save.lock() = Some(LastSave { from: start, to: end, path: job.path.clone() });
+                }
                 self.inner.events.clip_saved(&info);
-                let verb = if job.replaces { "Extended" } else { "Saved" };
+                let verb = if job.replaces { "Extended" } else if job.slow_mo.is_some() { "Saved slow-mo" } else { "Saved" };
                 self.inner.events.notice(Level::Success, &format!("{verb} {:.0}s clip", info.duration));
             }
             Err(e) => self.inner.events.notice(Level::Error, &format!("Saving clip failed: {e:#}")),
