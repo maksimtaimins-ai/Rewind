@@ -166,7 +166,7 @@
 
 		<section id="capture">
 			<h2>Capture</h2>
-			<Row label="Buffer length" hint="10 to 300 seconds. Uses about {ramEstimate} MB of RAM.">
+			<Row label="Buffer length" hint="Keeps the last {s.buffer.seconds >= 60 && s.buffer.seconds % 60 === 0 ? `${s.buffer.seconds / 60} ${s.buffer.seconds === 60 ? 'minute' : 'minutes'}` : `${s.buffer.seconds} seconds`} of your screen in memory, about {ramEstimate} MB of RAM.">
 				<Segmented
 					label="Buffer length"
 					value={s.buffer.seconds}
@@ -219,7 +219,7 @@
 					</select>
 				</Row>
 			{/if}
-			<Row label="Resolution" hint="Downscaling happens on the GPU.">
+			<Row label="Resolution" hint="Height of saved clips. Lower makes smaller files." help="Recording below your screen's resolution makes smaller files and gives the encoder less to do. Scaling happens on the graphics card, so it costs the game nothing. 1080p is a good default; match your screen if you want every detail.">
 				<Segmented
 					label="Resolution"
 					value={s.video.height}
@@ -510,7 +510,7 @@
 		{#if pro}
 			<section id="advanced">
 				<h2>Advanced</h2>
-				<Row label="Encoder" hint="Hardware encoders keep the CPU free for the game.">
+				<Row label="Encoder" hint="What compresses the video. Hardware keeps the CPU free for the game." help="Your graphics card (NVIDIA, AMD or Intel) has a chip just for compressing video, so recording costs almost no frames. Software uses the processor instead: it works anywhere, but can slow the game down. Auto picks the graphics card when there is one.">
 					<select value={s.video.encoder} onchange={(e) => set((x) => (x.video.encoder = (e.currentTarget as HTMLSelectElement).value as Settings['video']['encoder']))} aria-label="Encoder">
 						<option value="auto">{kindLabel.auto}</option>
 						{#each kinds as k (k)}
@@ -518,11 +518,11 @@
 						{/each}
 					</select>
 				</Row>
-				<Row label="Bitrate" hint="Higher keeps fast motion sharp; files get bigger.">
+				<Row label="Bitrate" hint="Higher keeps fast motion sharp; files get bigger." help="How much data each second of video gets. Fast scenes like grass, smoke and quick turns need more to stay sharp. Around 20 Mb/s at 1080p and 60 fps looks good for most games; double it for 1440p or very busy games.">
 					<input type="range" min="2000" max="80000" step="1000" value={s.video.bitrate_kbps} onchange={(e) => set((x) => (x.video.bitrate_kbps = num(e)))} aria-label="Bitrate" />
 					<span class="readout num">{(s.video.bitrate_kbps / 1000).toFixed(0)} Mb/s</span>
 				</Row>
-				<Row label="Codec" hint="HEVC is smaller; some editors and older devices can't play it.">
+				<Row label="Codec" hint="HEVC is smaller; some editors and older devices can't play it." help="The video format. H.264 plays everywhere: Discord, phones, every editor. HEVC (H.265) looks the same at about half the size, but some browsers, older phones and editors can't open it. Pick H.264 if you share clips a lot.">
 					<Segmented
 						label="Codec"
 						value={s.video.codec}
@@ -533,7 +533,7 @@
 						onchange={(v) => set((x) => (x.video.codec = v))}
 					/>
 				</Row>
-				<Row label="Rate control" hint="Variable suits most games.">
+				<Row label="Rate control" hint="How the bitrate is spent. Variable suits most games." help="Constant spends the same data every second, which keeps file sizes predictable. Variable spends more on busy scenes and less on calm ones, so it looks better at the same size. Quality ignores size and aims for a look you choose.">
 					<Segmented
 						label="Rate control"
 						value={s.video.rate_control}
@@ -546,11 +546,11 @@
 					/>
 				</Row>
 				{#if s.video.rate_control === 'quality'}
-					<Row label="Quality" hint="1 to 100.">
+					<Row label="Quality" hint="1 to 100. Higher looks better and makes bigger files." help="Used when rate control is set to Quality. The encoder keeps every scene at this look and lets the file size follow. 70 is close to what you see on screen; above 85 files grow fast for little visible gain.">
 						<input class="numbox num" type="number" min="1" max="100" value={s.video.quality} onchange={(e) => set((x) => (x.video.quality = num(e)))} aria-label="Quality" />
 					</Row>
 				{/if}
-				<Row label="Keyframe every" hint="Clips start on keyframes. Shorter is more precise, slightly larger.">
+				<Row label="Keyframe every" hint="Clips start on keyframes. Shorter is more precise, slightly larger." help="A keyframe is a complete picture; the frames between only store what changed since. A clip or trim has to start on a keyframe, so with one every second you can cut to within a second. Longer gaps save a little space.">
 					<Segmented
 						label="Keyframe interval"
 						value={s.video.keyframe_secs}
@@ -558,7 +558,7 @@
 						onchange={(v) => set((x) => (x.video.keyframe_secs = v))}
 					/>
 				</Row>
-				<Row label="Memory limit" hint="Oldest seconds are dropped first above this.">
+				<Row label="Memory limit" hint="Oldest seconds are dropped first above this." help="The buffer lives in RAM, never on disk, until you save. If high bitrates or a long buffer would grow it past this, Rewind drops the oldest seconds so your game keeps the memory it needs.">
 					<input class="numbox num" type="number" min="128" max="16384" step="128" value={s.buffer.max_memory_mb} onchange={(e) => set((x) => (x.buffer.max_memory_mb = num(e)))} aria-label="Memory limit in MB" />
 					<span class="unit">MB</span>
 				</Row>

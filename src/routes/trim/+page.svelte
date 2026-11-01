@@ -4,6 +4,7 @@
 	import { revealItemInDir } from '@tauri-apps/plugin-opener';
 	import { api, fileUrl, fmtBytes, fmtDuration, fmtWhen, type ExportPreset } from '#lib/api.ts';
 	import ExportMenu from '#lib/components/ExportMenu.svelte';
+	import Keycap from '#lib/components/Keycap.svelte';
 	import DiscordMenu from '#lib/components/DiscordMenu.svelte';
 	import SendMenu from '#lib/components/SendMenu.svelte';
 	import TagChip from '#lib/components/TagChip.svelte';
@@ -240,14 +241,19 @@
 
 	<div class="bar">
 		<div class="range">
-			<div><span class="k">In</span> <span class="num">{inPt.toFixed(1)}s</span></div>
-			<div><span class="k">Out</span> <span class="num">{outPt.toFixed(1)}s</span></div>
+			<button class="setpt" title="Set the start at the playhead" onclick={() => (inPt = Math.min(current, outPt - 0.5))}>
+				<span class="k">Set in</span> <span class="num">{inPt.toFixed(1)}s</span> <Keycap keys="I" />
+			</button>
+			<button class="setpt" title="Set the end at the playhead" onclick={() => (outPt = Math.max(current, inPt + 0.5))}>
+				<span class="k">Set out</span> <span class="num">{outPt.toFixed(1)}s</span> <Keycap keys="O" />
+			</button>
 			<div><span class="k">Length</span> <span class="num">{(outPt - snappedIn).toFixed(1)}s</span></div>
 			<p class="explain">
 				{#if snappedIn < inPt - 0.05}
 					Starts at the keyframe at <span class="num">{snappedIn.toFixed(1)}s</span> so it saves instantly with no quality loss.
 				{:else}
-					Press <kbd>I</kbd> and <kbd>O</kbd> to set in and out at the playhead, <kbd>Space</kbd> to play.
+					<button class="setpt" onclick={() => (paused = !paused)}>{paused ? 'Play' : 'Pause'} <Keycap keys="Space" /></button>
+					Arrow keys step a frame; hold Shift for 5 seconds.
 				{/if}
 			</p>
 		</div>
@@ -423,8 +429,26 @@
 	.range {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 8px 24px;
-		align-items: baseline;
+		gap: 8px 12px;
+		align-items: center;
+	}
+	.setpt {
+		height: 30px;
+		padding: 0 6px 0 10px;
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		border: 0;
+		border-radius: 6px;
+		background: var(--raised);
+		color: var(--text);
+		cursor: pointer;
+	}
+	.setpt:hover {
+		box-shadow: inset 0 0 0 1px var(--line-strong);
+	}
+	.setpt .k {
+		margin: 0;
 	}
 	.k {
 		color: var(--faint);
@@ -465,13 +489,5 @@
 	}
 	.secondary:hover {
 		background: var(--line);
-	}
-	kbd {
-		font-family: var(--font-mono);
-		font-size: 11px;
-		padding: 1px 6px;
-		border-radius: 4px;
-		background: var(--raised);
-		color: var(--text);
 	}
 </style>

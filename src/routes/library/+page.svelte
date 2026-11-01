@@ -11,6 +11,7 @@
 	import { api, fmtBytes, type Clip } from '#lib/api.ts';
 	import { app, inApp, refreshClips, setFavorite, setTags, toast } from '#lib/stores/app.svelte.ts';
 	import ClipTile from '#lib/components/ClipTile.svelte';
+	import Keycap from '#lib/components/Keycap.svelte';
 	import Segmented from '#lib/components/Segmented.svelte';
 	import { allTags, applyFilters, emptyFilters, isFiltering, type DateRange, type LengthRange } from '#lib/filter.ts';
 	import { defaultSessionName, groupSessions } from '#lib/sessions.ts';
@@ -306,7 +307,7 @@
 			<p>No clips yet.</p>
 			<p>
 				While a game is running, press
-				{#if app.settings?.hotkeys.save_clip}<kbd>{app.settings.hotkeys.save_clip}</kbd>{:else}your save hotkey{/if}
+				{#if app.settings?.hotkeys.save_clip}<Keycap keys={app.settings.hotkeys.save_clip} />{:else}your save hotkey{/if}
 				and the last {app.settings?.buffer.seconds} seconds land here.
 			</p>
 		</div>
@@ -593,13 +594,5 @@
 	}
 	.empty p {
 		margin: 0 0 8px;
-	}
-	kbd {
-		font-family: var(--font-mono);
-		font-size: 11px;
-		padding: 2px 6px;
-		border-radius: 4px;
-		background: var(--raised);
-		color: var(--text);
 	}
 </style>
