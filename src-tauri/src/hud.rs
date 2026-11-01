@@ -25,10 +25,23 @@ pub fn apply(app: &AppHandle, s: &Settings) {
             let _ = w.show();
         }
         (true, None) => {
-            if let Err(e) = build(app, s) {
-                tracing::error!("HUD window: {e}");
-                return;
-            }
+            // Queued: this can run inside the synchronous `set_settings` or
+            // `set_compact_hud` command, where building a window hangs.
+            let s = s.clone();
+            crate::on_main_thread_later(app, move |app| {
+                // Turned off again, or already built, while this waited.
+                if !app.state::<Engine>().settings().hud.enabled || app.get_webview_window(LABEL).is_some() {
+                    return;
+                }
+                if let Err(e) = build(app, &s) {
+                    tracing::error!("HUD window: {e}");
+                    return;
+                }
+                if let Some(main) = app.get_webview_window("main") {
+                    let _ = main.hide();
+                }
+            });
+            return;
         }
         (false, Some(w)) => {
             let _ = w.destroy();

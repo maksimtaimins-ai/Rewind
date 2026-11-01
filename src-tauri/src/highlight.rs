@@ -38,20 +38,14 @@ pub fn on_settings(app: &AppHandle, s: &Settings, st: &Status) {
     if enabled {
         let _ = app.emit_to(LABEL, "settings-changed", s);
     }
-    // This runs inside the synchronous `set_settings` command, and building a
-    // webview window there never completes on Windows. `run_on_main_thread`
-    // runs inline when called from the main thread, so post it from another
-    // thread to get it queued until the command has returned.
-    let handle = app.clone();
-    std::thread::spawn(move || {
-        let _ = handle.clone().run_on_main_thread(move || {
-            if enabled {
-                apply(&handle, want);
-            } else if let Some(w) = handle.get_webview_window(LABEL) {
-                // Off: no window kept around at all.
-                let _ = w.destroy();
-            }
-        });
+    // Called from the synchronous `set_settings` command.
+    crate::on_main_thread_later(app, move |app| {
+        if enabled {
+            apply(app, want);
+        } else if let Some(w) = app.get_webview_window(LABEL) {
+            // Off: no window kept around at all.
+            let _ = w.destroy();
+        }
     });
 }
 

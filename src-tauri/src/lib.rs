@@ -81,6 +81,18 @@ pub(crate) fn show_main(app: &AppHandle) {
     }
 }
 
+/// Run `f` on the main thread once the current main-thread work is done.
+/// For window creation from synchronous commands (`set_settings`): building a
+/// webview window inside one never completes on Windows, and
+/// `run_on_main_thread` runs inline when called from the main thread, so this
+/// posts from another thread to get it queued.
+pub(crate) fn on_main_thread_later(app: &AppHandle, f: impl FnOnce(&AppHandle) + Send + 'static) {
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let _ = app.clone().run_on_main_thread(move || f(&app));
+    });
+}
+
 /// Bring up the full window, leaving the compact HUD if it's on.
 fn open_full(app: &AppHandle) {
     if app.state::<Engine>().settings().hud.enabled {
