@@ -156,10 +156,7 @@ pub fn on_menu(app: &AppHandle, id: &str) {
             let _ = set_enabled(app, false);
             let _ = app.emit_to("main", "navigate", "/settings#appearance");
         }
-        "hud-quit" => {
-            engine.shutdown();
-            app.exit(0);
-        }
+        "hud-quit" => crate::quit(app),
         _ => {}
     }
 }

@@ -92,9 +92,9 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let open = MenuItem::with_id(app, "open", "Open Rewind", true, None::<&str>)?;
     let save = MenuItem::with_id(app, "save", "Save clip", true, None::<&str>)?;
     let folder = MenuItem::with_id(app, "folder", "Open clips folder", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit Rewind", true, None::<&str>)?;
+    let quit_item = MenuItem::with_id(app, "quit", "Quit Rewind", true, None::<&str>)?;
     let sep = PredefinedMenuItem::separator(app)?;
-    let menu = Menu::with_items(app, &[&open, &save, &folder, &sep, &quit])?;
+    let menu = Menu::with_items(app, &[&open, &save, &folder, &sep, &quit_item])?;
     TrayIconBuilder::with_id("main")
         .icon(app.default_window_icon().cloned().expect("app icon"))
         .tooltip("Rewind")
@@ -110,10 +110,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
                     let _ = std::fs::create_dir_all(&dir);
                     let _ = tauri_plugin_opener::open_path(dir, None::<&str>);
                 }
-                "quit" => {
-                    engine.shutdown();
-                    app.exit(0);
-                }
+                "quit" => quit(app),
                 _ => {}
             }
         })
@@ -124,6 +121,24 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
         })
         .build(app)?;
     Ok(())
+}
+
+/// Take the tray icon down now. Tauri only drops it after the exit callbacks
+/// (and so after `Engine::shutdown`), and only if no other handle to it is
+/// alive; if shutdown is slow or the process is killed meanwhile, Windows
+/// keeps a dead icon in the tray until someone hovers it.
+pub(crate) fn remove_tray(app: &AppHandle) {
+    if let Some(tray) = app.remove_tray_by_id("main") {
+        // Hiding sends NIM_DELETE right away, whoever still holds a handle.
+        let _ = tray.set_visible(false);
+    }
+}
+
+/// Quit Rewind: tray icon first, then stop the pipeline, then the event loop.
+pub(crate) fn quit(app: &AppHandle) {
+    remove_tray(app);
+    app.state::<Engine>().shutdown();
+    app.exit(0);
 }
 
 /// Log to `%APPDATA%\Rewind\rewind.log` (truncated each launch); panics included.
@@ -139,15 +154,30 @@ fn init_logging() {
 }
 
 pub fn run() {
-    init_logging();
     let start_hidden = std::env::args().any(|a| a == "--tray");
+    // `rewind --quit` asks a running Rewind to exit cleanly (the installer uses it).
+    let quit_only = std::env::args().any(|a| a == "--quit");
 
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| open_full(app)))
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            if args.iter().any(|a| a == "--quit") {
+                quit(app);
+            } else {
+                open_full(app);
+            }
+        }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(move |app| {
             let handle = app.handle().clone();
+            if quit_only {
+                // Nothing was running to quit.
+                handle.exit(0);
+                return Ok(());
+            }
+            // Only now: a second launch exits in the single-instance plugin
+            // above and must not truncate the running instance's log.
+            init_logging();
             // Starts the always-on capture -> encode -> replay buffer pipeline on
             // background threads. It runs until the app quits; saving only reads it.
             let engine = Engine::start(Box::new(UiEvents(handle.clone())));
@@ -240,8 +270,11 @@ pub fn run() {
         .expect("error while building Rewind")
         .run(|app, event| {
             if let tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit = event {
+                remove_tray(app);
                 // Flush state so nothing in flight is lost on shutdown.
-                app.state::<Engine>().shutdown();
+                if let Some(engine) = app.try_state::<Engine>() {
+                    engine.shutdown();
+                }
             }
         });
 }

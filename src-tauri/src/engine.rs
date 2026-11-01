@@ -766,6 +766,10 @@ impl Engine {
                 queued: pending.len().saturating_sub(1) as u32,
             })
         };
+        let (written_today, written_week) = {
+            let u = self.inner.usage.lock();
+            (u.day(today()), u.week(today()))
+        };
         Status {
             state: match (&error, pipeline.is_some(), paused) {
                 (Some(_), false, _) => State::Error,
@@ -787,8 +791,8 @@ impl Engine {
             markers,
             post_roll,
             error,
-            written_today_gb: self.inner.usage.lock().day(today()) as f64 / 1e9,
-            written_week_gb: self.inner.usage.lock().week(today()) as f64 / 1e9,
+            written_today_gb: written_today as f64 / 1e9,
+            written_week_gb: written_week as f64 / 1e9,
             disk_free_gb: disk_free.map(|b| b as f64 / GB as f64),
             disk: disk_level(disk_free, &s.disk),
         }
