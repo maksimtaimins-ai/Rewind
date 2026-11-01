@@ -4,7 +4,9 @@
 	import { revealItemInDir } from '@tauri-apps/plugin-opener';
 	import { api, fileUrl, fmtBytes, fmtDuration, fmtWhen, type ExportPreset } from '#lib/api.ts';
 	import ExportMenu from '#lib/components/ExportMenu.svelte';
-	import { app, inApp, refreshClips, toast } from '#lib/stores/app.svelte.ts';
+	import TagChip from '#lib/components/TagChip.svelte';
+	import TagEditor from '#lib/components/TagEditor.svelte';
+	import { app, inApp, refreshClips, setFavorite, setTags, toast } from '#lib/stores/app.svelte.ts';
 
 	const path = $derived(page.url.searchParams.get('path') ?? '');
 	const clip = $derived(app.clips.find((c) => c.path === path));
@@ -148,12 +150,27 @@
 			spellcheck="false"
 		/>
 		{#if clip}
+			<button class="fav" class:on={clip.favorite} aria-pressed={clip.favorite} onclick={() => setFavorite(clip.path, !clip.favorite)}>
+				<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" /></svg>
+				{clip.favorite ? 'Favorite' : 'Add to favorites'}
+			</button>
 			<p class="meta">
 				<span class="num">{fmtDuration(clip.duration)}</span>, <span class="num">{fmtBytes(clip.size)}</span>,
 				saved {fmtWhen(clip.modified)}
 			</p>
 		{/if}
 	</div>
+
+	{#if clip}
+		<aside class="tags" aria-label="Tags">
+			{#each clip.tags as t (t)}
+				<TagChip tag={t} onclick={() => goto(`/library?tag=${encodeURIComponent(t)}`)} onremove={() => setTags(clip.path, clip.tags.filter((x) => x !== t))} />
+			{/each}
+			<div class="tag-add">
+				<TagEditor tags={clip.tags} onadd={(tag, color) => setTags(clip.path, [...clip.tags, tag], color ? { tag, color } : undefined)} />
+			</div>
+		</aside>
+	{/if}
 
 	<div class="player">
 		{#if inApp && path}
@@ -257,6 +274,53 @@
 	.meta {
 		margin: 4px 0 0;
 		color: var(--muted);
+	}
+	.top {
+		position: relative;
+	}
+	.fav {
+		position: absolute;
+		top: 2px;
+		right: 0;
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		height: 28px;
+		padding: 0 10px;
+		border: 0;
+		border-radius: 4px;
+		background: var(--raised);
+		color: var(--muted);
+		cursor: pointer;
+	}
+	.fav:hover,
+	.fav.on {
+		color: var(--text);
+	}
+	.fav svg {
+		width: 14px;
+		height: 14px;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 1.8;
+		stroke-linejoin: round;
+	}
+	.fav.on svg {
+		fill: var(--accent);
+		stroke: var(--accent);
+	}
+	.title {
+		padding-right: 160px;
+		box-sizing: border-box;
+	}
+	.tags {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: flex-start;
+		gap: 6px;
+	}
+	.tag-add {
+		width: 220px;
 	}
 	.player {
 		background: var(--media);

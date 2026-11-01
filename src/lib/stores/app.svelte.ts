@@ -1,7 +1,7 @@
 import { isTauri } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { api, type Clip, type LibraryMeta, type Settings, type Status } from '#lib/api.ts';
-import { mockClips, mockSettings, mockStatus } from './mock.ts';
+import { mockClips, mockSettings, mockStatus, mockTagColors } from './mock.ts';
 
 export type ToastLevel = 'info' | 'success' | 'warning' | 'error';
 export interface Toast {
@@ -46,6 +46,7 @@ export async function init() {
 		app.settings = mockSettings();
 		app.status = mockStatus();
 		app.clips = mockClips();
+		app.meta = { tag_colors: { ...mockTagColors }, sessions: {} };
 		app.ready = true;
 		return;
 	}
@@ -71,6 +72,21 @@ export async function setFavorite(path: string, favorite: boolean) {
 	if (!inApp) return;
 	try {
 		await api.setFavorite(path, favorite);
+	} catch (e) {
+		toast('error', String(e));
+		await refreshClips();
+	}
+}
+
+/** Replace a clip's tags. A tag used for the first time gets `newColor`. */
+export async function setTags(path: string, tags: string[], newColor?: { tag: string; color: string }) {
+	app.clips = app.clips.map((c) => (c.path === path ? { ...c, tags } : c));
+	if (newColor) app.meta.tag_colors = { ...app.meta.tag_colors, [newColor.tag]: newColor.color };
+	if (!inApp) return;
+	try {
+		if (newColor) await api.setTagColor(newColor.tag, newColor.color);
+		const updated = await api.setTags(path, tags);
+		app.clips = app.clips.map((c) => (c.path === path ? updated : c));
 	} catch (e) {
 		toast('error', String(e));
 		await refreshClips();

@@ -52,6 +52,8 @@ export function mockSettings(): Settings {
 	};
 }
 
+export const mockTagColors: Record<string, string> = { ace: '#ffc53d', clutch: '#0090ff', boss: '#e5484d', fail: '#8e4ec6' };
+
 export function mockStatus(): Status {
 	return {
 		state: 'recording',

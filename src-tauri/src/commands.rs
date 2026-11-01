@@ -85,6 +85,20 @@ pub fn set_favorite(path: PathBuf, favorite: bool) -> R<ClipInfo> {
     library::info(&path).map_err(err)
 }
 
+#[tauri::command]
+pub fn set_tags(path: PathBuf, tags: Vec<String>) -> R<ClipInfo> {
+    library::set_tags(&path, &tags).map_err(err)?;
+    library::info(&path).map_err(err)
+}
+
+#[tauri::command]
+pub fn set_tag_color(tag: String, color: String) -> R<()> {
+    library::update_meta(|m| {
+        m.tag_colors.insert(tag, color);
+    })
+    .map_err(err)
+}
+
 /// Tag colours and session names from `library.json`.
 #[tauri::command]
 pub fn library_meta() -> serde_json::Value {

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { fileUrl, fmtDuration, fmtWhen, type Clip } from '#lib/api.ts';
 	import { inApp } from '#lib/stores/app.svelte.ts';
+	import TagChip from './TagChip.svelte';
 
 	let {
 		clip,
@@ -8,7 +9,10 @@
 		selecting = false,
 		onopen,
 		onselect,
-		onfavorite
+		onfavorite,
+		ontag,
+		activeTags = [],
+		oncontextmenu
 	}: {
 		clip: Clip;
 		selected?: boolean;
@@ -16,12 +20,16 @@
 		onopen: () => void;
 		onselect: () => void;
 		onfavorite?: (favorite: boolean) => void;
+		/** Click on one of the clip's tags. */
+		ontag?: (tag: string) => void;
+		activeTags?: string[];
+		oncontextmenu?: (e: MouseEvent) => void;
 	} = $props();
 
 	const thumb = $derived(clip.thumb && inApp ? fileUrl(clip.thumb) : null);
 </script>
 
-<article class="tile" class:selected>
+<article class="tile" class:selected oncontextmenu={oncontextmenu && ((e) => (e.preventDefault(), oncontextmenu(e)))}>
 	<button
 		class="frame"
 		onclick={(e) => (selecting || e.ctrlKey || e.shiftKey ? onselect() : onopen())}
@@ -51,6 +59,13 @@
 	<div class="meta">
 		<div class="name" title={clip.name}>{clip.name}</div>
 		<div class="when">{fmtWhen(clip.modified)}</div>
+		{#if clip.tags.length}
+			<div class="tags">
+				{#each clip.tags as t (t)}
+					<TagChip tag={t} active={activeTags.includes(t)} onclick={ontag && (() => ontag(t))} />
+				{/each}
+			</div>
+		{/if}
 	</div>
 </article>
 
@@ -158,5 +173,11 @@
 	.when {
 		color: var(--muted);
 		font-size: 12px;
+	}
+	.tags {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 4px;
+		margin-top: 6px;
 	}
 </style>

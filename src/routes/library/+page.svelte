@@ -1,8 +1,12 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
+	import { onMount } from 'svelte';
+	import TagChip from '#lib/components/TagChip.svelte';
+	import TagEditor from '#lib/components/TagEditor.svelte';
 	import { openPath } from '@tauri-apps/plugin-opener';
 	import { api, fmtBytes, type Clip } from '#lib/api.ts';
-	import { app, inApp, refreshClips, setFavorite, toast } from '#lib/stores/app.svelte.ts';
+	import { app, inApp, refreshClips, setFavorite, setTags, toast } from '#lib/stores/app.svelte.ts';
 	import ClipTile from '#lib/components/ClipTile.svelte';
 	import Segmented from '#lib/components/Segmented.svelte';
 	import { allTags, applyFilters, emptyFilters, isFiltering, type DateRange, type LengthRange } from '#lib/filter.ts';
@@ -42,6 +46,32 @@
 	}
 
 	const toggleTag = (t: string) => (f.tags = f.tags.includes(t) ? f.tags.filter((x) => x !== t) : [...f.tags, t]);
+
+	// Arriving from a tag chip elsewhere (/library?tag=...) filters by it.
+	onMount(() => {
+		const t = page.url.searchParams.get('tag');
+		if (t) f.tags = [t];
+	});
+
+	// Right-click menu on a clip, and the tag popover it can open.
+	let menu = $state<{ clip: Clip; x: number; y: number } | null>(null);
+	let tagging = $state<{ path: string; x: number; y: number } | null>(null);
+	let popover = $state<HTMLDivElement>();
+	const tagClip = $derived(tagging ? app.clips.find((c) => c.path === tagging!.path) : undefined);
+	const place = (x: number, y: number, w: number, h: number) => ({
+		x: Math.min(x, window.innerWidth - w - 8),
+		y: Math.min(y, window.innerHeight - h - 8)
+	});
+
+	function openMenu(c: Clip, e: MouseEvent) {
+		tagging = null;
+		menu = { clip: c, ...place(e.clientX, e.clientY, 200, 120) };
+	}
+
+	function closeFloating(e: Event) {
+		if (menu && !(e.target as HTMLElement).closest?.('.ctx')) menu = null;
+		if (tagging && !popover?.contains(e.target as Node)) tagging = null;
+	}
 	const totalSize = $derived(app.clips.reduce((n, c) => n + c.size, 0));
 
 	function toggle(c: Clip) {
@@ -90,6 +120,11 @@
 		if (inApp) await openPath(await api.clipsDir());
 	}
 </script>
+
+<svelte:window
+	onpointerdown={closeFloating}
+	onkeydown={(e) => e.key === 'Escape' && ((menu = null), (tagging = null))}
+/>
 
 <div class="page">
 	<header>
@@ -154,7 +189,7 @@
 		{#if tags.length}
 			<div class="row tags" aria-label="Filter by tag">
 				{#each tags as t (t)}
-					<button class="chip" class:on={f.tags.includes(t)} aria-pressed={f.tags.includes(t)} onclick={() => toggleTag(t)}>{t}</button>
+					<TagChip tag={t} active={f.tags.includes(t)} onclick={() => toggleTag(t)} />
 				{/each}
 			</div>
 		{/if}
@@ -176,6 +211,9 @@
 							onopen={() => goto(`/trim?path=${encodeURIComponent(c.path)}`)}
 							onselect={() => toggle(c)}
 							onfavorite={(v) => setFavorite(c.path, v)}
+							ontag={toggleTag}
+							activeTags={f.tags}
+							oncontextmenu={(e) => openMenu(c, e)}
 						/>
 					{/each}
 				</div>
@@ -222,6 +260,9 @@
 								onopen={() => goto(`/trim?path=${encodeURIComponent(c.path)}`)}
 								onselect={() => toggle(c)}
 								onfavorite={(v) => setFavorite(c.path, v)}
+								ontag={toggleTag}
+								activeTags={f.tags}
+								oncontextmenu={(e) => openMenu(c, e)}
 							/>
 						{/each}
 					</div>
@@ -245,7 +286,83 @@
 	{/if}
 </div>
 
+{#if menu}
+	{@const m = menu}
+	<div class="ctx" role="menu" style="left: {m.x}px; top: {m.y}px">
+		<button
+			role="menuitem"
+			onclick={() => {
+				tagging = { path: m.clip.path, ...place(m.x, m.y, 260, 160) };
+				menu = null;
+			}}>Add tag</button
+		>
+		<button
+			role="menuitem"
+			onclick={() => {
+				setFavorite(m.clip.path, !m.clip.favorite);
+				menu = null;
+			}}>{m.clip.favorite ? 'Remove from favorites' : 'Add to favorites'}</button
+		>
+		<button role="menuitem" onclick={() => (menu = null, goto(`/trim?path=${encodeURIComponent(m.clip.path)}`))}>Open</button>
+	</div>
+{/if}
+
+{#if tagging && tagClip}
+	{@const c = tagClip}
+	<div class="pop" bind:this={popover} style="left: {tagging.x}px; top: {tagging.y}px" role="dialog" aria-label="Tags for {c.name}">
+		{#if c.tags.length}
+			<div class="pop-tags">
+				{#each c.tags as t (t)}
+					<TagChip tag={t} onremove={() => setTags(c.path, c.tags.filter((x) => x !== t))} />
+				{/each}
+			</div>
+		{/if}
+		<TagEditor
+			tags={c.tags}
+			autofocus
+			onadd={(tag, color) => setTags(c.path, [...c.tags, tag], color ? { tag, color } : undefined)}
+		/>
+	</div>
+{/if}
+
 <style>
+	.ctx,
+	.pop {
+		position: fixed;
+		z-index: 40;
+		border-radius: 6px;
+		background: var(--raised);
+		box-shadow: inset 0 0 0 1px var(--line-strong);
+	}
+	.ctx {
+		width: 200px;
+		padding: 4px;
+		display: grid;
+	}
+	.ctx button {
+		height: 32px;
+		padding: 0 10px;
+		border: 0;
+		border-radius: 4px;
+		background: none;
+		text-align: left;
+		cursor: pointer;
+	}
+	.ctx button:hover,
+	.ctx button:focus-visible {
+		background: var(--line);
+	}
+	.pop {
+		width: 260px;
+		padding: 12px;
+		display: grid;
+		gap: 10px;
+	}
+	.pop-tags {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 4px;
+	}
 	.page {
 		padding: 16px 32px 32px;
 	}

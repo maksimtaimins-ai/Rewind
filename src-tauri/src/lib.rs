@@ -160,6 +160,8 @@ pub fn run() {
             commands::library_meta,
             commands::rename_session,
             commands::set_favorite,
+            commands::set_tags,
+            commands::set_tag_color,
             commands::clips_dir,
             commands::save_clip_now,
             commands::save_marker,

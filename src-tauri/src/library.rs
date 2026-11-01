@@ -287,6 +287,28 @@ pub fn set_favorite(path: &Path, favorite: bool) -> Result<()> {
     })
 }
 
+/// Tidy user-typed tags: trimmed, at most 32 characters, no duplicates
+/// (ignoring case), at most 20 per clip.
+pub fn clean_tags(tags: &[String]) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for t in tags {
+        let t: String = t.trim().chars().take(32).collect();
+        if !t.is_empty() && !out.iter().any(|o| o.eq_ignore_ascii_case(&t)) {
+            out.push(t);
+        }
+    }
+    out.truncate(20);
+    out
+}
+
+pub fn set_tags(path: &Path, tags: &[String]) -> Result<()> {
+    update_meta(|m| {
+        let mut c = m.clip(path);
+        c.tags = clean_tags(tags);
+        m.set_clip(path, c);
+    })
+}
+
 pub fn copy_thumb(from_clip: &Path, to_clip: &Path) {
     let src = thumb_path(from_clip);
     if src.exists() {
@@ -297,6 +319,12 @@ pub fn copy_thumb(from_clip: &Path, to_clip: &Path) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tags_cleaned() {
+        let t = clean_tags(&[" Clutch ".into(), "clutch".into(), "".into(), "x".repeat(40)]);
+        assert_eq!(t, vec!["Clutch".to_string(), "x".repeat(32)]);
+    }
 
     #[test]
     fn meta_roundtrip_and_rename() {
