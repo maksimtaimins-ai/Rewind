@@ -4,9 +4,9 @@
 	import StatusLine from './StatusLine.svelte';
 
 	const links = [
-		{ href: '/', label: 'Live' },
-		{ href: '/library', label: 'Clips' },
-		{ href: '/settings', label: 'Settings' }
+		{ href: '/', label: 'Live', tour: undefined },
+		{ href: '/library', label: 'Clips', tour: 'nav-clips' },
+		{ href: '/settings', label: 'Settings', tour: 'nav-settings' }
 	];
 	const active = (href: string) =>
 		href === '/' ? page.url.pathname === '/' : page.url.pathname.startsWith(href) || (href === '/library' && page.url.pathname.startsWith('/trim'));
@@ -22,7 +22,7 @@
 	<ul>
 		{#each links as l (l.href)}
 			<li>
-				<a href={l.href} class:on={active(l.href)} aria-current={active(l.href) ? 'page' : undefined}>
+				<a href={l.href} class:on={active(l.href)} aria-current={active(l.href) ? 'page' : undefined} data-tour={l.tour}>
 					{l.label}
 					{#if l.href === '/library' && app.clips.length}
 						<span class="count num">{app.clips.length}</span>

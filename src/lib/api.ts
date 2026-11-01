@@ -53,6 +53,8 @@ export interface DiscordWebhook {
 export interface Settings {
 	version: number;
 	first_run_complete: boolean;
+	/** The Live tab's four-step tour has been finished or skipped. */
+	tour_complete: boolean;
 	pro_mode: boolean;
 	/** 'system' or a theme id from themes.ts. */
 	theme: string;

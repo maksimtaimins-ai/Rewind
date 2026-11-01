@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
 	import { open, save } from '@tauri-apps/plugin-dialog';
 	import { api, type BenchReport, type BenchResult, type Device, type EncoderInfo, type Monitor, type Settings, type AudioSource } from '#lib/api.ts';
 	import { app, inApp, toast, updateSettings } from '#lib/stores/app.svelte.ts';
@@ -52,9 +53,15 @@
 			['storage', 'Storage'],
 			['sharing', 'Sharing'],
 			['watch', 'Watch folders'],
+			['help', 'Help'],
 			['advanced', 'Advanced']
 		].filter(([id]) => pro || id !== 'advanced')
 	);
+
+	async function replayTour() {
+		await updateSettings((x) => (x.tour_complete = false));
+		goto('/');
+	}
 
 	const kinds = $derived([...new Set(encoders.filter((e) => e.codec === s.video.codec).map((e) => e.kind))]);
 	const kindLabel: Record<string, string> = {
@@ -505,6 +512,13 @@
 		<section id="watch">
 			<h2>Watch folders</h2>
 			<WatchFolders />
+		</section>
+
+		<section id="help">
+			<h2>Help</h2>
+			<Row label="Tour of the Live tab" hint="Four quick pointers: saving, the buffer, your clips and settings.">
+				<button class="secondary" onclick={replayTour}>Show the tour</button>
+			</Row>
 		</section>
 
 		{#if pro}

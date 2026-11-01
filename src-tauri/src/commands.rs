@@ -238,6 +238,7 @@ pub fn import_settings(app: tauri::AppHandle, engine: State<Engine>, lan: State<
     let current = engine.settings();
     s.clips_dir = current.clips_dir;
     s.first_run_complete = current.first_run_complete;
+    s.tour_complete = current.tour_complete;
     s.sharing.device_id = current.sharing.device_id;
     s.sharing.trusted_peers = current.sharing.trusted_peers;
     engine.set_settings(s.clone()).map_err(err)?;

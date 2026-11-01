@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-pub const SETTINGS_VERSION: u32 = 15;
+pub const SETTINGS_VERSION: u32 = 16;
 
 /// Allowed range for [`BufferSettings::seconds`].
 pub const MIN_BUFFER_SECS: u32 = 10;
@@ -271,6 +271,8 @@ pub struct SharingSettings {
 pub struct Settings {
     pub version: u32,
     pub first_run_complete: bool,
+    /// The Live tab's four-step tour has been finished or skipped.
+    pub tour_complete: bool,
     pub pro_mode: bool,
     /// "system" (follow Windows light/dark) or a theme id from the UI's theme list.
     pub theme: String,
@@ -302,6 +304,7 @@ impl Default for Settings {
         Self {
             version: SETTINGS_VERSION,
             first_run_complete: false,
+            tour_complete: false,
             pro_mode: false,
             theme: "system".into(),
             clips_dir: default_clips_dir(),
@@ -486,6 +489,7 @@ fn migrate(value: &mut toml::Table) -> Result<()> {
             h.remove("save_long_clip");
         }
     }
+    // v15 -> v16: `tour_complete` added (false: existing installs see the tour once).
     // v14 -> v15: `highlight` added (off); defaults fill it in.
     // v13 -> v14: `disk` free-space limits added; defaults fill them in.
     // v12 -> v13: `hud` and `hotkeys.compact_hud` (Alt+F11) added; defaults
@@ -568,6 +572,15 @@ mod tests {
         let s = parse("version = 1\n[buffer]\nseconds = 120\n").unwrap();
         assert_eq!(s.buffer.seconds, 120);
         assert_eq!(s.video.fps, 60);
+    }
+
+    #[test]
+    fn tour_shown_once_after_upgrade() {
+        let s = parse("version = 15
+first_run_complete = true
+").unwrap();
+        assert!(s.first_run_complete);
+        assert!(!s.tour_complete);
     }
 
     #[test]

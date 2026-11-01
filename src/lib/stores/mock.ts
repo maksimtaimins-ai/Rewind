@@ -3,8 +3,9 @@ import type { Clip, Settings, Status } from '#lib/api.ts';
 
 export function mockSettings(): Settings {
 	return {
-		version: 14,
+		version: 16,
 		first_run_complete: true,
+		tour_complete: false,
 		pro_mode: false,
 		theme: 'system',
 		clips_dir: 'C:\\Users\\you\\AppData\\Roaming\\Rewind\\Clips',

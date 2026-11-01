@@ -1,9 +1,10 @@
 <script lang="ts">
 	import { api, fileUrl, fmtBytes, fmtDuration, type Clip, type HotkeyAction } from '#lib/api.ts';
-	import { app, inApp, toast } from '#lib/stores/app.svelte.ts';
+	import { app, inApp, toast, updateSettings } from '#lib/stores/app.svelte.ts';
 	import BufferTimeline from '#lib/components/BufferTimeline.svelte';
 	import Keycap from '#lib/components/Keycap.svelte';
 	import MarkerList from '#lib/components/MarkerList.svelte';
+	import Tour, { type Step } from '#lib/components/Tour.svelte';
 	import { goto } from '$app/navigation';
 
 	const s = $derived(app.status);
@@ -112,6 +113,37 @@
 		const w = 60 / data.length;
 		return data.map((v, i) => ({ x: i * w + w * 0.15, w: w * 0.7, h: v ? Math.max(2, (v / max) * 20) : 1, v }));
 	};
+
+	// First-run tour, once the setup wizard is done. Settings, Help replays it.
+	const touring = $derived(settings.first_run_complete && !settings.tour_complete);
+	const tourSteps = $derived<Step[]>([
+		{
+			target: 'save',
+			title: `This saves the last ${capacity} seconds`,
+			body: 'Click it, or press the hotkey mid-game. The clip lands in Clips a moment later.',
+			keys: settings.hotkeys.save_clip,
+			side: 'below'
+		},
+		{
+			target: 'timeline',
+			title: 'Your screen is always being buffered here',
+			body: 'The ribbon is the sound of the last few seconds. Nothing is written to disk until you save.',
+			side: 'below'
+		},
+		{ target: 'nav-clips', title: 'Your clips go here', body: 'Trim, tag, star and share them, or find one by game and date.', side: 'right' },
+		{
+			target: 'nav-settings',
+			title: 'Customize everything in Settings',
+			body: 'Hotkeys, buffer length, quality and sound. Replay this tour from Settings, under Help.',
+			side: 'right'
+		}
+	]);
+	let tourReady = $state(false);
+	$effect(() => {
+		// Let the page settle in before measuring what to point at.
+		const t = setTimeout(() => (tourReady = true), 400);
+		return () => clearTimeout(t);
+	});
 
 	const encoderName = $derived(s?.encoder?.replace(/ Encoder MFT$/, '').replace(/ Encoder$/, '') ?? null);
 </script>
@@ -269,6 +301,10 @@
 		{#if live && s?.dropped}<span class="warn">{s.dropped} dropped</span>{/if}
 	</footer>
 </div>
+
+{#if touring && tourReady}
+	<Tour steps={tourSteps} ondone={() => updateSettings((x) => (x.tour_complete = true))} />
+{/if}
 
 <style>
 	.page {
