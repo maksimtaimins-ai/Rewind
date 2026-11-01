@@ -2,7 +2,7 @@ import { isTauri } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { goto } from '$app/navigation';
 import { api, type Clip, type LanOffer, type LanProgress, type LibraryMeta, type Settings, type Status } from '#lib/api.ts';
-import { mockClips, mockSettings, mockStatus, mockTagColors } from './mock.ts';
+import { mockClips, mockLevels, mockSettings, mockStatus, mockTagColors } from './mock.ts';
 
 export type ToastLevel = 'info' | 'success' | 'warning' | 'error';
 export interface Toast {
@@ -24,6 +24,13 @@ export const app = $state({
 	/** A LAN transfer in progress, either way. */
 	transfer: null as LanProgress | null
 });
+
+/** Audio loudness steps (100 ms each) since launch, newest last, capped at ten minutes. */
+export const levelLog: number[] = [];
+function logLevels(status: Status) {
+	levelLog.push(...status.levels);
+	if (levelLog.length > 6000) levelLog.splice(0, levelLog.length - 6000);
+}
 
 let toastId = 0;
 export function toast(level: ToastLevel, message: string) {
@@ -51,13 +58,24 @@ export async function init(opts: { hud?: boolean } = {}) {
 		app.status = mockStatus();
 		app.clips = mockClips();
 		app.meta = { tag_colors: { ...mockTagColors }, sessions: {} };
+		// Stand in for the backend's twice-a-second status so the live views move.
+		for (let i = 0; i < 60; i++) levelLog.push(...mockLevels());
+		setInterval(() => {
+			if (!app.status) return;
+			const held = Math.min(app.status.buffer_secs + 2, app.status.buffered_secs + 0.5);
+			app.status = { ...app.status, buffered_secs: held, levels: mockLevels(), markers: app.status.markers.map((m) => ({ ...m, ago: m.ago + 0.5 })) };
+			logLevels(app.status);
+		}, 500);
 		app.ready = true;
 		return;
 	}
 	const [settings, status] = await Promise.all([api.getSettings(), api.getStatus()]);
 	app.settings = settings;
 	app.status = status;
-	await listen<Status>('status', (e) => (app.status = e.payload));
+	await listen<Status>('status', (e) => {
+		app.status = e.payload;
+		logLevels(e.payload);
+	});
 	await listen<Settings>('settings-changed', (e) => (app.settings = e.payload));
 	if (opts.hud) {
 		app.ready = true;

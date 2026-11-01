@@ -97,7 +97,8 @@ export function mockStatus(): Status {
 		written_today_gb: 0.31,
 		written_week_gb: 31.6,
 		disk_free_gb: 7.4,
-		disk: 'low'
+		disk: 'low',
+		levels: []
 	};
 }
 
@@ -122,4 +123,14 @@ export function mockClips(): Clip[] {
 		favorite: i === 1 || i === 4,
 		tags: [['ace', 'clutch'], ['clutch'], [], [], ['boss'], ['boss', 'fail']][i]
 	}));
+}
+
+/** Five 100 ms loudness steps of made-up game audio: a bed of noise with the odd burst. */
+let phase = 0;
+export function mockLevels(): number[] {
+	return Array.from({ length: 5 }, () => {
+		phase += 0.1;
+		const burst = Math.max(0, Math.sin(phase * 0.9) * Math.sin(phase * 2.3)) ** 3;
+		return Math.min(1, 0.06 + Math.random() * 0.08 + burst * (0.35 + Math.random() * 0.25));
+	});
 }

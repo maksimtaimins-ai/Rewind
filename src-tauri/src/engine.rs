@@ -60,6 +60,8 @@ pub struct Status {
     /// Free space on the clips drive; `None` until first measured.
     pub disk_free_gb: Option<f64>,
     pub disk: DiskLevel,
+    /// Captured audio loudness (RMS 0-1) in 100 ms steps since the last status, oldest first.
+    pub levels: Vec<f32>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -795,6 +797,7 @@ impl Engine {
             written_week_gb: written_week as f64 / 1e9,
             disk_free_gb: disk_free.map(|b| b as f64 / GB as f64),
             disk: disk_level(disk_free, &s.disk),
+            levels: crate::audio::meter::take(),
         }
     }
 

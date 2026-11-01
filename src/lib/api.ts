@@ -194,6 +194,8 @@ export interface Status {
 	disk_free_gb: number | null;
 	/** `full`: new clip saves are refused (screenshots still work). */
 	disk: 'ok' | 'low' | 'full';
+	/** Captured audio loudness (RMS 0-1) in 100 ms steps since the last status, oldest first. */
+	levels: number[];
 }
 
 export interface PostRollStatus {

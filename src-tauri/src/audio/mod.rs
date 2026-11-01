@@ -21,6 +21,88 @@ use wasapi::{Capture, Source, CHANNELS, SAMPLE_RATE};
 
 pub use wasapi::{microphones, DeviceInfo};
 
+/// Loudness of everything captured, all tracks mixed, in 100 ms steps: the
+/// dashboard draws it as the buffer's waveform.
+pub mod meter {
+    use std::collections::VecDeque;
+    use std::time::{Duration, Instant};
+
+    use parking_lot::Mutex;
+
+    const STEP: Duration = Duration::from_millis(100);
+    /// Steps kept between reads; older ones are dropped.
+    const KEEP: usize = 50;
+
+    #[derive(Default)]
+    pub struct Meter {
+        start: Option<Instant>,
+        sum_sq: f64,
+        samples: u64,
+        done: VecDeque<f32>,
+    }
+
+    impl Meter {
+        /// `sum_sq` is the sum of squared samples (-1..1) over `samples` samples.
+        pub fn add(&mut self, now: Instant, sum_sq: f64, samples: u64) {
+            let start = *self.start.get_or_insert(now);
+            if now.duration_since(start) >= STEP {
+                let rms = if self.samples == 0 { 0.0 } else { (self.sum_sq / self.samples as f64).sqrt() as f32 };
+                self.done.push_back(rms);
+                if self.done.len() > KEEP {
+                    self.done.pop_front();
+                }
+                self.start = Some(now);
+                self.sum_sq = 0.0;
+                self.samples = 0;
+            }
+            self.sum_sq += sum_sq;
+            self.samples += samples;
+        }
+
+        /// Steps finished since the last call, oldest first, RMS 0..1.
+        pub fn take(&mut self) -> Vec<f32> {
+            self.done.drain(..).collect()
+        }
+    }
+
+    static METER: Mutex<Option<Meter>> = Mutex::new(None);
+
+    pub fn add(sum_sq: f64, samples: u64) {
+        METER.lock().get_or_insert_with(Meter::default).add(Instant::now(), sum_sq, samples);
+    }
+
+    pub fn take() -> Vec<f32> {
+        METER.lock().as_mut().map(Meter::take).unwrap_or_default()
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn steps_hold_rms() {
+            let mut m = Meter::default();
+            let t = Instant::now();
+            // A full-scale square wave (RMS 1) then silence.
+            m.add(t, 480.0, 480);
+            m.add(t + STEP, 0.0, 480);
+            m.add(t + STEP * 2, 0.0, 480);
+            assert_eq!(m.take(), vec![1.0, 0.0]);
+            assert!(m.take().is_empty());
+        }
+
+        #[test]
+        fn keeps_recent_steps() {
+            let mut m = Meter::default();
+            let t = Instant::now();
+            for i in 0..(KEEP as u32 + 10) {
+                m.add(t + STEP * i, 1.0, 4);
+            }
+            assert_eq!(m.take().len(), KEEP);
+        }
+    }
+}
+
 const BITRATE: u32 = 160_000;
 /// Gaps/overlaps smaller than this are absorbed as clock jitter.
 const TOLERANCE_FRAMES: i64 = SAMPLE_RATE as i64 * 30 / 1000;
@@ -74,8 +156,19 @@ impl Timeline {
         }
         self.pcm.clear();
         match samples {
-            Some(s) => self.pcm.extend(s.iter().map(|&x| ((x * self.volume).clamp(-1.0, 1.0) * 32767.0) as i16)),
-            None => self.pcm.resize(frames * CHANNELS as usize, 0),
+            Some(s) => {
+                let mut sum_sq = 0.0f64;
+                self.pcm.extend(s.iter().map(|&x| {
+                    let v = (x * self.volume).clamp(-1.0, 1.0);
+                    sum_sq += (v * v) as f64;
+                    (v * 32767.0) as i16
+                }));
+                meter::add(sum_sq, s.len() as u64);
+            }
+            None => {
+                self.pcm.resize(frames * CHANNELS as usize, 0);
+                meter::add(0.0, (frames * CHANNELS as usize) as u64);
+            }
         }
         let pts = self.pts_of(self.fed);
         self.enc.encode(&self.pcm, pts, &mut self.frames)?;
