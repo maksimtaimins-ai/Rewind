@@ -5,6 +5,7 @@
 	import { api, fileUrl, fmtBytes, fmtDuration, fmtWhen, type ExportPreset } from '#lib/api.ts';
 	import ExportMenu from '#lib/components/ExportMenu.svelte';
 	import DiscordMenu from '#lib/components/DiscordMenu.svelte';
+	import SendMenu from '#lib/components/SendMenu.svelte';
 	import TagChip from '#lib/components/TagChip.svelte';
 	import TagEditor from '#lib/components/TagEditor.svelte';
 	import ThumbnailPicker from '#lib/components/ThumbnailPicker.svelte';
@@ -255,7 +256,7 @@
 			<button class="secondary" onclick={remove}>Delete</button>
 			<button class="secondary" onclick={() => (picking = true)}>Pick thumbnail</button>
 			<ExportMenu busy={exporting} onexport={exportAs} />
-			{#if clip}<DiscordMenu {clip} />{/if}
+			{#if clip}<DiscordMenu {clip} /><SendMenu {clip} />{/if}
 			<button class="primary" disabled={busy || (inPt <= 0.01 && outPt >= duration - 0.01)} onclick={exportCut}>
 				{busy ? 'Saving…' : 'Save trimmed copy'}
 			</button>

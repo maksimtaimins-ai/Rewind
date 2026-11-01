@@ -384,6 +384,24 @@
 				<input class="grow" type="text" placeholder="https://discord.com/api/webhooks/…" bind:value={hookUrl} aria-label="Webhook URL" />
 				<button class="secondary" type="submit" disabled={!hookOk}>Add webhook</button>
 			</form>
+
+			<h3>LAN send</h3>
+			<Row label="Send clips between PCs" hint={s.sharing.lan_enabled ? 'Other Rewinds on this network can see this PC and send it clips. Nothing leaves your network.' : 'Off. Turn on to send clips to other PCs running Rewind on this network.'}>
+				<Toggle checked={s.sharing.lan_enabled} label="LAN send" onchange={(v) => set((x) => (x.sharing.lan_enabled = v))} />
+			</Row>
+			{#if s.sharing.lan_enabled}
+				<Row label="This PC's name" hint="What other PCs see in their Send to list.">
+					<input type="text" placeholder="This PC's name" value={s.sharing.device_name} onchange={(e) => set((x) => (x.sharing.device_name = (e.currentTarget as HTMLInputElement).value.trim()))} aria-label="Device name" />
+				</Row>
+				<Row label="Port" hint="Windows may ask to let Rewind through the firewall the first time.">
+					<input class="numbox num" type="number" min="1024" max="65535" value={s.sharing.lan_port} onchange={(e) => set((x) => (x.sharing.lan_port = Math.min(65535, Math.max(1024, num(e)))))} aria-label="LAN port" />
+				</Row>
+				{#each s.sharing.trusted_peers as p, i (p.id)}
+					<Row label={p.name} hint="Clips from this PC arrive without asking.">
+						<button class="link" onclick={() => set((x) => x.sharing.trusted_peers.splice(i, 1))}>Forget</button>
+					</Row>
+				{/each}
+			{/if}
 		</section>
 
 		{#if pro}

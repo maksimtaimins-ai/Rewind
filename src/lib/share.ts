@@ -1,6 +1,6 @@
 // Sharing flows that need a prompt or two around the backend call.
 import { ask } from '@tauri-apps/plugin-dialog';
-import { api, type Clip } from '#lib/api.ts';
+import { api, fmtBytes, type Clip, type LanOffer, type LanPeer } from '#lib/api.ts';
 import { app, inApp, refreshClips, toast } from '#lib/stores/app.svelte.ts';
 
 /**
@@ -31,5 +31,31 @@ export async function postToDiscord(clip: Clip, index: number) {
 		toast('success', `Posted to ${w.name}`);
 	} catch (e) {
 		toast('error', `Couldn't post to ${w.name}: ${e}`);
+	}
+}
+
+/** Send a clip to another Rewind on the LAN. Progress arrives as `lan-progress`. */
+export async function sendToPeer(clip: Clip, peer: LanPeer) {
+	if (!inApp) return;
+	toast('info', `Sending "${clip.name}" to ${peer.name}…`);
+	try {
+		await api.lanSend(clip.path, peer.id);
+		toast('success', `${peer.name} received "${clip.name}"`);
+	} catch (e) {
+		toast('error', `Couldn't send to ${peer.name}: ${e}`);
+	}
+}
+
+/** "Accept clip from …?" for a PC that hasn't sent here before. */
+export async function answerOffer(o: LanOffer) {
+	const ok = await ask(`${o.name} wants to send you "${o.file}" (${fmtBytes(o.size)}). Accept it? Clips from ${o.name} will then arrive without asking.`, {
+		title: `Accept clip from ${o.name}?`,
+		kind: 'info',
+		okLabel: 'Accept',
+		cancelLabel: 'Decline'
+	});
+	await api.lanAnswer(o.offer, ok);
+	if (ok) {
+		toast('info', `Receiving "${o.file}" from ${o.name}…`);
 	}
 }

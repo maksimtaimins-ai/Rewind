@@ -1,6 +1,6 @@
 import { isTauri } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { api, type Clip, type LibraryMeta, type Settings, type Status } from '#lib/api.ts';
+import { api, type Clip, type LanOffer, type LanProgress, type LibraryMeta, type Settings, type Status } from '#lib/api.ts';
 import { mockClips, mockSettings, mockStatus, mockTagColors } from './mock.ts';
 
 export type ToastLevel = 'info' | 'success' | 'warning' | 'error';
@@ -19,7 +19,9 @@ export const app = $state({
 	clips: [] as Clip[],
 	meta: { tag_colors: {}, sessions: {} } as LibraryMeta,
 	toasts: [] as Toast[],
-	lastSaved: null as Clip | null
+	lastSaved: null as Clip | null,
+	/** A LAN transfer in progress, either way. */
+	transfer: null as LanProgress | null
 });
 
 let toastId = 0;
@@ -63,6 +65,12 @@ export async function init() {
 	await listen<{ level: ToastLevel; message: string }>('notice', (e) =>
 		toast(e.payload.level, e.payload.message)
 	);
+	// Imported here, not at the top: share.ts imports this module.
+	const { answerOffer } = await import('#lib/share.ts');
+	await listen<LanOffer>('lan-offer', (e) => answerOffer(e.payload));
+	await listen<LanProgress>('lan-progress', (e) => (app.transfer = e.payload.done < e.payload.total ? e.payload : null));
+	// The backend changed settings itself (e.g. a newly trusted LAN peer).
+	await listen<Settings>('settings-changed', (e) => (app.settings = e.payload));
 	app.ready = true;
 }
 

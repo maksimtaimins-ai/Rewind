@@ -33,7 +33,12 @@
 	</ul>
 	<div class="foot">
 		<StatusLine status={app.status} compact />
-		<p class="local">Clips never leave this PC.</p>
+		{#if app.transfer}
+			{@const t = app.transfer}
+			<p class="local num">{t.direction === 'in' ? 'Receiving from' : 'Sending to'} {t.peer}, {Math.round((t.done / t.total) * 100)}%</p>
+		{:else}
+			<p class="local">No cloud, no account.</p>
+		{/if}
 	</div>
 </nav>
 

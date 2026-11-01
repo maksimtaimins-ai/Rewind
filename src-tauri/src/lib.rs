@@ -129,7 +129,19 @@ pub fn run() {
             // background threads. It runs until the app quits; saving only reads it.
             let engine = Engine::start(Box::new(UiEvents(handle.clone())));
             let settings = engine.settings();
+            let emit_handle = handle.clone();
+            let lan = share::lan::Lan::new(
+                engine.clone(),
+                std::sync::Arc::new(move |event: &str, payload: serde_json::Value| {
+                    // Someone asking to send a clip needs the window, even from the tray.
+                    if event == "lan-offer" {
+                        show_main(&emit_handle);
+                    }
+                    let _ = emit_handle.emit(event, payload);
+                }),
+            );
             app.manage(engine);
+            app.manage(lan);
             build_tray(&handle)?;
             let hidden = settings.first_run_complete && (start_hidden || settings.start_minimized);
             if !hidden {
@@ -178,6 +190,9 @@ pub fn run() {
             commands::import_settings,
             commands::running_apps,
             commands::post_to_discord,
+            commands::lan_peers,
+            commands::lan_send,
+            commands::lan_answer,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Rewind")

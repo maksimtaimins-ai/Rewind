@@ -88,7 +88,41 @@ export interface Settings {
 	profiles: GameProfile[];
 	privacy_apps: string[];
 	ssd_warn_gb_per_day: number;
-	sharing: { discord_webhooks: DiscordWebhook[] };
+	sharing: {
+		discord_webhooks: DiscordWebhook[];
+		/** Listen for clips from other Rewinds and announce this PC. */
+		lan_enabled: boolean;
+		lan_port: number;
+		/** Name other PCs see; empty = this PC's name. */
+		device_name: string;
+		device_id: string;
+		/** PCs whose clips are accepted without asking. */
+		trusted_peers: { id: string; name: string }[];
+	};
+}
+
+export interface LanPeer {
+	id: string;
+	name: string;
+	addr: string;
+}
+
+/** Progress of a LAN transfer, about once per 20 MB chunk. */
+export interface LanProgress {
+	direction: 'in' | 'out';
+	peer: string;
+	file: string;
+	/** Sending only. */
+	path?: string;
+	done: number;
+	total: number;
+}
+
+export interface LanOffer {
+	offer: number;
+	name: string;
+	file: string;
+	size: number;
 }
 
 export type HotkeyAction = 'save_clip' | 'marker' | 'screenshot' | 'extend_last' | 'slow_mo' | 'favorite_last';
@@ -233,7 +267,11 @@ export const api = {
 	importSettings: (path: string) => invoke<Settings>('import_settings', { path }),
 	runningApps: () => invoke<string[]>('running_apps'),
 	/** `webhook` is the index into `settings.sharing.discord_webhooks`. */
-	postToDiscord: (path: string, webhook: number) => invoke<void>('post_to_discord', { path, webhook })
+	postToDiscord: (path: string, webhook: number) => invoke<void>('post_to_discord', { path, webhook }),
+	lanPeers: () => invoke<LanPeer[]>('lan_peers'),
+	/** Resolves once the clip is saved on the other PC. */
+	lanSend: (path: string, peer: string) => invoke<void>('lan_send', { path, peer }),
+	lanAnswer: (offer: number, accept: boolean) => invoke<void>('lan_answer', { offer, accept })
 };
 
 export const fileUrl = (path: string) => convertFileSrc(path);

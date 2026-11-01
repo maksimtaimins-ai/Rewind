@@ -192,7 +192,10 @@ impl Engine {
     pub fn start(events: Box<dyn Events>) -> Self {
         platform::com_init();
         encode::mf::mf_startup();
-        let settings = settings::load();
+        let mut settings = settings::load();
+        if settings::ensure_device_id(&mut settings) {
+            let _ = settings::save(&settings);
+        }
         tracing::info!("settings: buffer {}s, first run done {}, clips {}", settings.buffer.seconds, settings.first_run_complete, settings.clips_dir.display());
         let (save_tx, save_rx) = unbounded();
         let (post_tx, post_rx) = unbounded::<SaveJob>();

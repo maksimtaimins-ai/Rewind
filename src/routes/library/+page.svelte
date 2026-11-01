@@ -11,7 +11,8 @@
 	import Segmented from '#lib/components/Segmented.svelte';
 	import { allTags, applyFilters, emptyFilters, isFiltering, type DateRange, type LengthRange } from '#lib/filter.ts';
 	import { defaultSessionName, groupSessions } from '#lib/sessions.ts';
-	import { postToDiscord } from '#lib/share.ts';
+	import { postToDiscord, sendToPeer } from '#lib/share.ts';
+	import type { LanPeer } from '#lib/api.ts';
 
 	let selecting = $state(false);
 	let selected = $state<string[]>([]);
@@ -64,9 +65,11 @@
 		y: Math.min(y, window.innerHeight - h - 8)
 	});
 
-	function openMenu(c: Clip, e: MouseEvent) {
+	let peers = $state<LanPeer[]>([]);
+	async function openMenu(c: Clip, e: MouseEvent) {
 		tagging = null;
-		const extra = app.settings?.sharing.discord_webhooks.length ?? 0;
+		if (inApp && app.settings?.sharing.lan_enabled) peers = await api.lanPeers().catch(() => []);
+		const extra = (app.settings?.sharing.discord_webhooks.length ?? 0) + peers.length;
 		menu = { clip: c, ...place(e.clientX, e.clientY, 200, 152 + extra * 36) };
 	}
 
@@ -323,6 +326,9 @@
 		<button role="menuitem" onclick={() => (menu = null, goto(`/trim?path=${encodeURIComponent(m.clip.path)}`))}>Open</button>
 		{#each app.settings?.sharing.discord_webhooks ?? [] as w, i (i)}
 			<button role="menuitem" onclick={() => ((menu = null), postToDiscord(m.clip, i))}>Post to {w.name || 'Discord'}</button>
+		{/each}
+		{#each peers as p (p.id)}
+			<button role="menuitem" onclick={() => ((menu = null), sendToPeer(m.clip, p))}>Send to {p.name}</button>
 		{/each}
 		<button role="menuitem" onclick={() => ((menu = null), removeOne(m.clip))}>Delete</button>
 	</div>

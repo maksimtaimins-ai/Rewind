@@ -49,6 +49,7 @@ features = [
   "Win32_Media_KernelStreaming",
   "Win32_Media_MediaFoundation",
   "Win32_Media_Multimedia",
+  "Win32_NetworkManagement_Dns",
   "Win32_Networking_WinHttp",
   "Win32_Security",
   "Win32_System_Com",

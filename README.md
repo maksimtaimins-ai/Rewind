@@ -68,4 +68,4 @@ Not yet:
 - Frame-exact trim (re-encode): trim currently snaps the start to the previous keyframe.
 - HDR tonemapping: HDR desktops are captured as 8-bit BGRA; the tonemap shader is still to do, and the option is hidden until it exists.
 - Window capture (a single game window instead of the whole monitor).
-- The rest of the advanced list: overlay, annotate/blur, auto-crop, LAN send, HUD mode, highlights.
+- The rest of the advanced list: overlay, annotate/blur, auto-crop, HUD mode, highlights.

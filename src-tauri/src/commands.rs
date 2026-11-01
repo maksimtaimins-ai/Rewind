@@ -13,6 +13,7 @@ use crate::mux;
 use crate::platform;
 use crate::recycled;
 use crate::settings::{self, Settings};
+use crate::share::lan::{Lan, Peer};
 
 type R<T> = Result<T, String>;
 
@@ -26,9 +27,11 @@ pub fn get_settings(engine: State<Engine>) -> Settings {
 }
 
 #[tauri::command]
-pub fn set_settings(engine: State<Engine>, mut settings: Settings) -> R<()> {
+pub fn set_settings(engine: State<Engine>, lan: State<Lan>, mut settings: Settings) -> R<()> {
     settings.sanitize();
-    engine.set_settings(settings).map_err(err)
+    engine.set_settings(settings.clone()).map_err(err)?;
+    lan.apply(&settings);
+    Ok(())
 }
 
 #[tauri::command]
@@ -227,13 +230,16 @@ pub fn export_settings(engine: State<Engine>, path: PathBuf) -> R<()> {
 
 /// Import a shared settings file. Machine-specific paths are kept.
 #[tauri::command]
-pub fn import_settings(engine: State<Engine>, path: PathBuf) -> R<Settings> {
+pub fn import_settings(engine: State<Engine>, lan: State<Lan>, path: PathBuf) -> R<Settings> {
     let text = std::fs::read_to_string(path).map_err(err)?;
     let mut s = settings::parse(&text).map_err(err)?;
     let current = engine.settings();
     s.clips_dir = current.clips_dir;
     s.first_run_complete = current.first_run_complete;
+    s.sharing.device_id = current.sharing.device_id;
+    s.sharing.trusted_peers = current.sharing.trusted_peers;
     engine.set_settings(s.clone()).map_err(err)?;
+    lan.apply(&s);
     Ok(s)
 }
 
@@ -253,4 +259,23 @@ pub async fn post_to_discord(engine: State<'_, Engine>, path: PathBuf, webhook: 
         .await
         .map_err(err)?
         .map_err(|e| format!("{e:#}"))
+}
+
+/// Other Rewinds on the network (empty while LAN send is off).
+#[tauri::command]
+pub fn lan_peers(lan: State<Lan>) -> Vec<Peer> {
+    lan.peers()
+}
+
+/// Send a clip to a peer; resolves once it's saved on their side.
+#[tauri::command]
+pub async fn lan_send(lan: State<'_, Lan>, path: PathBuf, peer: String) -> R<()> {
+    let lan = lan.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || lan.send(&path, &peer)).await.map_err(err)?.map_err(|e| format!("{e:#}"))
+}
+
+/// Answer "Accept clip from …?" for an incoming offer.
+#[tauri::command]
+pub fn lan_answer(lan: State<Lan>, offer: u64, accept: bool) {
+    lan.answer(offer, accept);
 }

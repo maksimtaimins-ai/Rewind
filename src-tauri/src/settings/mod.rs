@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-pub const SETTINGS_VERSION: u32 = 10;
+pub const SETTINGS_VERSION: u32 = 11;
 
 /// Allowed range for [`BufferSettings::seconds`].
 pub const MIN_BUFFER_SECS: u32 = 10;
@@ -176,9 +176,24 @@ pub struct DiscordWebhook {
     pub limit_mb: u32,
 }
 
+/// A PC whose clips were accepted once; it isn't asked about again.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TrustedPeer {
+    pub id: String,
+    pub name: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SharingSettings {
     pub discord_webhooks: Vec<DiscordWebhook>,
+    /// Listen for clips from other Rewinds and announce this PC over zeroconf.
+    pub lan_enabled: bool,
+    pub lan_port: u16,
+    /// Name other PCs see; empty = this PC's name.
+    pub device_name: String,
+    /// Random id for this install, made on first launch.
+    pub device_id: String,
+    pub trusted_peers: Vec<TrustedPeer>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -269,7 +284,14 @@ impl Default for Settings {
             profiles: Vec::new(),
             privacy_apps: vec!["KeePassXC.exe".into(), "1Password.exe".into(), "Bitwarden.exe".into()],
             ssd_warn_gb_per_day: 50,
-            sharing: SharingSettings { discord_webhooks: Vec::new() },
+            sharing: SharingSettings {
+                discord_webhooks: Vec::new(),
+                lan_enabled: false,
+                lan_port: 7777,
+                device_name: String::new(),
+                device_id: String::new(),
+                trusted_peers: Vec::new(),
+            },
         }
     }
 }
@@ -333,6 +355,9 @@ impl Settings {
         for slot in &mut self.buffer.extra_slots {
             slot.seconds = slot.seconds.clamp(MIN_BUFFER_SECS, MAX_BUFFER_SECS);
         }
+        if self.sharing.lan_port < 1024 {
+            self.sharing.lan_port = 7777;
+        }
         for w in &mut self.sharing.discord_webhooks {
             w.limit_mb = if w.limit_mb >= 25 { 25 } else { 10 };
         }
@@ -365,6 +390,7 @@ fn migrate(value: &mut toml::Table) -> Result<()> {
             h.remove("save_long_clip");
         }
     }
+    // v10 -> v11: LAN send fields added under `sharing`; defaults fill them in.
     // v9 -> v10: `sharing` (Discord webhooks) added; defaults fill it in.
     // v8 -> v9: opt-in `post_roll` added (off); defaults fill it in. Unrelated
     // to the v1 `buffer.post_roll_secs`, which stays dropped.
@@ -394,6 +420,19 @@ fn merge(base: &mut toml::Table, overlay: toml::Table) {
             }
         }
     }
+}
+
+/// Give this install its LAN id if it has none yet. Returns true if it changed.
+pub fn ensure_device_id(s: &mut Settings) -> bool {
+    if !s.sharing.device_id.is_empty() {
+        return false;
+    }
+    use std::hash::BuildHasher;
+    // RandomState is seeded per process from the OS's random source.
+    let a = std::collections::hash_map::RandomState::new().hash_one(std::time::SystemTime::now());
+    let b = std::collections::hash_map::RandomState::new().hash_one(std::process::id());
+    s.sharing.device_id = format!("{a:016x}{b:016x}");
+    true
 }
 
 pub fn save(settings: &Settings) -> Result<()> {
@@ -538,6 +577,16 @@ limit_mb = 50
         assert_eq!(s.sharing.discord_webhooks[0].limit_mb, 25);
         assert!(parse("version = 9
 ").unwrap().sharing.discord_webhooks.is_empty());
+    }
+
+    #[test]
+    fn lan_defaults_and_id() {
+        let mut s = parse("version = 10\n").unwrap();
+        assert!(!s.sharing.lan_enabled);
+        assert_eq!(s.sharing.lan_port, 7777);
+        assert!(ensure_device_id(&mut s));
+        assert_eq!(s.sharing.device_id.len(), 32);
+        assert!(!ensure_device_id(&mut s));
     }
 
     #[test]
