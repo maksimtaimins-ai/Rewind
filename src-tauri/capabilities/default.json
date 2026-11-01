@@ -17,6 +17,7 @@
     "core:window:allow-show",
     "opener:default",
     "opener:allow-reveal-item-in-dir",
-    "dialog:default"
+    "dialog:default",
+    "updater:default"
   ]
 }

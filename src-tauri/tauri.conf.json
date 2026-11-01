@@ -40,6 +40,7 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": [
       "nsis"
     ],
@@ -66,6 +67,17 @@
         "installerIcon": "icons/icon.ico",
         "installerHooks": "./windows/installer-hooks.nsh",
         "template": "./windows/installer.nsi"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVBREFDRDQxNTFEQjM3Q0MKUldUTU45dFJRYzNhNmcxY0ZKR05ETm9IU096TmxZak9saVNUQUxwSE5UQzZpaDNneVFQUW1ON2YK",
+      "endpoints": [
+        "https://github.com/maksimtaimins-ai/Rewind/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
       }
     }
   }

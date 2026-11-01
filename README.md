@@ -2,6 +2,35 @@
 
 Local-only instant replay for Windows. Rewind keeps the last few minutes of your screen and audio in RAM as already-encoded video, and writes a clip to disk when you press a hotkey. No account, no cloud, no telemetry.
 
+**Open-source, local, zero-telemetry.** Rewind never sends anything anywhere unless you ask it to (a Discord webhook post, or Settings > Help > Check for updates).
+
+Repository: https://github.com/maksimtaimins-ai/Rewind
+
+## Install
+
+1. Open the [Releases page](https://github.com/maksimtaimins-ai/Rewind/releases/latest).
+2. Download `Rewind_<version>_x64-setup.exe` and run it.
+3. Choose a per-user or per-machine install. Windows 10 or 11 is required.
+
+The installer is not code-signed yet, so SmartScreen may show "Windows protected your PC". Click **More info**, then **Run anyway**. [VirusTotal scan of the current build](https://www.virustotal.com/gui/file/7ee20b05161bcc14f2ed9d075c240bd11248a79363332d83cee048658a9cd4f4).
+
+Updates: Settings > Help > Check for updates downloads the newest signed release from GitHub and installs it. Rewind does not check on its own.
+
+## Features
+
+- Instant replay from RAM: hardware encoding (NVENC, AMF, QSV), save the last 10 s to 5 min on a hotkey
+- Up to three replay lengths, post-roll, extend last clip, slow-mo replay, screenshots, markers
+- Multi-track audio: system, per-app, everything-except-an-app, microphone
+- Clip library with search, sessions, favorites, tags, trim and merge without re-encoding
+- Export presets for Discord, Shorts and X, plus GIF; Discord webhook posting
+- Optional extras, off by default: smart highlights, keystroke overlay, per-game profiles, montage builder
+
+## Clone
+
+```bash
+git clone https://github.com/maksimtaimins-ai/Rewind.git
+```
+
 ## Build
 
 Requirements: Rust (stable), Node 20+, WebView2 (preinstalled on Windows 10/11), and the Tauri CLI (`cargo install tauri-cli --version "^2" --locked`).
@@ -15,6 +44,8 @@ npm run package
 ```
 
 `npm run package` runs `cargo tauri build` and copies the installer to `src-tauri/target/release/bundle/nsis/Rewind-Setup.exe`. Plain `cargo tauri build` also works; it leaves the installer as `Rewind_<version>_x64-setup.exe` in the same folder (Tauri hard-codes that name).
+
+Release builds also sign the installer for the updater, so the build needs the updater's private key. Set `TAURI_SIGNING_PRIVATE_KEY` (the key file's path or contents) and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` before building. The build then writes `Rewind_<version>_x64-setup.exe.sig`; `latest.json` for a release is built from that signature.
 
 Development:
 

@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { open, save } from '@tauri-apps/plugin-dialog';
+	import { check } from '@tauri-apps/plugin-updater';
 	import { api, type BenchReport, type BenchResult, type Device, type EncoderInfo, type Monitor, type Settings, type AudioSource } from '#lib/api.ts';
 	import { app, inApp, refreshStorage, toast, updateSettings } from '#lib/stores/app.svelte.ts';
 	import StorageBar from '#lib/components/StorageBar.svelte';
@@ -66,6 +67,25 @@
 	async function replayTour() {
 		await updateSettings((x) => (x.tour_complete = false));
 		goto('/');
+	}
+
+	// Only runs on click: one request to GitHub Releases, nothing in the background.
+	let updating = $state<'idle' | 'checking' | 'installing'>('idle');
+	async function checkForUpdate() {
+		if (!inApp) return toast('info', 'Rewind is up to date');
+		updating = 'checking';
+		try {
+			const update = await check();
+			if (!update) return toast('info', 'Rewind is up to date');
+			updating = 'installing';
+			toast('info', `Installing Rewind ${update.version}. It restarts when done.`);
+			// The installer closes Rewind itself, then relaunches it.
+			await update.downloadAndInstall();
+		} catch (e) {
+			toast('error', `Update check failed: ${e}`);
+		} finally {
+			updating = 'idle';
+		}
 	}
 
 	const kinds = $derived([...new Set(encoders.filter((e) => e.codec === s.video.codec).map((e) => e.kind))]);
@@ -530,6 +550,11 @@
 			<h2>Help</h2>
 			<Row label="Tour of the Live tab" hint="Four quick pointers: saving, the buffer, your clips and settings.">
 				<button class="secondary" onclick={replayTour}>Show the tour</button>
+			</Row>
+			<Row label="Updates" hint="Checks GitHub Releases for a newer signed version. Rewind never checks on its own.">
+				<button class="secondary" disabled={updating !== 'idle'} onclick={checkForUpdate}>
+					{updating === 'checking' ? 'Checking…' : updating === 'installing' ? 'Installing…' : 'Check for updates'}
+				</button>
 			</Row>
 		</section>
 
