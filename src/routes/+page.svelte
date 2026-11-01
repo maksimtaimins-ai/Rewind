@@ -20,6 +20,9 @@
 	const markers = $derived(s?.markers ?? []);
 	const onTape = $derived(live ? markers.filter((m) => m.in_buffer) : []);
 	let showMarkers = $state(false);
+	const clipCopy = $derived(
+		`Clip: last ${capacity}s` + (settings.post_roll.enabled ? ` + ${settings.post_roll.seconds}s after` : '')
+	);
 
 	async function run(fn: () => Promise<unknown>) {
 		if (!inApp) return;
@@ -68,7 +71,7 @@
 		<div class="counter">
 			<span class="rec" aria-hidden="true"></span>
 			<span class="held num" aria-live="off">Buffer: {Math.floor(held)}s / {capacity}s</span>
-			<span class="of">{extraSlots.length ? 'slot A, held in memory' : 'held in memory'}</span>
+			<span class="of">{clipCopy}</span>
 			{#if markers.length}
 				<button class="markers" aria-expanded={showMarkers} onclick={() => (showMarkers = !showMarkers)}>
 					{markers.length} {markers.length === 1 ? 'marker' : 'markers'}

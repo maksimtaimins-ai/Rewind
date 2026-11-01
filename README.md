@@ -36,7 +36,7 @@ Hotkey -> snapshot buffer -> fragmented MP4 written on a background thread
 
 - **Capture:** Windows.Graphics.Capture, frame-arrived callbacks with no polling. FPS is capped from frame timestamps, so VRR is respected. No hooks or DLL injection.
 - **Encode:** hardware MFTs are enumerated per GPU (`MFTEnum2`), so on multi-GPU machines each encoder gets a D3D device on its own adapter. `Auto` picks NVENC > AMF > QSV and never the CPU encoder while hardware exists. Keyframes are forced on a timer (default every 1 s), and there are no B-frames.
-- **Buffer:** whole GOPs of encoded packets, trimmed by time and by a RAM cap. A saved clip is the last N seconds (the buffer length) ending at the keypress.
+- **Buffer:** whole GOPs of encoded packets, trimmed by time and by a RAM cap. A saved clip is the last N seconds (the buffer length) ending at the keypress. With the opt-in post-roll setting, a normal save keeps recording 1-120 s past the keypress before it's written; presses during the wait queue up in order.
 - **Mux:** hand-written fMP4 (`src-tauri/src/mux`): one fragment per GOP plus an `mfra` index. Each audio source is its own named track. Trim and merge are keyframe-aligned remuxes, so there's no re-encode.
 - **Audio:** each track runs its own thread. Gaps (e.g. silent loopback) are filled with silence, and clock drift is corrected against QPC.
 - **Settings:** versioned TOML in `%APPDATA%\Rewind\settings.toml` with migrations (`settings::migrate`). Log: `%APPDATA%\Rewind\rewind.log`.

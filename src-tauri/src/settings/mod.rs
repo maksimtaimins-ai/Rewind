@@ -8,13 +8,16 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-pub const SETTINGS_VERSION: u32 = 8;
+pub const SETTINGS_VERSION: u32 = 9;
 
 /// Allowed range for [`BufferSettings::seconds`].
 pub const MIN_BUFFER_SECS: u32 = 10;
 pub const MAX_BUFFER_SECS: u32 = 300;
 /// Slots besides the main buffer length (B and C).
 pub const EXTRA_SLOTS: usize = 2;
+/// Allowed range for [`PostRollSettings::seconds`].
+pub const MIN_POST_ROLL_SECS: u32 = 1;
+pub const MAX_POST_ROLL_SECS: u32 = 120;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -101,6 +104,14 @@ pub struct SlowMoSettings {
     pub speed: f32,
 }
 
+/// Opt-in footage recorded after the save hotkey. Off: a clip ends at the
+/// keypress. On: it ends `seconds` later, and the save waits until then.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PostRollSettings {
+    pub enabled: bool,
+    pub seconds: u32,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct VideoSettings {
     /// Index into the monitor list (0 = primary).
@@ -168,6 +179,7 @@ pub struct Settings {
     pub play_sound_on_save: bool,
     pub video: VideoSettings,
     pub buffer: BufferSettings,
+    pub post_roll: PostRollSettings,
     pub slow_mo: SlowMoSettings,
     pub library: LibrarySettings,
     pub audio: Vec<AudioTrack>,
@@ -212,6 +224,7 @@ impl Default for Settings {
                 max_memory_mb: 1024,
                 extend_secs: 15,
             },
+            post_roll: PostRollSettings { enabled: false, seconds: 10 },
             slow_mo: SlowMoSettings { seconds: 3, speed: 0.25 },
             library: LibrarySettings { session_gap_mins: 30, purge_days: 30 },
             audio: vec![
@@ -292,6 +305,7 @@ impl Settings {
     pub fn sanitize(&mut self) {
         self.buffer.seconds = self.buffer.seconds.clamp(MIN_BUFFER_SECS, MAX_BUFFER_SECS);
         self.buffer.extend_secs = self.buffer.extend_secs.clamp(5, 120);
+        self.post_roll.seconds = self.post_roll.seconds.clamp(MIN_POST_ROLL_SECS, MAX_POST_ROLL_SECS);
         self.buffer.extra_slots.resize(EXTRA_SLOTS, BufferSlot { enabled: false, seconds: 60, hotkey: String::new() });
         self.library.session_gap_mins = self.library.session_gap_mins.clamp(1, 24 * 60);
         self.library.purge_days = self.library.purge_days.clamp(1, 365);
@@ -302,6 +316,11 @@ impl Settings {
         for slot in &mut self.buffer.extra_slots {
             slot.seconds = slot.seconds.clamp(MIN_BUFFER_SECS, MAX_BUFFER_SECS);
         }
+    }
+
+    /// Seconds a normal save records after the keypress (0 when post-roll is off).
+    pub fn post_roll_secs(&self) -> u32 {
+        if self.post_roll.enabled { self.post_roll.seconds } else { 0 }
     }
 
     /// Longest enabled replay length, which is what the buffer must hold.
@@ -326,6 +345,8 @@ fn migrate(value: &mut toml::Table) -> Result<()> {
             h.remove("save_long_clip");
         }
     }
+    // v8 -> v9: opt-in `post_roll` added (off); defaults fill it in. Unrelated
+    // to the v1 `buffer.post_roll_secs`, which stays dropped.
     // v7 -> v8: `library.purge_days` added; defaults fill it in.
     // v6 -> v7: `hotkeys.favorite_last` added; defaults fill it in.
     // v5 -> v6: `library` added; defaults fill it in.
@@ -429,7 +450,28 @@ save_long_clip = \"Alt+F9\"
         assert_eq!(s.buffer.seconds, 45);
         assert_eq!(s.version, SETTINGS_VERSION);
         let text = toml::to_string_pretty(&s).unwrap();
-        assert!(!text.contains("post_roll") && !text.contains("long_seconds") && !text.contains("save_long_clip"));
+        assert!(!text.contains("post_roll_secs") && !text.contains("long_seconds") && !text.contains("save_long_clip"));
+        assert!(!s.post_roll.enabled);
+    }
+
+    #[test]
+    fn post_roll_defaults_off_and_clamps() {
+        let s = parse("version = 8
+").unwrap();
+        assert_eq!(s.post_roll, PostRollSettings { enabled: false, seconds: 10 });
+        assert_eq!(s.post_roll_secs(), 0);
+        let s = parse("version = 9
+[post_roll]
+enabled = true
+seconds = 500
+").unwrap();
+        assert_eq!(s.post_roll_secs(), MAX_POST_ROLL_SECS);
+        let s = parse("version = 9
+[post_roll]
+enabled = true
+seconds = 0
+").unwrap();
+        assert_eq!(s.post_roll_secs(), MIN_POST_ROLL_SECS);
     }
 
     #[test]

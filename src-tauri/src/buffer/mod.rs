@@ -104,6 +104,12 @@ impl ReplayBuffer {
         }
     }
 
+    /// Change how many seconds are kept without dropping what's held. A
+    /// shorter window takes effect at the next packet.
+    pub fn set_max_secs(&mut self, max_secs: u32) {
+        self.max_ticks = max_secs as i64 * TICKS_PER_SEC;
+    }
+
     pub fn set_video_config(&mut self, cfg: VideoConfig) {
         if self.video_config.as_ref() != Some(&cfg) {
             // New parameter sets: old packets can't share a sample entry.

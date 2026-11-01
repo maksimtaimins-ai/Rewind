@@ -169,6 +169,15 @@
 				<input class="numbox num" type="number" min="10" max="300" value={s.buffer.seconds} onchange={(e) => set((x) => (x.buffer.seconds = Math.min(300, Math.max(10, num(e)))))} aria-label="Buffer length in seconds" />
 				<span class="unit">s</span>
 			</Row>
+			<Row label="Record extra after press" hint={s.post_roll.enabled ? `A normal save keeps recording ${s.post_roll.seconds} seconds after the hotkey, then writes the clip. Markers, slow-mo and screenshots are unaffected.` : 'Off. A clip ends the moment you press the hotkey.'}>
+				<Toggle checked={s.post_roll.enabled} label="Post-roll" onchange={(v) => set((x) => (x.post_roll.enabled = v))} />
+			</Row>
+			{#if s.post_roll.enabled}
+				<Row label="Post-roll length" hint="1 to 120 seconds. Applies to every save slot.">
+					<input type="range" min="1" max="120" step="1" value={s.post_roll.seconds} onchange={(e) => set((x) => (x.post_roll.seconds = num(e)))} aria-label="Post-roll length" />
+					<span class="readout num">{s.post_roll.seconds}s</span>
+				</Row>
+			{/if}
 			{#each s.buffer.extra_slots as slot, i (i)}
 				<Row label="Slot {'BC'[i]}" hint={slot.enabled ? `Saves the last ${slot.seconds} seconds${slot.hotkey ? ` with ${slot.hotkey}` : ''}. Shares the buffer above, no extra encoding.` : 'Off. A second replay length with its own hotkey.'}>
 					{#if slot.enabled}

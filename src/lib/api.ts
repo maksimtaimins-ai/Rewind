@@ -72,6 +72,8 @@ export interface Settings {
 		max_memory_mb: number;
 		extend_secs: number;
 	};
+	/** Opt-in: a normal save also records `seconds` (1-120) after the keypress. */
+	post_roll: { enabled: boolean; seconds: number };
 	slow_mo: { seconds: 2 | 3 | 5; speed: number };
 	library: { session_gap_mins: number; purge_days: number };
 	audio: AudioTrack[];
@@ -99,8 +101,18 @@ export interface Status {
 	privacy: boolean;
 	/** Markers set this session, oldest first. */
 	markers: MarkerInfo[];
+	/** A save still recording its post-roll. */
+	post_roll: PostRollStatus | null;
 	error: string | null;
 	written_today_gb: number;
+}
+
+export interface PostRollStatus {
+	/** Seconds until the current save is written. */
+	remaining: number;
+	seconds: number;
+	/** Further presses waiting behind it. */
+	queued: number;
 }
 
 export interface SlotStatus {

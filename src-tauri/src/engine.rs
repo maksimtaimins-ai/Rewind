@@ -1,6 +1,7 @@
 //! The engine owns the replay buffer and pipeline lifecycle, reacts to
 //! hotkeys, and writes clips on a background thread so capture never blocks.
 
+use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
@@ -50,8 +51,20 @@ pub struct Status {
     pub game: Option<String>,
     pub privacy: bool,
     pub markers: Vec<MarkerInfo>,
+    /// A save waiting for its post-roll to finish, if any.
+    pub post_roll: Option<PostRollStatus>,
     pub error: Option<String>,
     pub written_today_gb: f64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PostRollStatus {
+    /// Seconds until the current save is written.
+    pub remaining: f64,
+    /// Post-roll length of the current save.
+    pub seconds: u32,
+    /// Further presses waiting behind it.
+    pub queued: u32,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -156,6 +169,10 @@ struct Inner {
     /// Most recently written clip of any kind, for "favorite last clip".
     last_clip: Mutex<Option<PathBuf>>,
     save_tx: Sender<SaveJob>,
+    /// Saves still recording their post-roll, handed to the saver in order.
+    post_tx: Sender<SaveJob>,
+    /// (end, post-roll seconds) of each save in `post_tx`, oldest first.
+    post_pending: Mutex<VecDeque<(i64, u32)>>,
     error: Mutex<Option<String>>,
     hotkeys: Mutex<Option<HotkeyThread>>,
     written_today: AtomicU64,
@@ -178,6 +195,7 @@ impl Engine {
         let settings = settings::load();
         tracing::info!("settings: buffer {}s, first run done {}, clips {}", settings.buffer.seconds, settings.first_run_complete, settings.clips_dir.display());
         let (save_tx, save_rx) = unbounded();
+        let (post_tx, post_rx) = unbounded::<SaveJob>();
         let inner = Arc::new(Inner {
             buffer: Arc::new(Mutex::new(ReplayBuffer::new(1, MB))),
             flags: Arc::new(Flags::default()),
@@ -191,6 +209,8 @@ impl Engine {
             last_save: Mutex::new(None),
             last_clip: Mutex::new(None),
             save_tx,
+            post_tx,
+            post_pending: Mutex::new(VecDeque::new()),
             error: Mutex::new(None),
             hotkeys: Mutex::new(None),
             written_today: AtomicU64::new(load_usage()),
@@ -232,6 +252,19 @@ impl Engine {
             }
         }).expect("spawn save thread");
 
+        // Post-roll saves wait here, one after another, so the saver stays free
+        // for markers, slow-mo and extend while they record.
+        let e = engine.clone();
+        std::thread::Builder::new().name("rewind-postroll".into()).spawn(move || {
+            for job in post_rx {
+                while qpc_now() < job.to && !e.inner.shutdown.load(Ordering::Relaxed) {
+                    std::thread::sleep(Duration::from_millis(50));
+                }
+                e.inner.post_pending.lock().pop_front();
+                let _ = e.inner.save_tx.send(job);
+            }
+        }).expect("spawn post-roll thread");
+
         let e = engine.clone();
         std::thread::Builder::new().name("rewind-control".into()).spawn(move || {
             platform::com_init();
@@ -258,6 +291,11 @@ impl Engine {
         }
         if old.video != new.video || old.buffer != new.buffer || old.audio != new.audio || old.profiles != new.profiles {
             self.inner.restart.store(true, Ordering::Relaxed);
+        }
+        if old.post_roll != new.post_roll {
+            // Resize in place: toggling post-roll shouldn't empty the buffer.
+            let keep = keep_secs(&new, self.inner.buffer_secs.load(Ordering::Relaxed));
+            self.inner.buffer.lock().set_max_secs(keep);
         }
         if old.launch_on_startup != new.launch_on_startup {
             platform::set_autostart(new.launch_on_startup)?;
@@ -336,23 +374,29 @@ impl Engine {
     }
 
     /// Save the last `secs` (default: the main buffer length), ending at the
-    /// keypress.
+    /// keypress, or post-roll seconds after it when that's on.
     pub fn save_clip(&self, secs: Option<u32>) -> Result<()> {
         let pipeline = self.inner.pipeline.lock();
         let Some(p) = pipeline.as_ref() else {
             return Err(anyhow!("Capture is still starting"));
         };
         let now = qpc_now();
+        let post = self.inner.settings.read().post_roll_secs();
         let job = SaveJob {
             from: now - self.clip_ticks(secs),
-            to: now,
+            to: now + post as i64 * TICKS_PER_SEC,
             path: library::unique_path(&self.clips_dir()?, &self.clip_stem(), "mp4"),
             thumb: Some(p.request_frame()),
             replaces: false,
             slow_mo: None,
         };
         drop(pipeline);
-        self.inner.save_tx.send(job)?;
+        if post == 0 {
+            self.inner.save_tx.send(job)?;
+        } else {
+            self.inner.post_pending.lock().push_back((job.to, post));
+            self.inner.post_tx.send(job)?;
+        }
         Ok(())
     }
 
@@ -586,6 +630,14 @@ impl Engine {
         // the struct literal and deadlock a second lock below.
         let error = self.inner.error.lock().clone();
         let game = self.inner.game.lock().as_ref().map(|g| g.name.clone());
+        let post_roll = {
+            let pending = self.inner.post_pending.lock();
+            pending.front().map(|&(to, seconds)| PostRollStatus {
+                remaining: ((to - now) as f64 / TICKS_PER_SEC as f64).max(0.0),
+                seconds,
+                queued: pending.len().saturating_sub(1) as u32,
+            })
+        };
         Status {
             state: match (&error, pipeline.is_some(), paused) {
                 (Some(_), false, _) => State::Error,
@@ -605,6 +657,7 @@ impl Engine {
             game,
             privacy: self.inner.flags.privacy.load(Ordering::Relaxed),
             markers,
+            post_roll,
             error,
             written_today_gb: self.inner.written_today.load(Ordering::Relaxed) as f64 / 1e9,
         }
@@ -627,10 +680,7 @@ impl Engine {
             .ok_or_else(|| anyhow!("No video encoder available for {:?}", v.codec))?;
         let buffer_secs = profile.as_ref().and_then(|p| p.buffer_seconds).unwrap_or(s.buffer.seconds);
         self.inner.buffer_secs.store(buffer_secs, Ordering::Relaxed);
-        // Slack past the clip length: GOP rounding, plus room for "extend last clip".
-        let longest = s.buffer.extra_slots.iter().filter(|x| x.enabled).map(|x| x.seconds).fold(buffer_secs, u32::max);
-        let keep = longest + s.buffer.extend_secs + 2;
-        *self.inner.buffer.lock() = ReplayBuffer::new(keep, s.buffer.max_memory_mb as usize * MB);
+        *self.inner.buffer.lock() = ReplayBuffer::new(keep_secs(s, buffer_secs), s.buffer.max_memory_mb as usize * MB);
         Pipeline::start(
             PipelineConfig {
                 monitor,
@@ -772,6 +822,14 @@ impl Engine {
     }
 }
 
+/// Seconds the buffer keeps: the longest slot (`buffer_secs` may come from a
+/// game profile), plus the post-roll a pending save is still waiting on, plus
+/// slack for GOP rounding and "extend last clip".
+fn keep_secs(s: &Settings, buffer_secs: u32) -> u32 {
+    let longest = s.buffer.extra_slots.iter().filter(|x| x.enabled).map(|x| x.seconds).fold(buffer_secs, u32::max);
+    longest + s.post_roll_secs() + s.buffer.extend_secs + 2
+}
+
 fn usage_path() -> PathBuf {
     settings::app_data_dir().join("usage.json")
 }
@@ -808,5 +866,15 @@ mod tests {
         assert_eq!(marker_window(105 * S, 30 * S, 100 * S, 200 * S), Some((100 * S, 130 * S, true)));
         // Older than the buffer.
         assert_eq!(marker_window(90 * S, 30 * S, 100 * S, 200 * S), None);
+    }
+
+    #[test]
+    fn keep_covers_post_roll() {
+        let mut s = Settings::default();
+        // Slot B (120 s) is the longest; extend adds 15, slack 2.
+        assert_eq!(keep_secs(&s, 30), 137);
+        s.post_roll.enabled = true;
+        s.post_roll.seconds = 20;
+        assert_eq!(keep_secs(&s, 30), 157);
     }
 }

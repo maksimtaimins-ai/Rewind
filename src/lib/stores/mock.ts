@@ -3,7 +3,7 @@ import type { Clip, Settings, Status } from '#lib/api.ts';
 
 export function mockSettings(): Settings {
 	return {
-		version: 8,
+		version: 9,
 		first_run_complete: true,
 		pro_mode: false,
 		theme: 'system',
@@ -31,6 +31,7 @@ export function mockSettings(): Settings {
 				{ enabled: false, seconds: 300, hotkey: '' }
 			],
 			max_memory_mb: 1024, extend_secs: 15 },
+		post_roll: { enabled: false, seconds: 10 },
 		slow_mo: { seconds: 3, speed: 0.25 },
 		library: { session_gap_mins: 30, purge_days: 30 },
 		audio: [
@@ -76,6 +77,7 @@ export function mockStatus(): Status {
 			{ id: 2, ago: 21.6, at_ms: Date.now() - 21.6e3, in_buffer: true },
 			{ id: 3, ago: 8.2, at_ms: Date.now() - 8.2e3, in_buffer: true }
 		],
+		post_roll: null,
 		error: null,
 		written_today_gb: 0.31
 	};
