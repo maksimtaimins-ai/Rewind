@@ -222,13 +222,19 @@ pub fn frame_at(src: &Path, secs: f64, max_w: u32) -> Result<(u32, u32, Vec<u8>)
 
 /// Re-encode `src` for `preset`, writing next to it. Returns the new file.
 pub fn export(src: &Path, preset: Preset) -> Result<std::path::PathBuf> {
-    let duration = crate::library::probe_duration(src).context("read clip length")?;
     let out = super::output_path(src, preset);
-    let result = if preset == Preset::Gif { export_gif(src, &out, duration) } else { export_video(src, &out, preset, duration) };
+    export_to(src, preset, &out)?;
+    Ok(out)
+}
+
+/// Re-encode `src` for `preset` into `out`. Nothing is left behind on failure.
+pub fn export_to(src: &Path, preset: Preset, out: &Path) -> Result<()> {
+    let duration = crate::library::probe_duration(src).context("read clip length")?;
+    let result = if preset == Preset::Gif { export_gif(src, out, duration) } else { export_video(src, out, preset, duration) };
     if result.is_err() {
-        let _ = std::fs::remove_file(&out);
+        let _ = std::fs::remove_file(out);
     }
-    result.map(|_| out)
+    result
 }
 
 fn export_video(src: &Path, out: &Path, preset: Preset, duration: f64) -> Result<()> {

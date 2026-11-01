@@ -279,3 +279,9 @@ pub async fn lan_send(lan: State<'_, Lan>, path: PathBuf, peer: String) -> R<()>
 pub fn lan_answer(lan: State<Lan>, offer: u64, accept: bool) {
     lan.answer(offer, accept);
 }
+
+/// The last watch-folder exports, newest first.
+#[tauri::command]
+pub fn watch_history() -> Vec<crate::watch::Op> {
+    crate::watch::history()
+}

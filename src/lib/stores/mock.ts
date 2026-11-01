@@ -3,7 +3,7 @@ import type { Clip, Settings, Status } from '#lib/api.ts';
 
 export function mockSettings(): Settings {
 	return {
-		version: 11,
+		version: 12,
 		first_run_complete: true,
 		pro_mode: false,
 		theme: 'system',
@@ -57,7 +57,10 @@ export function mockSettings(): Settings {
 			device_name: '',
 			device_id: 'mock',
 			trusted_peers: [{ id: 'laptop', name: 'LAPTOP-7Q2' }]
-		}
+		},
+		watch_folders: [
+			{ enabled: true, input: 'C:\\clips\\outbox\\youtube-shorts', preset: 'shorts', output: 'C:\\clips\\exported\\youtube', delete_original: false }
+		]
 	};
 }
 

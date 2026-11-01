@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-pub const SETTINGS_VERSION: u32 = 11;
+pub const SETTINGS_VERSION: u32 = 12;
 
 /// Allowed range for [`BufferSettings::seconds`].
 pub const MIN_BUFFER_SECS: u32 = 10;
@@ -176,6 +176,16 @@ pub struct DiscordWebhook {
     pub limit_mb: u32,
 }
 
+/// New .mp4 files in `input` are exported with `preset` into `output`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WatchFolder {
+    pub enabled: bool,
+    pub input: PathBuf,
+    pub preset: crate::export::Preset,
+    pub output: PathBuf,
+    pub delete_original: bool,
+}
+
 /// A PC whose clips were accepted once; it isn't asked about again.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TrustedPeer {
@@ -220,6 +230,7 @@ pub struct Settings {
     /// Warn once a day's written clip volume exceeds this many GiB.
     pub ssd_warn_gb_per_day: u32,
     pub sharing: SharingSettings,
+    pub watch_folders: Vec<WatchFolder>,
 }
 
 impl Default for Settings {
@@ -292,6 +303,7 @@ impl Default for Settings {
                 device_id: String::new(),
                 trusted_peers: Vec::new(),
             },
+            watch_folders: Vec::new(),
         }
     }
 }
@@ -390,6 +402,7 @@ fn migrate(value: &mut toml::Table) -> Result<()> {
             h.remove("save_long_clip");
         }
     }
+    // v11 -> v12: `watch_folders` added (empty).
     // v10 -> v11: LAN send fields added under `sharing`; defaults fill them in.
     // v9 -> v10: `sharing` (Discord webhooks) added; defaults fill it in.
     // v8 -> v9: opt-in `post_roll` added (off); defaults fill it in. Unrelated

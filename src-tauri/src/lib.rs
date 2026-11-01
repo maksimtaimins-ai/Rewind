@@ -15,6 +15,7 @@ pub mod profiles;
 pub mod recycled;
 pub mod settings;
 pub mod share;
+pub mod watch;
 
 use engine::{Engine, Events, Level, Status};
 use library::ClipInfo;
@@ -140,6 +141,10 @@ pub fn run() {
                     let _ = emit_handle.emit(event, payload);
                 }),
             );
+            let watch_handle = handle.clone();
+            watch::start(engine.clone(), std::sync::Arc::new(move |event: &str, payload: serde_json::Value| {
+                let _ = watch_handle.emit(event, payload);
+            }));
             app.manage(engine);
             app.manage(lan);
             build_tray(&handle)?;
@@ -193,6 +198,7 @@ pub fn run() {
             commands::lan_peers,
             commands::lan_send,
             commands::lan_answer,
+            commands::watch_history,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Rewind")

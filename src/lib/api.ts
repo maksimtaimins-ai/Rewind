@@ -99,6 +99,25 @@ export interface Settings {
 		/** PCs whose clips are accepted without asking. */
 		trusted_peers: { id: string; name: string }[];
 	};
+	watch_folders: WatchFolder[];
+}
+
+/** New .mp4 files in `input` are exported with `preset` into `output`. */
+export interface WatchFolder {
+	enabled: boolean;
+	input: string;
+	preset: ExportPreset;
+	output: string;
+	delete_original: boolean;
+}
+
+export interface WatchOp {
+	at_ms: number;
+	input: string;
+	output: string | null;
+	preset: ExportPreset;
+	error: string | null;
+	deleted: boolean;
 }
 
 export interface LanPeer {
@@ -271,7 +290,8 @@ export const api = {
 	lanPeers: () => invoke<LanPeer[]>('lan_peers'),
 	/** Resolves once the clip is saved on the other PC. */
 	lanSend: (path: string, peer: string) => invoke<void>('lan_send', { path, peer }),
-	lanAnswer: (offer: number, accept: boolean) => invoke<void>('lan_answer', { offer, accept })
+	lanAnswer: (offer: number, accept: boolean) => invoke<void>('lan_answer', { offer, accept }),
+	watchHistory: () => invoke<WatchOp[]>('watch_history')
 };
 
 export const fileUrl = (path: string) => convertFileSrc(path);

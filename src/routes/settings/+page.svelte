@@ -8,6 +8,7 @@
 	import Segmented from '#lib/components/Segmented.svelte';
 	import HotkeyInput from '#lib/components/HotkeyInput.svelte';
 	import ThemePicker from '#lib/components/ThemePicker.svelte';
+	import WatchFolders from '#lib/components/WatchFolders.svelte';
 
 	const s = $derived(app.settings!);
 	const pro = $derived(s.pro_mode);
@@ -47,6 +48,7 @@
 			['appearance', 'Appearance'],
 			['library', 'Library'],
 			['sharing', 'Sharing'],
+			['watch', 'Watch folders'],
 			['advanced', 'Advanced']
 		].filter(([id]) => pro || id !== 'advanced')
 	);
@@ -402,6 +404,11 @@
 					</Row>
 				{/each}
 			{/if}
+		</section>
+
+		<section id="watch">
+			<h2>Watch folders</h2>
+			<WatchFolders />
 		</section>
 
 		{#if pro}

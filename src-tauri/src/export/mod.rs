@@ -113,9 +113,13 @@ pub fn plan(preset: Preset, src_w: u32, src_h: u32, src_fps: u32, duration: f64)
     })
 }
 
-/// `<dir>/<stem>-<suffix>.<ext>`, made unique.
+/// `<dir>/<stem>-<suffix>.<ext>` next to the source, made unique.
 pub fn output_path(src: &Path, preset: Preset) -> PathBuf {
-    let dir = src.parent().unwrap_or(Path::new("."));
+    output_path_in(src, preset, src.parent().unwrap_or(Path::new(".")))
+}
+
+/// `<dir>/<stem>-<suffix>.<ext>`, made unique.
+pub fn output_path_in(src: &Path, preset: Preset, dir: &Path) -> PathBuf {
     let stem = src.file_stem().unwrap_or_default().to_string_lossy();
     crate::library::unique_path(dir, &format!("{stem}-{}", preset.suffix()), preset.extension())
 }
