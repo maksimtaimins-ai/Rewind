@@ -11,8 +11,9 @@
 
 	let { children } = $props();
 
-	// The compact HUD is its own window: just the pill, no shell or toasts.
-	const hud = page.url.pathname.startsWith('/hud');
+	// The compact HUD and the recording highlight are their own windows: just
+	// their content, no shell or toasts.
+	const hud = page.url.pathname.startsWith('/hud') || page.url.pathname.startsWith('/highlight');
 
 	onMount(() => {
 		init({ hud });

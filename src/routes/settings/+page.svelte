@@ -10,6 +10,7 @@
 	import ThemePicker from '#lib/components/ThemePicker.svelte';
 	import WatchFolders from '#lib/components/WatchFolders.svelte';
 	import BenchReportView from '#lib/components/BenchReport.svelte';
+	import { highlightColor } from '#lib/highlight.ts';
 
 	const s = $derived(app.settings!);
 	const pro = $derived(s.pro_mode);
@@ -359,6 +360,59 @@
 			<Row label="Compact HUD" hint="Swap this window for a small always-on-top pill with the buffer and a Save button.{s.hotkeys.compact_hud ? ` ${s.hotkeys.compact_hud} switches back and forth.` : ''}">
 				<Toggle checked={s.hud.enabled} label="Compact HUD" onchange={(v) => set((x) => (x.hud.enabled = v))} />
 			</Row>
+			<Row
+				label="Recording highlight"
+				hint={s.highlight.color === 'off'
+					? 'Off. Turn on to see on screen that Rewind is buffering.'
+					: 'Drawn over your main screen while the buffer records. Clicks pass through and clips leave it out.'}
+			>
+				{#if s.highlight.color === 'custom'}
+					<input
+						type="color"
+						value={s.highlight.custom_color}
+						onchange={(e) => set((x) => (x.highlight.custom_color = (e.currentTarget as HTMLInputElement).value))}
+						aria-label="Highlight color"
+					/>
+				{:else if highlightColor(s.highlight)}
+					<span class="swatch" style:background={highlightColor(s.highlight)} aria-hidden="true"></span>
+				{/if}
+				<select
+					value={s.highlight.color}
+					onchange={(e) => set((x) => (x.highlight.color = (e.currentTarget as HTMLSelectElement).value as typeof x.highlight.color))}
+					aria-label="Recording highlight"
+				>
+					<option value="off">Off</option>
+					<option value="blue">Blue</option>
+					<option value="green">Green</option>
+					<option value="red">Red</option>
+					<option value="custom">Custom color</option>
+				</select>
+			</Row>
+			{#if s.highlight.color !== 'off'}
+				<Row label="Highlight position" hint="A line around the screen edge, or a small dot in one corner.">
+					<select
+						value={s.highlight.position}
+						onchange={(e) => set((x) => (x.highlight.position = (e.currentTarget as HTMLSelectElement).value as typeof x.highlight.position))}
+						aria-label="Highlight position"
+					>
+						<option value="border">Border</option>
+						<option value="top_left">Top-left corner dot</option>
+						<option value="top_right">Top-right corner dot</option>
+						<option value="bottom_right">Bottom-right corner dot</option>
+					</select>
+				</Row>
+				<Row label="Highlight thickness" hint={s.highlight.thickness === 0 ? '0 px hides it.' : s.highlight.position === 'border' ? 'Width of the border.' : 'Larger is a bigger dot.'}>
+					<input type="range" min="0" max="10" step="1" value={s.highlight.thickness} onchange={(e) => set((x) => (x.highlight.thickness = num(e)))} aria-label="Highlight thickness" />
+					<span class="readout num">{s.highlight.thickness} px</span>
+				</Row>
+				<Row label="Highlight opacity" hint="10 to 100%.">
+					<input type="range" min="10" max="100" step="5" value={s.highlight.opacity} onchange={(e) => set((x) => (x.highlight.opacity = num(e)))} aria-label="Highlight opacity" />
+					<span class="readout num">{s.highlight.opacity}%</span>
+				</Row>
+				<Row label="Only show when a game is detected" hint="Shows while a game Rewind recognizes is running, hidden otherwise.">
+					<Toggle checked={s.highlight.only_in_game} label="Only in games" onchange={(v) => set((x) => (x.highlight.only_in_game = v))} />
+				</Row>
+			{/if}
 			<Row label="Open minimized to the tray" hint="The window stays hidden until you open it.">
 				<Toggle checked={s.start_minimized} label="Open minimized" onchange={(v) => set((x) => (x.start_minimized = v))} />
 			</Row>
@@ -704,6 +758,19 @@
 	}
 	.readout.wide {
 		width: auto;
+	}
+	.swatch {
+		width: 16px;
+		height: 16px;
+		border-radius: 50%;
+		box-shadow: inset 0 0 0 1px var(--line-strong);
+	}
+	input[type='color'] {
+		width: 32px;
+		height: 32px;
+		padding: 0;
+		border: none;
+		background: none;
 	}
 	input[type='range'] {
 		width: 160px;

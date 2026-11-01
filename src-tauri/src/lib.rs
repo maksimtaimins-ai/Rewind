@@ -8,6 +8,7 @@ pub mod engine;
 pub mod hud;
 pub mod export;
 pub mod gpu;
+pub mod highlight;
 pub mod hotkey;
 pub mod library;
 pub mod mux;
@@ -30,6 +31,7 @@ struct UiEvents(AppHandle);
 impl Events for UiEvents {
     fn status(&self, status: &Status) {
         let _ = self.0.emit("status", status);
+        highlight::on_status(&self.0, &self.0.state::<Engine>().settings(), status);
         if let Some(tray) = self.0.tray_by_id("main") {
             let text = match status.state {
                 engine::State::Recording => {

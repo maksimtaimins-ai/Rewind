@@ -61,6 +61,7 @@ export function mockSettings(): Settings {
 		},
 		hud: { enabled: false, x: null, y: null },
 		disk: { warn_gb: 10, block_gb: 2 },
+		highlight: { color: 'off', custom_color: '#ffc53d', thickness: 2, opacity: 60, position: 'border', only_in_game: false },
 		watch_folders: [
 			{ enabled: true, input: 'C:\\clips\\outbox\\youtube-shorts', preset: 'shorts', output: 'C:\\clips\\exported\\youtube', delete_original: false }
 		]

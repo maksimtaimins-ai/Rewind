@@ -105,6 +105,21 @@ export interface Settings {
 	hud: { enabled: boolean; x: number | null; y: number | null };
 	/** Clips-drive free space limits, GB: warn below one, refuse saves below the other. */
 	disk: { warn_gb: number; block_gb: number };
+	highlight: Highlight;
+}
+
+/** On-screen sign that the buffer is recording. */
+export interface Highlight {
+	color: 'off' | 'blue' | 'green' | 'red' | 'custom';
+	/** `#rrggbb`, used when `color` is `custom`. */
+	custom_color: string;
+	/** Pixels, 0-10; 0 hides it. */
+	thickness: number;
+	/** Percent, 10-100. */
+	opacity: number;
+	position: 'border' | 'top_left' | 'top_right' | 'bottom_right';
+	/** Only while a game is detected. */
+	only_in_game: boolean;
 }
 
 /** New .mp4 files in `input` are exported with `preset` into `output`. */

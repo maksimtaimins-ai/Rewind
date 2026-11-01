@@ -32,6 +32,7 @@ pub fn set_settings(app: tauri::AppHandle, engine: State<Engine>, lan: State<Lan
     engine.set_settings(settings.clone()).map_err(err)?;
     lan.apply(&settings);
     crate::hud::apply(&app, &settings);
+    crate::highlight::on_settings(&app, &settings, &engine.status());
     Ok(())
 }
 
@@ -231,7 +232,7 @@ pub fn export_settings(engine: State<Engine>, path: PathBuf) -> R<()> {
 
 /// Import a shared settings file. Machine-specific paths are kept.
 #[tauri::command]
-pub fn import_settings(engine: State<Engine>, lan: State<Lan>, path: PathBuf) -> R<Settings> {
+pub fn import_settings(app: tauri::AppHandle, engine: State<Engine>, lan: State<Lan>, path: PathBuf) -> R<Settings> {
     let text = std::fs::read_to_string(path).map_err(err)?;
     let mut s = settings::parse(&text).map_err(err)?;
     let current = engine.settings();
@@ -241,6 +242,7 @@ pub fn import_settings(engine: State<Engine>, lan: State<Lan>, path: PathBuf) ->
     s.sharing.trusted_peers = current.sharing.trusted_peers;
     engine.set_settings(s.clone()).map_err(err)?;
     lan.apply(&s);
+    crate::highlight::on_settings(&app, &s, &engine.status());
     Ok(s)
 }
 

@@ -295,3 +295,39 @@ pub fn play_save_sound() {
         let _ = PlaySoundW(PCWSTR(wav.as_ptr() as _), None, SND_MEMORY | SND_ASYNC | SND_NODEFAULT);
     }
 }
+
+/// Keep `hwnd` out of screen capture, so an overlay doesn't end up in
+/// Rewind's own clips. Must happen before the window gets `WS_EX_LAYERED`;
+/// Windows fails it with ERROR_NOT_ENOUGH_MEMORY after.
+pub fn exclude_from_capture(hwnd: HWND) {
+    use windows::Win32::UI::WindowsAndMessaging::{SetWindowDisplayAffinity, WDA_EXCLUDEFROMCAPTURE};
+    if let Err(e) = unsafe { SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE) } {
+        tracing::warn!("exclude overlay from capture: {e}");
+    }
+}
+
+/// Make `hwnd` a passive overlay: never activated by clicks or showing, and
+/// no taskbar or Alt+Tab entry.
+pub fn make_overlay(hwnd: HWND) {
+    use windows::Win32::UI::WindowsAndMessaging::{GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, WS_EX_APPWINDOW, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW};
+    unsafe {
+        let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) & !(WS_EX_APPWINDOW.0 as isize);
+        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex | (WS_EX_NOACTIVATE.0 | WS_EX_TOOLWINDOW.0) as isize);
+    }
+}
+
+/// Show `hwnd` topmost over the given physical rect without taking focus
+/// from whatever has it (a game, usually).
+pub fn show_no_activate(hwnd: HWND, x: i32, y: i32, w: i32, h: i32) {
+    use windows::Win32::UI::WindowsAndMessaging::{SetWindowPos, HWND_TOPMOST, SWP_NOACTIVATE, SWP_SHOWWINDOW};
+    unsafe {
+        let _ = SetWindowPos(hwnd, Some(HWND_TOPMOST), x, y, w, h, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    }
+}
+
+pub fn hide_window(hwnd: HWND) {
+    use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_HIDE};
+    unsafe {
+        let _ = ShowWindow(hwnd, SW_HIDE);
+    }
+}
