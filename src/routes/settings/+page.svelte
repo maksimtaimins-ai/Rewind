@@ -47,6 +47,7 @@
 			['hotkeys', 'Hotkeys'],
 			['appearance', 'Appearance'],
 			['library', 'Library'],
+			['storage', 'Storage'],
 			['sharing', 'Sharing'],
 			['watch', 'Watch folders'],
 			['advanced', 'Advanced']
@@ -359,6 +360,19 @@
 			</Row>
 		</section>
 
+		<section id="storage">
+			<h2>Storage</h2>
+			<Row label="Free on the clips drive" hint={app.status?.disk === 'full' ? `Under ${s.disk.block_gb} GB: saving clips is paused.` : app.status?.disk === 'low' ? `Under ${s.disk.warn_gb} GB: running low.` : 'Checked every few seconds.'}>
+				<span class="readout num wide">{app.status?.disk_free_gb != null ? `${app.status.disk_free_gb.toFixed(1)} GB` : '—'}</span>
+			</Row>
+			<Row label="Written today" hint="Clips, trims and merges Rewind wrote to disk.">
+				<span class="readout num wide">{(app.status?.written_today_gb ?? 0).toFixed(2)} GB</span>
+			</Row>
+			<Row label="Written this week" hint="Since Monday.">
+				<span class="readout num wide">{(app.status?.written_week_gb ?? 0).toFixed(2)} GB</span>
+			</Row>
+		</section>
+
 		<section id="sharing">
 			<h2>Sharing</h2>
 			<p class="intro">Discord webhooks post a clip straight into a channel. Make one in the channel's settings under Integrations, then paste its URL here. Anyone with the URL can post, so keep it private.</p>
@@ -474,6 +488,14 @@
 				</Row>
 				<Row label="Warn after writing" hint="Daily total, to spare your SSD. {app.status?.written_today_gb.toFixed(2) ?? 0} GB so far today.">
 					<input class="numbox num" type="number" min="0" max="2000" value={s.ssd_warn_gb_per_day} onchange={(e) => set((x) => (x.ssd_warn_gb_per_day = num(e)))} aria-label="Daily write warning in GB" />
+					<span class="unit">GB</span>
+				</Row>
+				<Row label="Low disk warning" hint="Show a warning on the Live tab below this much free space.">
+					<input class="numbox num" type="number" min="1" max="2000" value={s.disk.warn_gb} onchange={(e) => set((x) => (x.disk.warn_gb = Math.min(2000, Math.max(1, num(e)))))} aria-label="Warn below GB free" />
+					<span class="unit">GB</span>
+				</Row>
+				<Row label="Stop saving below" hint="New clips are refused under this; screenshots still save. 0 turns it off.">
+					<input class="numbox num" type="number" min="0" max={s.disk.warn_gb} value={s.disk.block_gb} onchange={(e) => set((x) => (x.disk.block_gb = Math.min(x.disk.warn_gb, Math.max(0, num(e)))))} aria-label="Stop saving below GB free" />
 					<span class="unit">GB</span>
 				</Row>
 				<Row label="Encoder benchmark" hint="Tests every encoder found, about 5 seconds.">
@@ -651,6 +673,9 @@
 	.readout {
 		width: 64px;
 		text-align: right;
+	}
+	.readout.wide {
+		width: auto;
 	}
 	input[type='range'] {
 		width: 160px;

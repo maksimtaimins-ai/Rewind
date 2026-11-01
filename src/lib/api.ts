@@ -103,6 +103,8 @@ export interface Settings {
 	watch_folders: WatchFolder[];
 	/** Compact HUD pill instead of the main window. Position in physical pixels. */
 	hud: { enabled: boolean; x: number | null; y: number | null };
+	/** Clips-drive free space limits, GB: warn below one, refuse saves below the other. */
+	disk: { warn_gb: number; block_gb: number };
 }
 
 /** New .mp4 files in `input` are exported with `preset` into `output`. */
@@ -171,6 +173,12 @@ export interface Status {
 	post_roll: PostRollStatus | null;
 	error: string | null;
 	written_today_gb: number;
+	/** Since Monday. */
+	written_week_gb: number;
+	/** Free space on the clips drive, null until measured. */
+	disk_free_gb: number | null;
+	/** `full`: new clip saves are refused (screenshots still work). */
+	disk: 'ok' | 'low' | 'full';
 }
 
 export interface PostRollStatus {

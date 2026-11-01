@@ -65,6 +65,15 @@
 </script>
 
 <div class="page">
+	{#if s && s.disk !== 'ok' && s.disk_free_gb != null}
+		<p class="disk {s.disk}" role="status">
+			{#if s.disk === 'full'}
+				<strong>Only {s.disk_free_gb.toFixed(1)} GB free on the clips drive.</strong> Saving clips is paused until there's more than {settings.disk.block_gb} GB. Screenshots still work. <a href="/settings#storage">Storage</a>
+			{:else}
+				<strong>Only {s.disk_free_gb.toFixed(1)} GB free on the clips drive.</strong> Clips still save; below {settings.disk.block_gb} GB they'll stop. <a href="/settings#storage">Storage</a>
+			{/if}
+		</p>
+	{/if}
 	<div class="core">
 		<p class="context">{s?.game ?? 'Desktop'}</p>
 
@@ -184,6 +193,22 @@
 		display: flex;
 		flex-direction: column;
 		gap: 32px;
+	}
+	.disk {
+		margin: -8px 0 -8px;
+		padding: 10px 14px;
+		border-radius: 6px;
+		color: var(--text);
+		max-width: 72ch;
+		background: color-mix(in srgb, #f5a524 16%, var(--raised));
+		box-shadow: inset 3px 0 0 #f5a524;
+	}
+	.disk a {
+		color: inherit;
+	}
+	.disk.full {
+		background: color-mix(in srgb, var(--danger) 18%, var(--raised));
+		box-shadow: inset 3px 0 0 var(--danger);
 	}
 	.core {
 		display: grid;

@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-pub const SETTINGS_VERSION: u32 = 13;
+pub const SETTINGS_VERSION: u32 = 14;
 
 /// Allowed range for [`BufferSettings::seconds`].
 pub const MIN_BUFFER_SECS: u32 = 10;
@@ -87,6 +87,15 @@ pub struct Hotkeys {
     pub slow_mo: String,
     pub favorite_last: String,
     pub compact_hud: String,
+}
+
+/// Free-space limits for the clips drive, GB.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DiskSettings {
+    /// Warn on the dashboard below this.
+    pub warn_gb: u32,
+    /// Refuse new clip saves (not screenshots) below this.
+    pub block_gb: u32,
 }
 
 /// Compact HUD: a small always-on-top pill instead of the main window.
@@ -242,6 +251,7 @@ pub struct Settings {
     pub sharing: SharingSettings,
     pub watch_folders: Vec<WatchFolder>,
     pub hud: HudSettings,
+    pub disk: DiskSettings,
 }
 
 impl Default for Settings {
@@ -317,6 +327,7 @@ impl Default for Settings {
             },
             watch_folders: Vec::new(),
             hud: HudSettings { enabled: false, x: None, y: None },
+            disk: DiskSettings { warn_gb: 10, block_gb: 2 },
         }
     }
 }
@@ -380,6 +391,8 @@ impl Settings {
         for slot in &mut self.buffer.extra_slots {
             slot.seconds = slot.seconds.clamp(MIN_BUFFER_SECS, MAX_BUFFER_SECS);
         }
+        self.disk.warn_gb = self.disk.warn_gb.clamp(1, 2000);
+        self.disk.block_gb = self.disk.block_gb.min(self.disk.warn_gb);
         if self.sharing.lan_port < 1024 {
             self.sharing.lan_port = 7777;
         }
@@ -415,6 +428,7 @@ fn migrate(value: &mut toml::Table) -> Result<()> {
             h.remove("save_long_clip");
         }
     }
+    // v13 -> v14: `disk` free-space limits added; defaults fill them in.
     // v12 -> v13: `hud` and `hotkeys.compact_hud` (Alt+F11) added; defaults
     // fill them in. The v1 `hotkeys.toggle_pause` that also used Alt+F11 is
     // long gone, so the key is free.
@@ -627,6 +641,14 @@ limit_mb = 50
         s.hud.x = Some(-1200);
         s.hud.y = Some(40);
         assert_eq!(parse(&toml::to_string_pretty(&s).unwrap()).unwrap().hud, s.hud);
+    }
+
+    #[test]
+    fn disk_limits_ordered() {
+        let s = parse("version = 13\n").unwrap();
+        assert_eq!(s.disk, DiskSettings { warn_gb: 10, block_gb: 2 });
+        let s = parse("version = 14\n[disk]\nwarn_gb = 5\nblock_gb = 50\n").unwrap();
+        assert_eq!(s.disk, DiskSettings { warn_gb: 5, block_gb: 5 });
     }
 
     #[test]

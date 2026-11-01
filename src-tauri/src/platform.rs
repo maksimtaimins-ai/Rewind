@@ -28,6 +28,15 @@ pub fn com_init() {
 
 /// Current QPC time in 100 ns units: the clock WGC frame times and WASAPI
 /// packet positions use.
+/// Bytes free for this user on the drive holding `path` (or its nearest
+/// existing parent).
+pub fn disk_free(path: &Path) -> Option<u64> {
+    let dir = path.ancestors().find(|p| p.exists())?;
+    let mut avail = 0u64;
+    unsafe { windows::Win32::Storage::FileSystem::GetDiskFreeSpaceExW(&HSTRING::from(dir.as_os_str()), Some(&mut avail), None, None).ok()? };
+    Some(avail)
+}
+
 pub fn qpc_now() -> i64 {
     unsafe {
         let mut c = 0i64;

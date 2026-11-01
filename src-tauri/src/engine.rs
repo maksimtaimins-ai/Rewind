@@ -1,7 +1,7 @@
 //! The engine owns the replay buffer and pipeline lifecycle, reacts to
 //! hotkeys, and writes clips on a background thread so capture never blocks.
 
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, VecDeque};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use parking_lot::{Mutex, RwLock};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::buffer::{ReplayBuffer, TICKS_PER_SEC};
 use crate::capture;
@@ -55,7 +55,33 @@ pub struct Status {
     pub post_roll: Option<PostRollStatus>,
     pub error: Option<String>,
     pub written_today_gb: f64,
+    /// Since Monday.
+    pub written_week_gb: f64,
+    /// Free space on the clips drive; `None` until first measured.
+    pub disk_free_gb: Option<f64>,
+    pub disk: DiskLevel,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DiskLevel {
+    Ok,
+    /// Under the warning limit.
+    Low,
+    /// Under the save limit: new clip saves are refused.
+    Full,
+}
+
+pub fn disk_level(free: Option<u64>, s: &settings::DiskSettings) -> DiskLevel {
+    match free {
+        Some(b) if b < s.block_gb as u64 * GB => DiskLevel::Full,
+        Some(b) if b < s.warn_gb as u64 * GB => DiskLevel::Low,
+        _ => DiskLevel::Ok,
+    }
+}
+
+/// Decimal, like Explorer's drive sizes are often read.
+const GB: u64 = 1_000_000_000;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct PostRollStatus {
@@ -177,7 +203,9 @@ struct Inner {
     post_pending: Mutex<VecDeque<(i64, u32)>>,
     error: Mutex<Option<String>>,
     hotkeys: Mutex<Option<HotkeyThread>>,
-    written_today: AtomicU64,
+    usage: Mutex<Usage>,
+    /// Bytes free on the clips drive; `u64::MAX` until measured.
+    disk_free: AtomicU64,
     shutdown: AtomicBool,
     /// Buffer length in effect (a game profile may override the setting).
     buffer_secs: AtomicU32,
@@ -218,7 +246,8 @@ impl Engine {
             post_pending: Mutex::new(VecDeque::new()),
             error: Mutex::new(None),
             hotkeys: Mutex::new(None),
-            written_today: AtomicU64::new(load_usage()),
+            usage: Mutex::new(Usage::load()),
+            disk_free: AtomicU64::new(u64::MAX),
             shutdown: AtomicBool::new(false),
             buffer_secs: AtomicU32::new(settings.buffer.seconds),
             settings: RwLock::new(settings),
@@ -333,7 +362,7 @@ impl Engine {
         if let Some(mut p) = self.inner.pipeline.lock().take() {
             p.stop();
         }
-        save_usage(self.inner.written_today.load(Ordering::Relaxed));
+        self.inner.usage.lock().save();
     }
 
     pub fn handle(&self, action: Action) {
@@ -385,6 +414,7 @@ impl Engine {
     /// Save the last `secs` (default: the main buffer length), ending at the
     /// keypress, or post-roll seconds after it when that's on.
     pub fn save_clip(&self, secs: Option<u32>) -> Result<()> {
+        self.check_disk()?;
         let pipeline = self.inner.pipeline.lock();
         let Some(p) = pipeline.as_ref() else {
             return Err(anyhow!("Capture is still starting"));
@@ -412,6 +442,7 @@ impl Engine {
     /// Save `secs` (at most the buffer length) around a marker, or as close to
     /// it as the buffer still holds.
     pub fn save_marker(&self, id: u64, secs: u32) -> Result<()> {
+        self.check_disk()?;
         let m = self.inner.markers.lock().iter().find(|m| m.id == id).copied().ok_or_else(|| anyhow!("Unknown marker"))?;
         let held = {
             let b = self.inner.buffer.lock();
@@ -459,6 +490,7 @@ impl Engine {
 
     /// Save the last few seconds as a slowed-down clip.
     fn save_slow_mo(&self) -> Result<()> {
+        self.check_disk()?;
         let sm = self.inner.settings.read().slow_mo.clone();
         let pipeline = self.inner.pipeline.lock();
         let p = pipeline.as_ref().ok_or_else(|| anyhow!("Capture is still starting"))?;
@@ -479,6 +511,7 @@ impl Engine {
     /// Re-save the last clip in place with up to `extend_secs` more footage
     /// before its start, taken from the buffer.
     fn extend_last(&self) -> Result<()> {
+        self.check_disk()?;
         let last = self.inner.last_save.lock().clone().ok_or_else(|| anyhow!("No clip to extend yet"))?;
         if !last.path.exists() {
             return Err(anyhow!("The last clip was renamed or deleted"));
@@ -588,9 +621,35 @@ impl Engine {
         }
     }
 
+    /// Measure free space on the clips drive now.
+    fn refresh_disk(&self) -> Option<u64> {
+        let free = platform::disk_free(&self.inner.settings.read().clips_dir);
+        self.inner.disk_free.store(free.unwrap_or(u64::MAX), Ordering::Relaxed);
+        free
+    }
+
+    /// Refuse a clip save when the clips drive is under the save limit.
+    /// Screenshots don't check: they're small and may be what's needed.
+    fn check_disk(&self) -> Result<()> {
+        let free = self.refresh_disk();
+        let limits = self.inner.settings.read().disk.clone();
+        if disk_level(free, &limits) == DiskLevel::Full {
+            return Err(anyhow!(
+                "Only {:.1} GB free on the clips drive. Saving clips is paused below {} GB: free up space, or lower the limit in Settings > Advanced.",
+                free.unwrap_or(0) as f64 / GB as f64,
+                limits.block_gb
+            ));
+        }
+        Ok(())
+    }
+
     fn add_written(&self, bytes: u64) {
-        let total = self.inner.written_today.fetch_add(bytes, Ordering::Relaxed) + bytes;
-        save_usage(total);
+        let total = {
+            let mut u = self.inner.usage.lock();
+            let t = u.add(today(), bytes);
+            u.save();
+            t
+        };
         let limit = self.inner.settings.read().ssd_warn_gb_per_day as u64 * 1024 * MB as u64;
         if limit > 0 && total >= limit && total - bytes < limit {
             self.inner.events.notice(
@@ -639,6 +698,7 @@ impl Engine {
         // the struct literal and deadlock a second lock below.
         let error = self.inner.error.lock().clone();
         let game = self.inner.game.lock().as_ref().map(|g| g.name.clone());
+        let disk_free = Some(self.inner.disk_free.load(Ordering::Relaxed)).filter(|&b| b != u64::MAX);
         let post_roll = {
             let pending = self.inner.post_pending.lock();
             pending.front().map(|&(to, seconds)| PostRollStatus {
@@ -668,7 +728,10 @@ impl Engine {
             markers,
             post_roll,
             error,
-            written_today_gb: self.inner.written_today.load(Ordering::Relaxed) as f64 / 1e9,
+            written_today_gb: self.inner.usage.lock().day(today()) as f64 / 1e9,
+            written_week_gb: self.inner.usage.lock().week(today()) as f64 / 1e9,
+            disk_free_gb: disk_free.map(|b| b as f64 / GB as f64),
+            disk: disk_level(disk_free, &s.disk),
         }
     }
 
@@ -722,6 +785,8 @@ impl Engine {
         let mut retry_after = Instant::now();
         let mut current_game_exe: Option<String> = None;
         let mut last_purge = Instant::now() - Duration::from_secs(3600);
+        let mut last_disk = Instant::now() - Duration::from_secs(60);
+        let mut disk_was = DiskLevel::Ok;
         while !self.inner.shutdown.load(Ordering::Relaxed) {
             let s = self.inner.settings.read().clone();
             self.inner.flags.privacy.store(profiles::privacy_focused(&s), Ordering::Relaxed);
@@ -733,6 +798,20 @@ impl Engine {
                     Ok(n) => tracing::info!("purged {n} deleted clips older than {} days", s.library.purge_days),
                     Err(e) => tracing::warn!("purge deleted clips: {e:#}"),
                 }
+            }
+
+            if last_disk.elapsed() >= Duration::from_secs(10) {
+                last_disk = Instant::now();
+                let free = self.refresh_disk();
+                let level = disk_level(free, &s.disk);
+                let gb = free.unwrap_or(0) as f64 / GB as f64;
+                match level {
+                    _ if level == disk_was => {}
+                    DiskLevel::Full => self.inner.events.notice(Level::Error, &format!("Only {gb:.1} GB free on the clips drive. Saving clips is paused until there's more than {} GB.", s.disk.block_gb)),
+                    DiskLevel::Low if disk_was == DiskLevel::Ok => self.inner.events.notice(Level::Warning, &format!("Only {gb:.1} GB free on the clips drive.")),
+                    _ => {}
+                }
+                disk_was = level;
             }
 
             if last_detect.elapsed() >= Duration::from_secs(2) {
@@ -843,20 +922,60 @@ fn usage_path() -> PathBuf {
     settings::app_data_dir().join("usage.json")
 }
 
-/// Bytes written today (resets when the date changes).
-fn load_usage() -> u64 {
-    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
-    std::fs::read_to_string(usage_path())
-        .ok()
-        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
-        .filter(|v| v["date"] == today.as_str())
-        .and_then(|v| v["bytes"].as_u64())
-        .unwrap_or(0)
+fn today() -> chrono::NaiveDate {
+    chrono::Local::now().date_naive()
 }
 
-fn save_usage(bytes: u64) {
-    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
-    let _ = settings::write_atomic(&usage_path(), serde_json::json!({ "date": today, "bytes": bytes }).to_string().as_bytes());
+/// Bytes Rewind wrote per local day, for the SSD warning and Settings > Storage.
+#[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
+struct Usage {
+    /// `YYYY-MM-DD` -> bytes. Two weeks are kept.
+    days: BTreeMap<String, u64>,
+}
+
+fn day_key(d: chrono::NaiveDate) -> String {
+    d.format("%Y-%m-%d").to_string()
+}
+
+impl Usage {
+    fn load() -> Self {
+        let v = std::fs::read_to_string(usage_path()).ok().and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok());
+        Self::from_json(v.unwrap_or_default())
+    }
+
+    fn from_json(v: serde_json::Value) -> Self {
+        // Before per-day history the file held just today: {"date", "bytes"}.
+        if let (Some(d), Some(b)) = (v["date"].as_str(), v["bytes"].as_u64()) {
+            return Usage { days: BTreeMap::from([(d.to_string(), b)]) };
+        }
+        serde_json::from_value(v).unwrap_or_default()
+    }
+
+    fn save(&self) {
+        if let Ok(t) = serde_json::to_string(self) {
+            let _ = settings::write_atomic(&usage_path(), t.as_bytes());
+        }
+    }
+
+    /// Add to `today`'s total and return it.
+    fn add(&mut self, today: chrono::NaiveDate, bytes: u64) -> u64 {
+        let oldest = day_key(today - chrono::Days::new(13));
+        self.days.retain(|k, _| *k >= oldest);
+        let t = self.days.entry(day_key(today)).or_default();
+        *t += bytes;
+        *t
+    }
+
+    fn day(&self, d: chrono::NaiveDate) -> u64 {
+        self.days.get(&day_key(d)).copied().unwrap_or(0)
+    }
+
+    /// Monday through `today`.
+    fn week(&self, today: chrono::NaiveDate) -> u64 {
+        use chrono::Datelike;
+        let back = today.weekday().num_days_from_monday() as u64;
+        (0..=back).map(|i| self.day(today - chrono::Days::new(i))).sum()
+    }
 }
 
 #[cfg(test)]
@@ -875,6 +994,35 @@ mod tests {
         assert_eq!(marker_window(105 * S, 30 * S, 100 * S, 200 * S), Some((100 * S, 130 * S, true)));
         // Older than the buffer.
         assert_eq!(marker_window(90 * S, 30 * S, 100 * S, 200 * S), None);
+    }
+
+    #[test]
+    fn usage_days_and_week() {
+        let d = |s: &str| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").unwrap();
+        let mut u = Usage::from_json(serde_json::json!({ "date": "2026-10-26", "bytes": 5 }));
+        assert_eq!(u.day(d("2026-10-26")), 5);
+        // 2026-10-26 is a Monday; Sunday the 1st closes that week.
+        assert_eq!(u.add(d("2026-10-31"), 7), 7);
+        assert_eq!(u.add(d("2026-10-31"), 1), 8);
+        assert_eq!(u.week(d("2026-11-01")), 13);
+        // A new week starts Monday.
+        assert_eq!(u.week(d("2026-11-02")), 0);
+        // Old days drop off.
+        u.add(d("2026-11-20"), 1);
+        assert_eq!(u.days.len(), 1);
+        let back = Usage::from_json(serde_json::to_value(&u).unwrap());
+        assert_eq!(back, u);
+    }
+
+    #[test]
+    fn disk_levels() {
+        let s = settings::DiskSettings { warn_gb: 10, block_gb: 2 };
+        assert_eq!(disk_level(None, &s), DiskLevel::Ok);
+        assert_eq!(disk_level(Some(11 * GB), &s), DiskLevel::Ok);
+        assert_eq!(disk_level(Some(9 * GB), &s), DiskLevel::Low);
+        assert_eq!(disk_level(Some(GB), &s), DiskLevel::Full);
+        let off = settings::DiskSettings { warn_gb: 10, block_gb: 0 };
+        assert_eq!(disk_level(Some(0), &off), DiskLevel::Low);
     }
 
     #[test]

@@ -117,12 +117,15 @@ pub fn restore_from(bin: &Path, ids: &[String]) -> Result<Vec<(PathBuf, ClipMeta
     Ok(out)
 }
 
-/// Permanently delete clips that have been in the bin longer than `days`.
+/// Permanently delete clips that have been in the bin longer than `days`, and
+/// any stray file there just as old that no entry owns (left by a crash
+/// mid-delete). Returns how many clips and strays went.
 pub fn purge_older(bin: &Path, now_ms: i64, days: u32) -> Result<usize> {
     let _g = LOCK.lock();
     let mut entries = load(bin);
     let cutoff = now_ms - days as i64 * 86_400_000;
     let before = entries.len();
+    let mut strays = 0;
     entries.retain(|e| {
         let old = e.deleted_ms < cutoff;
         if old {
@@ -136,7 +139,16 @@ pub fn purge_older(bin: &Path, now_ms: i64, days: u32) -> Result<usize> {
     if entries.len() != before {
         store(bin, &entries)?;
     }
-    Ok(before - entries.len())
+    for f in std::fs::read_dir(bin).into_iter().flatten().flatten() {
+        let name = f.file_name().to_string_lossy().to_string();
+        // Thumbnails are `<id>.<kind>.jpg`; the index and its temp file are ours.
+        let owned = name.starts_with("index.") || entries.iter().any(|e| name == e.id || name.starts_with(&format!("{}.", e.id)));
+        let modified_ms = f.metadata().and_then(|m| m.modified()).ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_millis() as i64);
+        if !owned && f.path().is_file() && modified_ms.is_some_and(|ms| ms < cutoff) && std::fs::remove_file(f.path()).is_ok() {
+            strays += 1;
+        }
+    }
+    Ok(before - entries.len() + strays)
 }
 
 pub fn list_in(bin: &Path) -> Vec<RecycledClip> {
@@ -227,9 +239,16 @@ mod tests {
         assert!(list_in(&bin).is_empty());
 
         delete_into(&bin, &[a.clone()], 1_000, &mut |_| ClipMeta::default()).unwrap();
+        // A stray file nothing in the index owns, written "now".
+        let stray = bin.join("orphan.mp4");
+        std::fs::write(&stray, b"x").unwrap();
+        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;
         assert_eq!(purge_older(&bin, 1_000 + 29 * 86_400_000, 30).unwrap(), 0);
         assert_eq!(purge_older(&bin, 1_000 + 31 * 86_400_000, 30).unwrap(), 1);
         assert!(list_in(&bin).is_empty());
+        assert!(stray.exists());
+        assert_eq!(purge_older(&bin, now + 31 * 86_400_000, 30).unwrap(), 1);
+        assert!(!stray.exists() && bin.join("index.json").exists());
         std::fs::remove_dir_all(&root).ok();
     }
 }
