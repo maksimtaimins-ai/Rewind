@@ -657,9 +657,19 @@ impl Engine {
         let mut last_bytes = 0u64;
         let mut retry_after = Instant::now();
         let mut current_game_exe: Option<String> = None;
+        let mut last_purge = Instant::now() - Duration::from_secs(3600);
         while !self.inner.shutdown.load(Ordering::Relaxed) {
             let s = self.inner.settings.read().clone();
             self.inner.flags.privacy.store(profiles::privacy_focused(&s), Ordering::Relaxed);
+
+            if last_purge.elapsed() >= Duration::from_secs(3600) {
+                last_purge = Instant::now();
+                match crate::recycled::purge(s.library.purge_days) {
+                    Ok(0) => {}
+                    Ok(n) => tracing::info!("purged {n} deleted clips older than {} days", s.library.purge_days),
+                    Err(e) => tracing::warn!("purge deleted clips: {e:#}"),
+                }
+            }
 
             if last_detect.elapsed() >= Duration::from_secs(2) {
                 last_detect = Instant::now();

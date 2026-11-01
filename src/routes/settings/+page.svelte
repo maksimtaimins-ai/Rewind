@@ -196,6 +196,10 @@
 				<input class="numbox num" type="number" min="1" max="1440" value={s.library.session_gap_mins} onchange={(e) => set((x) => (x.library.session_gap_mins = Math.min(1440, Math.max(1, num(e)))))} aria-label="Session gap in minutes" />
 				<span class="unit">min</span>
 			</Row>
+			<Row label="Keep deleted clips for" hint="Deleted clips wait in Recently deleted, in the Clips tab, before they're removed for good.">
+				<input class="numbox num" type="number" min="1" max="365" value={s.library.purge_days} onchange={(e) => set((x) => (x.library.purge_days = Math.min(365, Math.max(1, num(e)))))} aria-label="Days to keep deleted clips" />
+				<span class="unit">days</span>
+			</Row>
 			<Row label="Save clips to" hint={s.clips_dir}>
 				<button class="secondary" onclick={pickFolder}>Change</button>
 			</Row>

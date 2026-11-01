@@ -59,7 +59,7 @@
 		busy = true;
 		try {
 			await api.deleteClips(selected);
-			toast('success', `Moved ${selected.length} ${selected.length === 1 ? 'clip' : 'clips'} to the Recycle Bin`);
+			toast('success', `Moved ${selected.length} ${selected.length === 1 ? 'clip' : 'clips'} to Recently deleted`);
 			stopSelecting();
 			await refreshClips();
 		} catch (e) {
@@ -103,11 +103,12 @@
 				<button class="secondary" disabled={busy || selected.length < 2 || selected.length > 5} onclick={merge} title="Join 2–5 clips end to end">
 					Merge
 				</button>
-				<button class="secondary" disabled={busy || !selected.length} onclick={remove}>Move to Recycle Bin</button>
+				<button class="secondary" disabled={busy || !selected.length} onclick={remove}>Delete</button>
 				<button class="secondary" onclick={stopSelecting}>Done</button>
 			{:else}
 				<button class="secondary" onclick={() => (selecting = true)} disabled={!app.clips.length}>Select</button>
 				<button class="secondary" onclick={openFolder}>Open folder</button>
+				<a class="secondary" href="/library/deleted">Recently deleted</a>
 			{/if}
 		</div>
 	</header>
@@ -336,6 +337,11 @@
 		color: var(--text);
 		text-decoration: underline;
 		cursor: pointer;
+	}
+	a.secondary {
+		display: inline-flex;
+		align-items: center;
+		text-decoration: none;
 	}
 	.secondary {
 		height: 32px;

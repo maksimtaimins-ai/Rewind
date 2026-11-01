@@ -12,6 +12,7 @@ pub mod mux;
 pub mod pipeline;
 pub mod platform;
 pub mod profiles;
+pub mod recycled;
 pub mod settings;
 
 use engine::{Engine, Events, Level, Status};
@@ -154,6 +155,8 @@ pub fn run() {
             commands::list_clips,
             commands::rename_clip,
             commands::delete_clips,
+            commands::list_recycled,
+            commands::restore_clips,
             commands::library_meta,
             commands::rename_session,
             commands::set_favorite,

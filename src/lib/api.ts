@@ -73,7 +73,7 @@ export interface Settings {
 		extend_secs: number;
 	};
 	slow_mo: { seconds: 2 | 3 | 5; speed: number };
-	library: { session_gap_mins: number };
+	library: { session_gap_mins: number; purge_days: number };
 	audio: AudioTrack[];
 	hotkeys: Hotkeys;
 	profiles: GameProfile[];
@@ -133,6 +133,16 @@ export interface Clip {
 
 export type ExportPreset = 'discord10' | 'discord25' | 'shorts' | 'twitter' | 'gif';
 
+export interface RecycledClip {
+	id: string;
+	name: string;
+	original: string;
+	deleted_ms: number;
+	size: number;
+	duration: number;
+	thumb: string | null;
+}
+
 export interface LibraryMeta {
 	/** Tag -> CSS colour. */
 	tag_colors: Record<string, string>;
@@ -176,7 +186,9 @@ export const api = {
 	benchmark: (secs: number) => invoke<BenchResult[]>('run_benchmark', { secs }),
 	clips: () => invoke<Clip[]>('list_clips'),
 	renameClip: (path: string, name: string) => invoke<Clip>('rename_clip', { path, name }),
-	deleteClips: (paths: string[]) => invoke<void>('delete_clips', { paths }),
+	deleteClips: (paths: string[]) => invoke<number>('delete_clips', { paths }),
+	recycled: () => invoke<RecycledClip[]>('list_recycled'),
+	restoreClips: (ids: string[]) => invoke<number>('restore_clips', { ids }),
 	setFavorite: (path: string, favorite: boolean) => invoke<Clip>('set_favorite', { path, favorite }),
 	libraryMeta: () => invoke<LibraryMeta>('library_meta'),
 	renameSession: (key: string, name: string) => invoke<void>('rename_session', { key, name }),

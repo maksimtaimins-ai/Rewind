@@ -3,7 +3,7 @@ import type { Clip, Settings, Status } from '#lib/api.ts';
 
 export function mockSettings(): Settings {
 	return {
-		version: 7,
+		version: 8,
 		first_run_complete: true,
 		pro_mode: false,
 		theme: 'system',
@@ -32,7 +32,7 @@ export function mockSettings(): Settings {
 			],
 			max_memory_mb: 1024, extend_secs: 15 },
 		slow_mo: { seconds: 3, speed: 0.25 },
-		library: { session_gap_mins: 30 },
+		library: { session_gap_mins: 30, purge_days: 30 },
 		audio: [
 			{ name: 'Desktop', enabled: true, source: { kind: 'system' }, volume: 1 },
 			{ name: 'Microphone', enabled: false, source: { kind: 'mic', device_id: null }, volume: 1 },

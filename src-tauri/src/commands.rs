@@ -11,6 +11,7 @@ use crate::engine::{Engine, Status};
 use crate::library::{self, ClipInfo};
 use crate::mux;
 use crate::platform;
+use crate::recycled;
 use crate::settings::{self, Settings};
 
 type R<T> = Result<T, String>;
@@ -105,10 +106,20 @@ pub fn rename_session(key: String, name: String) -> R<()> {
     .map_err(err)
 }
 
+/// Soft delete: clips go to Rewind's own bin and can be restored.
 #[tauri::command]
-pub fn delete_clips(paths: Vec<PathBuf>) -> R<()> {
-    platform::com_init();
-    library::recycle(&paths).map_err(err)
+pub fn delete_clips(paths: Vec<PathBuf>) -> R<usize> {
+    recycled::delete(&paths).map_err(err)
+}
+
+#[tauri::command]
+pub fn list_recycled() -> Vec<recycled::RecycledClip> {
+    recycled::list()
+}
+
+#[tauri::command]
+pub fn restore_clips(ids: Vec<String>) -> R<usize> {
+    recycled::restore(&ids).map_err(err)
 }
 
 #[tauri::command]

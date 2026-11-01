@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-pub const SETTINGS_VERSION: u32 = 7;
+pub const SETTINGS_VERSION: u32 = 8;
 
 /// Allowed range for [`BufferSettings::seconds`].
 pub const MIN_BUFFER_SECS: u32 = 10;
@@ -89,6 +89,8 @@ pub struct Hotkeys {
 pub struct LibrarySettings {
     /// Clips saved within this many minutes of each other form one session.
     pub session_gap_mins: u32,
+    /// Deleted clips are kept this many days before they're gone for good.
+    pub purge_days: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -211,7 +213,7 @@ impl Default for Settings {
                 extend_secs: 15,
             },
             slow_mo: SlowMoSettings { seconds: 3, speed: 0.25 },
-            library: LibrarySettings { session_gap_mins: 30 },
+            library: LibrarySettings { session_gap_mins: 30, purge_days: 30 },
             audio: vec![
                 AudioTrack { name: "Desktop".into(), enabled: true, source: AudioSource::System, volume: 1.0 },
                 AudioTrack {
@@ -292,6 +294,7 @@ impl Settings {
         self.buffer.extend_secs = self.buffer.extend_secs.clamp(5, 120);
         self.buffer.extra_slots.resize(EXTRA_SLOTS, BufferSlot { enabled: false, seconds: 60, hotkey: String::new() });
         self.library.session_gap_mins = self.library.session_gap_mins.clamp(1, 24 * 60);
+        self.library.purge_days = self.library.purge_days.clamp(1, 365);
         if ![2, 3, 5].contains(&self.slow_mo.seconds) {
             self.slow_mo.seconds = 3;
         }
@@ -323,6 +326,7 @@ fn migrate(value: &mut toml::Table) -> Result<()> {
             h.remove("save_long_clip");
         }
     }
+    // v7 -> v8: `library.purge_days` added; defaults fill it in.
     // v6 -> v7: `hotkeys.favorite_last` added; defaults fill it in.
     // v5 -> v6: `library` added; defaults fill it in.
     // v4 -> v5: `slow_mo` and `hotkeys.slow_mo` added; defaults fill them in.

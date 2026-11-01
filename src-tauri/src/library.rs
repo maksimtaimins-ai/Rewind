@@ -1,4 +1,4 @@
-//! Clip library on disk: listing, probing, thumbnails, rename, recycle, and
+//! Clip library on disk: listing, probing, thumbnails, rename, and
 //! per-clip metadata (favorites, tags, session names) in `library.json`.
 
 use std::collections::BTreeMap;
@@ -273,19 +273,9 @@ pub fn rename(path: &Path, new_name: &str) -> Result<PathBuf> {
     Ok(target)
 }
 
-/// Send clips (and their thumbnails) to the Recycle Bin.
-#[cfg(windows)]
-pub fn recycle(paths: &[PathBuf]) -> Result<()> {
-    let mut all: Vec<PathBuf> = Vec::new();
-    for p in paths {
-        all.push(p.clone());
-        let t = thumb_path(p);
-        if t.exists() {
-            all.push(t);
-        }
-    }
-    let refs: Vec<&Path> = all.iter().map(|p| p.as_path()).collect();
-    crate::platform::recycle(&refs)
+/// Thumbnail files that belong to a clip and move with it.
+pub fn side_thumbs(clip: &Path) -> Vec<PathBuf> {
+    [thumb_path(clip)].into_iter().filter(|p| p.exists()).collect()
 }
 
 /// Star or unstar a clip.

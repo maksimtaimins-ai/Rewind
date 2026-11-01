@@ -127,7 +127,7 @@
 	async function remove() {
 		if (!inApp || !clip) return;
 		await api.deleteClips([clip.path]);
-		toast('success', 'Moved to the Recycle Bin');
+		toast('success', 'Moved to Recently deleted');
 		await refreshClips();
 		goto('/library');
 	}
@@ -217,7 +217,7 @@
 		</div>
 		<div class="buttons">
 			<button class="secondary" onclick={() => clip && inApp && revealItemInDir(clip.path)}>Show in folder</button>
-			<button class="secondary" onclick={remove}>Move to Recycle Bin</button>
+			<button class="secondary" onclick={remove}>Delete</button>
 			<ExportMenu busy={exporting} onexport={exportAs} />
 			<button class="primary" disabled={busy || (inPt <= 0.01 && outPt >= duration - 0.01)} onclick={exportCut}>
 				{busy ? 'Saving…' : 'Save trimmed copy'}
