@@ -394,3 +394,33 @@ pub async fn storage_breakdown(engine: State<'_, Engine>) -> R<crate::storage::B
     let dir = engine.settings().clips_dir;
     tauri::async_runtime::spawn_blocking(move || crate::storage::breakdown(&dir)).await.map_err(err)
 }
+
+/// What each optional feature is actually running right now, for
+/// Settings > Advanced > Performance. Read from live state, not settings.
+#[derive(serde::Serialize)]
+pub struct Diagnostics {
+    /// Smart-highlight analyses in progress.
+    analysis_jobs: usize,
+    /// The keystroke overlay's keyboard/mouse hook is installed.
+    input_hook: bool,
+    /// Game profile in effect.
+    profile: Option<String>,
+    montage_jobs: usize,
+    lan_listening: bool,
+    highlight_window: bool,
+    hud_window: bool,
+}
+
+#[tauri::command]
+pub fn feature_diagnostics(app: tauri::AppHandle, engine: State<Engine>, lan: State<Lan>) -> Diagnostics {
+    use tauri::Manager;
+    Diagnostics {
+        analysis_jobs: crate::analysis::active_jobs(),
+        input_hook: crate::input::hook_installed() && engine.input_recording(),
+        profile: engine.status().profile,
+        montage_jobs: crate::export::montage::active_jobs(),
+        lan_listening: lan.listening(),
+        highlight_window: app.get_webview_window(crate::highlight::LABEL).is_some(),
+        hud_window: app.get_webview_window(crate::hud::LABEL).is_some(),
+    }
+}

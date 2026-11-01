@@ -64,8 +64,16 @@ Done (MVP): ring buffer + hotkey save, settings UI with a Pro mode toggle, clip 
 
 Also in: session markers, extend last clip, up to three replay lengths, slow-mo replay (retimed, video only), export presets (Discord 10/25 MB, Shorts, X, GIF; Media Foundation decode/encode, WIC for GIF), per-game profiles with game detection, screenshots, pause hotkey, privacy apps (capture pauses while they're focused), clip merge, benchmark in settings, settings import/export, daily SSD write warning, tray menu, Discord webhook posting (Settings > Sharing; WinHTTP multipart upload, per-webhook 10/25 MB cap with an export offer when a clip is over it).
 
+Optional, all off until turned on (Settings > Advanced > Performance lists each one with its live state and cost):
+
+- **Smart highlights:** local audio analysis (loud spikes, excited voices, sustained loud stretches) per clip, stored in `library.json`; amber ticks on the trim scrubber, "Has highlights" filter, analyze per session or on save.
+- **Keystroke overlay:** low-level keyboard/mouse hooks, installed only while on, record input to `<clip>-input.json`; exports can draw it in (Direct2D/DirectWrite), with keycap style, colours, animation, fade, combos, position and click markers all configurable. Privacy apps and text boxes pause recording.
+- **Game profiles:** per-game frame rate, resolution, bitrate, codec, replay lengths, hotkeys, save subfolder, keystroke preset and recording highlight, switched in by the existing game detection. Ships with CS2, VALORANT, Fortnite, Apex, Rocket League and Minecraft.
+- **Montage builder:** Library > Make montage; hard cuts or 0.5 s crossfades, per-clip length (centred on the best highlight), music, one MP4 through the export pipeline.
+- **Storage:** a segmented bar of Rewind's disk use (clips, exports, screenshots, Recently deleted, thumbnails, app data) in Settings > Storage, with a mini one on the Live tab; measured on request only.
+
 Not yet:
 - Frame-exact trim (re-encode): trim currently snaps the start to the previous keyframe.
 - HDR tonemapping: HDR desktops are captured as 8-bit BGRA; the tonemap shader is still to do, and the option is hidden until it exists.
 - Window capture (a single game window instead of the whole monitor).
-- The rest of the advanced list: overlay, annotate/blur, auto-crop, highlights.
+- The rest of the advanced list: annotate/blur, auto-crop.

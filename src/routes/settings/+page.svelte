@@ -14,6 +14,7 @@
 	import BenchReportView from '#lib/components/BenchReport.svelte';
 	import KeystrokeOverlay from '#lib/components/KeystrokeOverlay.svelte';
 	import GameProfiles from '#lib/components/GameProfiles.svelte';
+	import PerformanceList from '#lib/components/PerformanceList.svelte';
 	import { highlightColor } from '#lib/highlight.ts';
 
 	const s = $derived(app.settings!);
@@ -57,8 +58,9 @@
 			['sharing', 'Sharing'],
 			['watch', 'Watch folders'],
 			['help', 'Help'],
-			['advanced', 'Advanced']
-		].filter(([id]) => pro || id !== 'advanced')
+			['advanced', 'Advanced'],
+			['performance', 'Performance']
+		].filter(([id]) => pro || (id !== 'advanced' && id !== 'performance'))
 	);
 
 	async function replayTour() {
@@ -638,6 +640,9 @@
 						<Toggle checked={s.smart_highlights.analyze_on_save} label="Analyze on save" onchange={(v) => set((x) => (x.smart_highlights.analyze_on_save = v))} />
 					</Row>
 				{/if}
+
+				<h3 id="performance">Performance</h3>
+				<PerformanceList />
 			</section>
 		{/if}
 	</div>
@@ -695,6 +700,7 @@
 		color: var(--muted);
 	}
 	h3 {
+		scroll-margin-top: 16px;
 		margin: 24px 0 4px;
 		font-size: 13px;
 		font-weight: 600;

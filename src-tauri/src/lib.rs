@@ -292,6 +292,7 @@ pub fn run() {
             commands::keystroke_presets,
             commands::make_montage,
             commands::storage_breakdown,
+            commands::feature_diagnostics,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Rewind")

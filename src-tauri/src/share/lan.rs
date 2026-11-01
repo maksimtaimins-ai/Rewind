@@ -207,6 +207,11 @@ impl Lan {
         lan
     }
 
+    /// Listening and announcing right now.
+    pub fn listening(&self) -> bool {
+        self.inner.running.lock().is_some()
+    }
+
     fn notice(&self, level: &str, message: &str) {
         (self.inner.emit)("notice", serde_json::json!({ "level": level, "message": message }));
     }
