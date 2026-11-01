@@ -1,5 +1,6 @@
 import { isTauri } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { goto } from '$app/navigation';
 import { api, type Clip, type LanOffer, type LanProgress, type LibraryMeta, type Settings, type Status } from '#lib/api.ts';
 import { mockClips, mockSettings, mockStatus, mockTagColors } from './mock.ts';
 
@@ -40,7 +41,8 @@ export async function refreshClips() {
 }
 
 let started = false;
-export async function init() {
+/** `hud`: the compact HUD window, which only needs settings and status. */
+export async function init(opts: { hud?: boolean } = {}) {
 	if (started) return;
 	started = true;
 	if (!inApp) {
@@ -55,8 +57,13 @@ export async function init() {
 	const [settings, status] = await Promise.all([api.getSettings(), api.getStatus()]);
 	app.settings = settings;
 	app.status = status;
-	await refreshClips();
 	await listen<Status>('status', (e) => (app.status = e.payload));
+	await listen<Settings>('settings-changed', (e) => (app.settings = e.payload));
+	if (opts.hud) {
+		app.ready = true;
+		return;
+	}
+	await refreshClips();
 	await listen<Clip>('clip-saved', (e) => {
 		app.lastSaved = e.payload;
 		app.clips = [e.payload, ...app.clips.filter((c) => c.path !== e.payload.path)];
@@ -69,8 +76,8 @@ export async function init() {
 	const { answerOffer } = await import('#lib/share.ts');
 	await listen<LanOffer>('lan-offer', (e) => answerOffer(e.payload));
 	await listen<LanProgress>('lan-progress', (e) => (app.transfer = e.payload.done < e.payload.total ? e.payload : null));
-	// The backend changed settings itself (e.g. a newly trusted LAN peer).
-	await listen<Settings>('settings-changed', (e) => (app.settings = e.payload));
+	// Backend-driven navigation, e.g. "Settings…" in the HUD's menu.
+	await listen<string>('navigate', (e) => goto(e.payload));
 	app.ready = true;
 }
 

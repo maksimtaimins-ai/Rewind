@@ -4,6 +4,7 @@ pub mod capture;
 mod commands;
 pub mod encode;
 pub mod engine;
+pub mod hud;
 pub mod export;
 pub mod gpu;
 pub mod hotkey;
@@ -52,17 +53,37 @@ impl Events for UiEvents {
         let _ = self.0.emit("library-changed", ());
     }
 
+    fn toggle_hud(&self) {
+        let app = self.0.clone();
+        let on = !app.state::<Engine>().settings().hud.enabled;
+        // Windows are created and destroyed on the main thread.
+        let _ = self.0.run_on_main_thread(move || {
+            if let Err(e) = hud::set_enabled(&app, on) {
+                tracing::warn!("toggle HUD: {e:#}");
+            }
+        });
+    }
+
     fn notice(&self, level: Level, message: &str) {
         tracing::info!("notice {level:?}: {message}");
         let _ = self.0.emit("notice", serde_json::json!({ "level": level, "message": message }));
     }
 }
 
-fn show_main(app: &AppHandle) {
+pub(crate) fn show_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.show();
         let _ = w.unminimize();
         let _ = w.set_focus();
+    }
+}
+
+/// Bring up the full window, leaving the compact HUD if it's on.
+fn open_full(app: &AppHandle) {
+    if app.state::<Engine>().settings().hud.enabled {
+        let _ = hud::set_enabled(app, false);
+    } else {
+        show_main(app);
     }
 }
 
@@ -81,7 +102,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
         .on_menu_event(|app, event| {
             let engine = app.state::<Engine>();
             match event.id.as_ref() {
-                "open" => show_main(app),
+                "open" => open_full(app),
                 "save" => engine.handle(hotkey::Action::SaveClip),
                 "folder" => {
                     let dir = engine.clips_dir_path();
@@ -97,7 +118,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
         })
         .on_tray_icon_event(|tray, event| {
             if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
-                show_main(tray.app_handle());
+                open_full(tray.app_handle());
             }
         })
         .build(app)?;
@@ -121,7 +142,7 @@ pub fn run() {
     let start_hidden = std::env::args().any(|a| a == "--tray");
 
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_main(app)))
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| open_full(app)))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(move |app| {
@@ -149,17 +170,28 @@ pub fn run() {
             app.manage(lan);
             build_tray(&handle)?;
             let hidden = settings.first_run_complete && (start_hidden || settings.start_minimized);
-            if !hidden {
+            if settings.hud.enabled && settings.first_run_complete {
+                // The pill is the minimized form; it shows either way.
+                hud::apply(&handle, &settings);
+            } else if !hidden {
                 show_main(&handle);
             }
             Ok(())
         })
-        .on_window_event(|window, event| {
+        .on_menu_event(|app, event| hud::on_menu(app, event.id.as_ref()))
+        .on_window_event(|window, event| match event {
             // Closing the window keeps Rewind in the tray; the buffer keeps running.
-            if let WindowEvent::CloseRequested { api, .. } = event {
+            // Closing the pill (Alt+F4) goes back to the full window.
+            WindowEvent::CloseRequested { api, .. } => {
                 api.prevent_close();
-                let _ = window.hide();
+                if window.label() == hud::LABEL {
+                    let _ = hud::set_enabled(window.app_handle(), false);
+                } else {
+                    let _ = window.hide();
+                }
             }
+            WindowEvent::Moved(pos) if window.label() == hud::LABEL => hud::moved(window.app_handle(), *pos),
+            _ => {}
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_settings,
@@ -199,6 +231,8 @@ pub fn run() {
             commands::lan_send,
             commands::lan_answer,
             commands::watch_history,
+            commands::set_compact_hud,
+            commands::hud_menu,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Rewind")

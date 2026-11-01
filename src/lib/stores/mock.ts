@@ -3,7 +3,7 @@ import type { Clip, Settings, Status } from '#lib/api.ts';
 
 export function mockSettings(): Settings {
 	return {
-		version: 12,
+		version: 13,
 		first_run_complete: true,
 		pro_mode: false,
 		theme: 'system',
@@ -45,7 +45,8 @@ export function mockSettings(): Settings {
 			screenshot: 'Alt+F12',
 			extend_last: 'Alt+F6',
 			slow_mo: 'Alt+F5',
-			favorite_last: 'Alt+Shift+F'
+			favorite_last: 'Alt+Shift+F',
+			compact_hud: 'Alt+F11'
 		},
 		profiles: [],
 		privacy_apps: ['KeePassXC.exe', '1Password.exe', 'Bitwarden.exe'],
@@ -58,6 +59,7 @@ export function mockSettings(): Settings {
 			device_id: 'mock',
 			trusted_peers: [{ id: 'laptop', name: 'LAPTOP-7Q2' }]
 		},
+		hud: { enabled: false, x: null, y: null },
 		watch_folders: [
 			{ enabled: true, input: 'C:\\clips\\outbox\\youtube-shorts', preset: 'shorts', output: 'C:\\clips\\exported\\youtube', delete_original: false }
 		]

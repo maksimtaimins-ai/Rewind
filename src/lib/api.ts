@@ -34,6 +34,7 @@ export interface Hotkeys {
 	extend_last: string;
 	slow_mo: string;
 	favorite_last: string;
+	compact_hud: string;
 }
 
 export interface BufferSlot {
@@ -100,6 +101,8 @@ export interface Settings {
 		trusted_peers: { id: string; name: string }[];
 	};
 	watch_folders: WatchFolder[];
+	/** Compact HUD pill instead of the main window. Position in physical pixels. */
+	hud: { enabled: boolean; x: number | null; y: number | null };
 }
 
 /** New .mp4 files in `input` are exported with `preset` into `output`. */
@@ -144,7 +147,7 @@ export interface LanOffer {
 	size: number;
 }
 
-export type HotkeyAction = 'save_clip' | 'marker' | 'screenshot' | 'extend_last' | 'slow_mo' | 'favorite_last';
+export type HotkeyAction = 'save_clip' | 'marker' | 'screenshot' | 'extend_last' | 'slow_mo' | 'favorite_last' | 'toggle_hud';
 
 export type EngineState = 'idle' | 'recording' | 'paused' | 'error';
 
@@ -291,7 +294,10 @@ export const api = {
 	/** Resolves once the clip is saved on the other PC. */
 	lanSend: (path: string, peer: string) => invoke<void>('lan_send', { path, peer }),
 	lanAnswer: (offer: number, accept: boolean) => invoke<void>('lan_answer', { offer, accept }),
-	watchHistory: () => invoke<WatchOp[]>('watch_history')
+	watchHistory: () => invoke<WatchOp[]>('watch_history'),
+	setCompactHud: (on: boolean) => invoke<void>('set_compact_hud', { on }),
+	/** Right-click menu on the HUD pill. */
+	hudMenu: () => invoke<void>('hud_menu')
 };
 
 export const fileUrl = (path: string) => convertFileSrc(path);

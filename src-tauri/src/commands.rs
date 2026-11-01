@@ -27,10 +27,11 @@ pub fn get_settings(engine: State<Engine>) -> Settings {
 }
 
 #[tauri::command]
-pub fn set_settings(engine: State<Engine>, lan: State<Lan>, mut settings: Settings) -> R<()> {
+pub fn set_settings(app: tauri::AppHandle, engine: State<Engine>, lan: State<Lan>, mut settings: Settings) -> R<()> {
     settings.sanitize();
     engine.set_settings(settings.clone()).map_err(err)?;
     lan.apply(&settings);
+    crate::hud::apply(&app, &settings);
     Ok(())
 }
 
@@ -284,4 +285,16 @@ pub fn lan_answer(lan: State<Lan>, offer: u64, accept: bool) {
 #[tauri::command]
 pub fn watch_history() -> Vec<crate::watch::Op> {
     crate::watch::history()
+}
+
+/// Switch between the compact HUD pill and the full window.
+#[tauri::command]
+pub fn set_compact_hud(app: tauri::AppHandle, on: bool) -> R<()> {
+    crate::hud::set_enabled(&app, on).map_err(|e| format!("{e:#}"))
+}
+
+/// Right-click menu on the HUD pill.
+#[tauri::command]
+pub fn hud_menu(window: tauri::WebviewWindow) -> R<()> {
+    crate::hud::popup_menu(&window).map_err(err)
 }

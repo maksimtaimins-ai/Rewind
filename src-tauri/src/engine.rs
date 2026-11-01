@@ -133,6 +133,8 @@ pub trait Events: Send + Sync {
     fn notice(&self, level: Level, message: &str);
     /// Clip metadata changed outside the UI (e.g. a hotkey); reload the library.
     fn library_changed(&self);
+    /// The compact HUD hotkey was pressed.
+    fn toggle_hud(&self) {}
 }
 
 struct SaveJob {
@@ -350,6 +352,10 @@ impl Engine {
             Action::ExtendLast => self.extend_last(),
             Action::SlowMo => self.save_slow_mo(),
             Action::FavoriteLast => self.favorite_last(),
+            Action::ToggleHud => {
+                self.inner.events.toggle_hud();
+                Ok(())
+            }
         };
         if let Err(e) = r {
             self.inner.events.notice(Level::Error, &format!("{e:#}"));

@@ -309,6 +309,9 @@
 			<Row label="Slow-mo replay" hint="Last {s.slow_mo.seconds}s at {s.slow_mo.speed}×, {Math.round(s.slow_mo.seconds / s.slow_mo.speed)}s long. Video only.">
 				<HotkeyInput label="Slow-mo replay" value={s.hotkeys.slow_mo} onchange={(v) => set((x) => (x.hotkeys.slow_mo = v))} />
 			</Row>
+			<Row label="Compact HUD" hint="Switches between the floating pill and this window.">
+				<HotkeyInput label="Compact HUD" value={s.hotkeys.compact_hud} onchange={(v) => set((x) => (x.hotkeys.compact_hud = v))} />
+			</Row>
 			<Row label="Slow-mo length" hint="How much of the buffer to slow down.">
 				<Segmented
 					label="Slow-mo length"
@@ -330,6 +333,9 @@
 				<div class="block-hint">Follow Windows, or pick one.</div>
 				<ThemePicker value={s.theme} onchange={(v) => set((x) => (x.theme = v))} />
 			</div>
+			<Row label="Compact HUD" hint="Swap this window for a small always-on-top pill with the buffer and a Save button.{s.hotkeys.compact_hud ? ` ${s.hotkeys.compact_hud} switches back and forth.` : ''}">
+				<Toggle checked={s.hud.enabled} label="Compact HUD" onchange={(v) => set((x) => (x.hud.enabled = v))} />
+			</Row>
 			<Row label="Open minimized to the tray" hint="The window stays hidden until you open it.">
 				<Toggle checked={s.start_minimized} label="Open minimized" onchange={(v) => set((x) => (x.start_minimized = v))} />
 			</Row>

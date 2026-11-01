@@ -11,8 +11,11 @@
 
 	let { children } = $props();
 
+	// The compact HUD is its own window: just the pill, no shell or toasts.
+	const hud = page.url.pathname.startsWith('/hud');
+
 	onMount(() => {
-		init();
+		init({ hud });
 	});
 
 	// Windows light/dark, tracked live for the "Follow system" theme.
@@ -30,7 +33,7 @@
 	});
 
 	$effect(() => {
-		if (app.ready && app.settings && !app.settings.first_run_complete && page.url.pathname !== '/wizard') {
+		if (!hud && app.ready && app.settings && !app.settings.first_run_complete && page.url.pathname !== '/wizard') {
 			goto('/wizard');
 		}
 	});
@@ -38,20 +41,24 @@
 	const bare = $derived(page.url.pathname.startsWith('/wizard'));
 </script>
 
-<div class="shell">
-	{#if !bare}
-		<Rail />
-	{/if}
-	<div class="main">
-		<TitleBar title={bare ? 'Rewind setup' : ''} />
-		<main>
-			{#if app.ready}
-				{@render children()}
-			{/if}
-		</main>
+{#if hud}
+	{#if app.ready}{@render children()}{/if}
+{:else}
+	<div class="shell">
+		{#if !bare}
+			<Rail />
+		{/if}
+		<div class="main">
+			<TitleBar title={bare ? 'Rewind setup' : ''} />
+			<main>
+				{#if app.ready}
+					{@render children()}
+				{/if}
+			</main>
+		</div>
 	</div>
-</div>
-<Toasts />
+	<Toasts />
+{/if}
 
 <style>
 	.shell {

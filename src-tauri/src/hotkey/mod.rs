@@ -16,6 +16,8 @@ pub enum Action {
     ExtendLast,
     SlowMo,
     FavoriteLast,
+    /// Switch between the compact HUD and the full window.
+    ToggleHud,
 }
 
 impl Action {
@@ -29,6 +31,7 @@ impl Action {
             Action::ExtendLast => "Extend last clip".into(),
             Action::SlowMo => "Slow-mo replay".into(),
             Action::FavoriteLast => "Favorite the last clip".into(),
+            Action::ToggleHud => "Compact HUD".into(),
         }
     }
 }
@@ -133,6 +136,7 @@ pub fn bindings(s: &crate::settings::Settings) -> Vec<(Action, String)> {
         (Action::ExtendLast, h.extend_last.clone()),
         (Action::SlowMo, h.slow_mo.clone()),
         (Action::FavoriteLast, h.favorite_last.clone()),
+        (Action::ToggleHud, h.compact_hud.clone()),
     ]);
     v
 }

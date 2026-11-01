@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-pub const SETTINGS_VERSION: u32 = 12;
+pub const SETTINGS_VERSION: u32 = 13;
 
 /// Allowed range for [`BufferSettings::seconds`].
 pub const MIN_BUFFER_SECS: u32 = 10;
@@ -86,6 +86,16 @@ pub struct Hotkeys {
     pub extend_last: String,
     pub slow_mo: String,
     pub favorite_last: String,
+    pub compact_hud: String,
+}
+
+/// Compact HUD: a small always-on-top pill instead of the main window.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HudSettings {
+    pub enabled: bool,
+    /// Last position, physical pixels. Unset until the pill is first moved.
+    pub x: Option<i32>,
+    pub y: Option<i32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -231,6 +241,7 @@ pub struct Settings {
     pub ssd_warn_gb_per_day: u32,
     pub sharing: SharingSettings,
     pub watch_folders: Vec<WatchFolder>,
+    pub hud: HudSettings,
 }
 
 impl Default for Settings {
@@ -291,6 +302,7 @@ impl Default for Settings {
                 extend_last: "Alt+F6".into(),
                 slow_mo: "Alt+F5".into(),
                 favorite_last: "Alt+Shift+F".into(),
+                compact_hud: "Alt+F11".into(),
             },
             profiles: Vec::new(),
             privacy_apps: vec!["KeePassXC.exe".into(), "1Password.exe".into(), "Bitwarden.exe".into()],
@@ -304,6 +316,7 @@ impl Default for Settings {
                 trusted_peers: Vec::new(),
             },
             watch_folders: Vec::new(),
+            hud: HudSettings { enabled: false, x: None, y: None },
         }
     }
 }
@@ -402,6 +415,9 @@ fn migrate(value: &mut toml::Table) -> Result<()> {
             h.remove("save_long_clip");
         }
     }
+    // v12 -> v13: `hud` and `hotkeys.compact_hud` (Alt+F11) added; defaults
+    // fill them in. The v1 `hotkeys.toggle_pause` that also used Alt+F11 is
+    // long gone, so the key is free.
     // v11 -> v12: `watch_folders` added (empty).
     // v10 -> v11: LAN send fields added under `sharing`; defaults fill them in.
     // v9 -> v10: `sharing` (Discord webhooks) added; defaults fill it in.
@@ -600,6 +616,17 @@ limit_mb = 50
         assert!(ensure_device_id(&mut s));
         assert_eq!(s.sharing.device_id.len(), 32);
         assert!(!ensure_device_id(&mut s));
+    }
+
+    #[test]
+    fn hud_defaults() {
+        let s = parse("version = 12\n").unwrap();
+        assert!(!s.hud.enabled && s.hud.x.is_none());
+        assert_eq!(s.hotkeys.compact_hud, "Alt+F11");
+        let mut s = Settings::default();
+        s.hud.x = Some(-1200);
+        s.hud.y = Some(40);
+        assert_eq!(parse(&toml::to_string_pretty(&s).unwrap()).unwrap().hud, s.hud);
     }
 
     #[test]

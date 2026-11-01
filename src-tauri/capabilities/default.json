@@ -1,8 +1,11 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Main window permissions",
-  "windows": ["main"],
+  "description": "Main window and compact HUD permissions",
+  "windows": [
+    "main",
+    "hud"
+  ],
   "permissions": [
     "core:default",
     "core:window:allow-start-dragging",
