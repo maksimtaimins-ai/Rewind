@@ -1,3 +1,4 @@
+pub mod analysis;
 pub mod audio;
 pub mod bench;
 pub mod buffer;
@@ -279,6 +280,7 @@ pub fn run() {
             commands::set_compact_hud,
             commands::run_live_benchmark,
             commands::hud_menu,
+            commands::analyze_clips,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Rewind")

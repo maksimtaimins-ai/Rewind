@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-pub const SETTINGS_VERSION: u32 = 16;
+pub const SETTINGS_VERSION: u32 = 17;
 
 /// Allowed range for [`BufferSettings::seconds`].
 pub const MIN_BUFFER_SECS: u32 = 10;
@@ -267,6 +267,16 @@ pub struct SharingSettings {
     pub trusted_peers: Vec<TrustedPeer>,
 }
 
+/// Audio-based smart highlights. Off by default; while off nothing is analysed.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SmartHighlightSettings {
+    pub enabled: bool,
+    /// Loudness (dBFS, -30 to -3) a spike or sustained stretch must reach.
+    pub threshold_db: f32,
+    /// Also analyse each clip right after it's saved. Off: only the button.
+    pub analyze_on_save: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Settings {
     pub version: u32,
@@ -297,6 +307,7 @@ pub struct Settings {
     pub hud: HudSettings,
     pub disk: DiskSettings,
     pub highlight: HighlightSettings,
+    pub smart_highlights: SmartHighlightSettings,
 }
 
 impl Default for Settings {
@@ -383,6 +394,7 @@ impl Default for Settings {
                 position: HighlightPosition::Border,
                 only_in_game: false,
             },
+            smart_highlights: SmartHighlightSettings { enabled: false, threshold_db: -14.0, analyze_on_save: false },
         }
     }
 }
@@ -454,6 +466,8 @@ impl Settings {
         if !(c.len() == 7 && c.starts_with('#') && c[1..].chars().all(|ch| ch.is_ascii_hexdigit())) {
             self.highlight.custom_color = "#ffc53d".into();
         }
+        let t = self.smart_highlights.threshold_db;
+        self.smart_highlights.threshold_db = if t.is_finite() { t.clamp(-30.0, -3.0) } else { -14.0 };
         if self.sharing.lan_port < 1024 {
             self.sharing.lan_port = 7777;
         }
@@ -489,6 +503,7 @@ fn migrate(value: &mut toml::Table) -> Result<()> {
             h.remove("save_long_clip");
         }
     }
+    // v16 -> v17: `smart_highlights` added (off); defaults fill it in.
     // v15 -> v16: `tour_complete` added (false: existing installs see the tour once).
     // v14 -> v15: `highlight` added (off); defaults fill it in.
     // v13 -> v14: `disk` free-space limits added; defaults fill them in.
@@ -748,6 +763,14 @@ color = \"blue\"
 thickness = 0
 ").unwrap();
         assert!(!s.highlight.enabled());
+    }
+
+    #[test]
+    fn smart_highlights_default_off_and_clamped() {
+        let s = parse("version = 16\n").unwrap();
+        assert!(!s.smart_highlights.enabled && !s.smart_highlights.analyze_on_save);
+        let s = parse("version = 17\n[smart_highlights]\nenabled = true\nthreshold_db = 5.0\n").unwrap();
+        assert_eq!(s.smart_highlights.threshold_db, -3.0);
     }
 
     #[test]

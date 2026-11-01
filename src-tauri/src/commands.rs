@@ -311,3 +311,35 @@ pub async fn run_live_benchmark(engine: State<'_, Engine>, secs: f64) -> R<crate
         .map_err(err)?
         .map_err(|e| format!("{e:#}"))
 }
+
+/// Find smart-highlight moments in `paths`, one clip at a time. Refused while
+/// the feature is off. Progress arrives as `analysis-progress` events.
+#[tauri::command]
+pub async fn analyze_clips(app: tauri::AppHandle, engine: State<'_, Engine>, paths: Vec<PathBuf>) -> R<usize> {
+    use tauri::Emitter;
+    let s = engine.settings();
+    if !crate::analysis::enabled(&s) {
+        return Err("Smart highlights are off. Turn them on in Settings > Advanced.".into());
+    }
+    let threshold = s.smart_highlights.threshold_db;
+    tauri::async_runtime::spawn_blocking(move || {
+        platform::com_init();
+        let total = paths.len();
+        let mut found = 0;
+        for (i, p) in paths.iter().enumerate() {
+            let _ = app.emit("analysis-progress", serde_json::json!({ "done": i, "total": total, "path": p }));
+            match crate::analysis::analyze_and_store(p, threshold) {
+                Ok(m) => found += m.len(),
+                // A clip with no audio is analysed too: it simply has nothing.
+                Err(e) => {
+                    tracing::warn!("analyze {}: {e:#}", p.display());
+                    let _ = library::set_highlights(p, Some(Vec::new()));
+                }
+            }
+        }
+        let _ = app.emit("analysis-progress", serde_json::json!({ "done": total, "total": total, "path": null }));
+        found
+    })
+    .await
+    .map_err(err)
+}

@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
+	import { listen } from '@tauri-apps/api/event';
 	import { fly, scale } from 'svelte/transition';
 	import { flip } from 'svelte/animate';
 	import { enter, exit, ms, standard } from '#lib/motion.ts';
@@ -143,6 +144,33 @@
 		}
 	}
 
+	// Smart highlights: analysing one session's unanalysed clips.
+	const smart = $derived(app.settings?.smart_highlights.enabled ?? false);
+	const anyHighlights = $derived(app.clips.some((c) => c.highlights?.length));
+	let analyzing = $state<{ key: string; done: number; total: number } | null>(null);
+	onMount(() => {
+		if (!inApp) return;
+		const off = listen<{ done: number; total: number }>('analysis-progress', (e) => {
+			if (analyzing) analyzing = { ...analyzing, done: e.payload.done, total: e.payload.total };
+		});
+		return () => void off.then((f) => f());
+	});
+
+	async function analyze(key: string, clips: Clip[]) {
+		const todo = clips.filter((c) => c.highlights == null);
+		if (!todo.length || analyzing) return;
+		analyzing = { key, done: 0, total: todo.length };
+		try {
+			const found = inApp ? await api.analyzeClips(todo.map((c) => c.path)) : 0;
+			await refreshClips();
+			toast('success', found ? `Found ${found} ${found === 1 ? 'moment' : 'moments'} in ${todo.length} ${todo.length === 1 ? 'clip' : 'clips'}` : `Nothing stood out in ${todo.length} ${todo.length === 1 ? 'clip' : 'clips'}`);
+		} catch (e) {
+			toast('error', String(e));
+		} finally {
+			analyzing = null;
+		}
+	}
+
 	async function openFolder() {
 		if (inApp) await openPath(await api.clipsDir());
 	}
@@ -211,6 +239,11 @@
 		<button class="chip" class:on={f.favorites} aria-pressed={f.favorites} onclick={() => (f.favorites = !f.favorites)}>
 			Favorites
 		</button>
+		{#if smart || anyHighlights}
+			<button class="chip" class:on={f.highlights} aria-pressed={f.highlights} onclick={() => (f.highlights = !f.highlights)} title="Clips where smart highlights found a moment">
+				<span class="mark-dot" aria-hidden="true"></span>Has highlights
+			</button>
+		{/if}
 		{#each tags as t (t)}
 			<TagChip tag={t} active={f.tags.includes(t)} onclick={() => toggleTag(t)} />
 		{:else}
@@ -281,6 +314,16 @@
 					<span class="count"><span class="num">{sess.shown.length}</span> {sess.shown.length === 1 ? 'clip' : 'clips'}</span>
 					{#if editing !== sess.key}
 						<button class="rename" onclick={() => (editing = sess.key)}>Rename</button>
+					{/if}
+					{#if smart}
+						{@const todo = sess.clips.filter((c) => c.highlights == null).length}
+						{#if analyzing?.key === sess.key}
+							<span class="analyzing num">Analyzing {Math.min(analyzing.done + 1, analyzing.total)} of {analyzing.total}…</span>
+						{:else if todo}
+							<button class="analyze" disabled={!!analyzing} onclick={() => analyze(sess.key, sess.clips)} title="Listen for loud spikes, excited voices and long loud stretches. Runs on this PC.">
+								Analyze <span class="num">{todo}</span> {todo === 1 ? 'clip' : 'clips'}
+							</button>
+						{/if}
 					{/if}
 				</div>
 				{#if open}
@@ -593,6 +636,38 @@
 	.sess-head:hover .rename {
 		opacity: 1;
 		color: var(--muted);
+	}
+	.mark-dot {
+		display: inline-block;
+		width: 6px;
+		height: 6px;
+		margin-right: 6px;
+		border-radius: 50%;
+		background: var(--mark);
+		vertical-align: 1px;
+	}
+	.analyze {
+		height: 24px;
+		padding: 0 10px;
+		border: 0;
+		border-radius: 4px;
+		background: transparent;
+		box-shadow: inset 0 0 0 1px var(--line-strong);
+		color: var(--muted);
+		font-size: 12px;
+		cursor: pointer;
+	}
+	.analyze:hover:not(:disabled) {
+		color: var(--text);
+		box-shadow: inset 0 0 0 1px var(--mark);
+	}
+	.analyze:disabled {
+		opacity: 0.5;
+		cursor: default;
+	}
+	.analyzing {
+		color: var(--mark);
+		font-size: 12px;
 	}
 	.grid {
 		display: grid;

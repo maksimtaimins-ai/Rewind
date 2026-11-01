@@ -108,6 +108,25 @@ export interface Settings {
 	/** Clips-drive free space limits, GB: warn below one, refuse saves below the other. */
 	disk: { warn_gb: number; block_gb: number };
 	highlight: Highlight;
+	smart_highlights: SmartHighlights;
+}
+
+/** Audio-based smart highlights. Off: nothing is ever analysed. */
+export interface SmartHighlights {
+	enabled: boolean;
+	/** dBFS, -30 to -3. */
+	threshold_db: number;
+	/** Also analyse each clip right after it's saved. */
+	analyze_on_save: boolean;
+}
+
+/** A flagged moment in a clip, seconds from its start. */
+export interface Moment {
+	at: number;
+	end: number;
+	/** 0-1. */
+	score: number;
+	reason: 'spike' | 'voice' | 'sustained';
 }
 
 /** On-screen sign that the buffer is recording. */
@@ -236,6 +255,8 @@ export interface Clip {
 	thumb_rev: number;
 	favorite: boolean;
 	tags: string[];
+	/** Smart-highlight moments; null until analysed. */
+	highlights: Moment[] | null;
 }
 
 export type ExportPreset = 'discord10' | 'discord25' | 'shorts' | 'twitter' | 'gif';
@@ -349,7 +370,9 @@ export const api = {
 	setCompactHud: (on: boolean) => invoke<void>('set_compact_hud', { on }),
 	/** Right-click menu on the HUD pill. */
 	hudMenu: () => invoke<void>('hud_menu'),
-	liveBenchmark: (secs: number) => invoke<BenchReport>('run_live_benchmark', { secs })
+	liveBenchmark: (secs: number) => invoke<BenchReport>('run_live_benchmark', { secs }),
+	/** Resolves with the number of moments found. Progress: `analysis-progress` events. */
+	analyzeClips: (paths: string[]) => invoke<number>('analyze_clips', { paths })
 };
 
 export const fileUrl = (path: string) => convertFileSrc(path);

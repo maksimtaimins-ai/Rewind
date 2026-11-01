@@ -675,6 +675,8 @@ impl Engine {
                     *self.inner.last_save.lock() = Some(LastSave { from: start, to: end, path: job.path.clone() });
                 }
                 self.inner.events.clip_saved(&info);
+                let inner = self.inner.clone();
+                crate::analysis::on_clip_saved(&self.inner.settings.read(), &job.path, move || inner.events.library_changed());
                 let verb = if job.replaces { "Extended" } else if job.slow_mo.is_some() { "Saved slow-mo" } else { "Saved" };
                 self.inner.events.notice(Level::Success, &format!("{verb} {:.0}s clip", info.duration));
             }

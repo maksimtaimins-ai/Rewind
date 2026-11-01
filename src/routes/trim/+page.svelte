@@ -77,12 +77,22 @@
 		if (video) video.currentTime = drag === 'head' ? t : drag === 'in' ? inPt : outPt;
 	}
 
+	// Smart-highlight moments, drawn as amber ticks; N jumps to the next one.
+	const moments = $derived(clip?.highlights ?? []);
+	const reasonLabel = { spike: 'Loud spike', voice: 'Excited voice', sustained: 'Loud stretch' } as const;
+	function seek(t: number) {
+		if (video) video.currentTime = Math.max(0, t - 1);
+		current = Math.max(0, t - 1);
+	}
+	const nextMoment = () => moments.find((m) => m.at - 1 > current + 0.05) ?? moments[0];
+
 	function keys(e: KeyboardEvent) {
 		if ((e.target as HTMLElement).tagName === 'INPUT') return;
 		if (e.key === ' ') {
 			e.preventDefault();
 			paused = !paused;
 		} else if (e.key === 'i') inPt = Math.min(current, outPt - 0.5);
+		else if (e.key === 'n' && moments.length) seek(nextMoment().at);
 		else if (e.key === 'o') outPt = Math.max(current, inPt + 0.5);
 		else if (e.key === 'ArrowLeft' && video) video.currentTime = Math.max(0, current - (e.shiftKey ? 5 : 1 / 60));
 		else if (e.key === 'ArrowRight' && video) video.currentTime = Math.min(duration, current + (e.shiftKey ? 5 : 1 / 60));
@@ -229,6 +239,9 @@
 			{#each keyframes as k (k)}
 				<span class="tick" style="left: {pct(k)}"></span>
 			{/each}
+			{#each moments as m, i (i)}
+				<span class="moment" style="left: {pct(m.at)}; width: max(3px, calc({pct(m.end)} - {pct(m.at)}))" style:--strength={0.45 + m.score * 0.55} title="{reasonLabel[m.reason]} at {fmtDuration(m.at)}"></span>
+			{/each}
 			<span class="handle" style="left: {pct(inPt)}" aria-hidden="true"></span>
 			<span class="handle out" style="left: {pct(outPt)}" aria-hidden="true"></span>
 			<span class="head" style="left: {pct(current)}" aria-hidden="true"></span>
@@ -237,6 +250,17 @@
 			<span>{fmtDuration(current)}</span>
 			<span>{fmtDuration(duration)}</span>
 		</div>
+		{#if moments.length}
+			<div class="moments" aria-label="Highlights">
+				{#each moments as m, i (i)}
+					<button class="jump" onclick={() => seek(m.at)}>
+						<span class="num">{fmtDuration(m.at)}</span>
+						{reasonLabel[m.reason]}
+					</button>
+				{/each}
+				<span class="moments-hint"><Keycap keys="N" /> next</span>
+			</div>
+		{/if}
 	</div>
 
 	<div class="bar">
@@ -394,6 +418,50 @@
 		width: 1px;
 		height: 8px;
 		background: var(--line-strong);
+	}
+	/* Amber band over the moment's span, brighter for higher scores. */
+	.moment {
+		position: absolute;
+		top: 0;
+		height: 6px;
+		border-radius: 0 0 2px 2px;
+		background: var(--mark);
+		opacity: var(--strength);
+		pointer-events: none;
+	}
+	.moments {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 6px;
+		margin-top: 10px;
+	}
+	.jump {
+		height: 26px;
+		padding: 0 10px 0 8px;
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		border: 0;
+		border-radius: 4px;
+		background: var(--raised);
+		box-shadow: inset 2px 0 0 var(--mark);
+		color: var(--muted);
+		font-size: 12px;
+		cursor: pointer;
+	}
+	.jump:hover {
+		color: var(--text);
+	}
+	.jump .num {
+		color: var(--text);
+	}
+	.moments-hint {
+		color: var(--faint);
+		font-size: 12px;
+		display: inline-flex;
+		gap: 4px;
+		align-items: center;
 	}
 	.handle {
 		position: absolute;

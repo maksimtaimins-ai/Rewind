@@ -3,7 +3,7 @@ import type { Clip, Settings, Status } from '#lib/api.ts';
 
 export function mockSettings(): Settings {
 	return {
-		version: 16,
+		version: 17,
 		first_run_complete: true,
 		tour_complete: false,
 		pro_mode: false,
@@ -63,6 +63,7 @@ export function mockSettings(): Settings {
 		hud: { enabled: false, x: null, y: null },
 		disk: { warn_gb: 10, block_gb: 2 },
 		highlight: { color: 'off', custom_color: '#ffc53d', thickness: 2, opacity: 60, position: 'border', only_in_game: false },
+		smart_highlights: { enabled: true, threshold_db: -14, analyze_on_save: false },
 		watch_folders: [
 			{ enabled: true, input: 'C:\\clips\\outbox\\youtube-shorts', preset: 'shorts', output: 'C:\\clips\\exported\\youtube', delete_original: false }
 		]
@@ -122,7 +123,16 @@ export function mockClips(): Clip[] {
 		thumb: null,
 		thumb_rev: 0,
 		favorite: i === 1 || i === 4,
-		tags: [['ace', 'clutch'], ['clutch'], [], [], ['boss'], ['boss', 'fail']][i]
+		tags: [['ace', 'clutch'], ['clutch'], [], [], ['boss'], ['boss', 'fail']][i],
+		highlights: i === 0
+			? [
+					{ at: 8.4, end: 9.1, score: 0.82, reason: 'spike' as const },
+					{ at: 21, end: 26.5, score: 0.64, reason: 'sustained' as const },
+					{ at: 41.2, end: 42.3, score: 0.91, reason: 'voice' as const }
+				]
+			: i === 2
+				? []
+				: null
 	}));
 }
 

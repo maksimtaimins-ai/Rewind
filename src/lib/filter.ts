@@ -12,6 +12,8 @@ export interface Filters {
 	to: string;
 	length: LengthRange;
 	favorites: boolean;
+	/** Only clips with at least one smart-highlight moment. */
+	highlights: boolean;
 	/** A clip must have every one of these tags. */
 	tags: string[];
 }
@@ -23,11 +25,12 @@ export const emptyFilters = (): Filters => ({
 	to: '',
 	length: 'any',
 	favorites: false,
+	highlights: false,
 	tags: []
 });
 
 export const isFiltering = (f: Filters) =>
-	!!f.query.trim() || f.date !== 'all' || f.length !== 'any' || f.favorites || f.tags.length > 0;
+	!!f.query.trim() || f.date !== 'all' || f.length !== 'any' || f.favorites || f.highlights || f.tags.length > 0;
 
 const DAY = 86_400_000;
 
@@ -65,6 +68,7 @@ export function applyFilters(clips: Clip[], f: Filters, now = new Date()): Clip[
 		if (c.modified < from || c.modified >= to) return false;
 		if (!lengthOk[f.length](c.duration)) return false;
 		if (f.favorites && !c.favorite) return false;
+		if (f.highlights && !c.highlights?.length) return false;
 		if (!f.tags.every((t) => c.tags.includes(t))) return false;
 		const hay = `${c.name} ${c.tags.join(' ')}`.toLowerCase();
 		return words.every((w) => hay.includes(w));

@@ -18,6 +18,7 @@
 	--on-accent: #141517;
 	--accent-2: #e7e7e5;
 	--signal: #ff4d3d; /* recording only */
+	--mark: #ff9f2e; /* smart-highlight moments */
 	/* Theme-independent: overlays on video frames and the window close button. */
 	--media: #000;
 	--scrim: rgb(0 0 0 / 0.72);
@@ -42,6 +43,7 @@
 		--on-accent: #f4f5f6;
 		--accent-2: #17181a;
 		--signal: #e5352a;
+		--mark: #c46a00;
 		color-scheme: light;
 	}
 }

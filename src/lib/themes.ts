@@ -325,7 +325,9 @@ export function apply(p: Palette) {
 		accent: p.accent,
 		'on-accent': p.onAccent,
 		'accent-2': p.accent2 ?? p.accent,
-		signal: p.signal
+		signal: p.signal,
+		// Smart-highlight ticks: one amber per scheme, readable on every ground.
+		mark: p.scheme === 'dark' ? '#ff9f2e' : '#c46a00'
 	};
 	for (const [k, v] of Object.entries(vars)) root.style.setProperty(`--${k}`, v);
 	root.style.colorScheme = p.scheme;

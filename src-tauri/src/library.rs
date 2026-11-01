@@ -22,6 +22,8 @@ pub struct ClipInfo {
     pub thumb_rev: i64,
     pub favorite: bool,
     pub tags: Vec<String>,
+    /// Smart-highlight moments; `None` until the clip has been analysed.
+    pub highlights: Option<Vec<crate::analysis::Moment>>,
 }
 
 /// What Rewind knows about a clip beyond the file itself.
@@ -31,6 +33,9 @@ pub struct ClipMeta {
     pub favorite: bool,
     #[serde(default)]
     pub tags: Vec<String>,
+    /// Smart-highlight moments. `None`: not analysed; empty: nothing found.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub highlights: Option<Vec<crate::analysis::Moment>>,
 }
 
 impl ClipMeta {
@@ -110,6 +115,7 @@ fn apply_meta(mut c: ClipInfo, m: &Meta) -> ClipInfo {
     let cm = m.clip(&c.path);
     c.favorite = cm.favorite;
     c.tags = cm.tags;
+    c.highlights = cm.highlights;
     c
 }
 
@@ -234,6 +240,7 @@ fn info_bare(path: &Path) -> Result<ClipInfo> {
         thumb_rev,
         favorite: false,
         tags: Vec::new(),
+        highlights: None,
     };
     Ok(c)
 }
@@ -348,6 +355,15 @@ pub fn set_tags(path: &Path, tags: &[String]) -> Result<()> {
     })
 }
 
+/// Store (or with `None`, forget) a clip's smart-highlight moments.
+pub fn set_highlights(path: &Path, moments: Option<Vec<crate::analysis::Moment>>) -> Result<()> {
+    update_meta(|m| {
+        let mut c = m.clip(path);
+        c.highlights = moments;
+        m.set_clip(path, c);
+    })
+}
+
 pub fn copy_thumb(from_clip: &Path, to_clip: &Path) {
     let src = thumb_path(from_clip);
     if src.exists() {
@@ -371,7 +387,7 @@ mod tests {
         let path = dir.join("library.json");
         let a = Path::new("C:/clips/A.mp4");
         let b = Path::new("D:/elsewhere/B.mp4");
-        update_meta_at(&path, |m| m.set_clip(a, ClipMeta { favorite: true, tags: vec!["clutch".into()] })).unwrap();
+        update_meta_at(&path, |m| m.set_clip(a, ClipMeta { favorite: true, tags: vec!["clutch".into()], highlights: None })).unwrap();
         update_meta_at(&path, |m| m.rename(a, b)).unwrap();
         let m = read_meta(&path);
         assert_eq!(m.clip(Path::new("C:/other/b.MP4")).tags, vec!["clutch".to_string()]);

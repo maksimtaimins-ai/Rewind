@@ -220,6 +220,59 @@ pub fn frame_at(src: &Path, secs: f64, max_w: u32) -> Result<(u32, u32, Vec<u8>)
     }
 }
 
+/// Decode every audio track of `src` to 16-bit PCM, calling
+/// `f(stream, sample rate, channels, samples)` per decoded chunk. Video is
+/// never decoded.
+pub fn decode_audio(src: &Path, f: &mut dyn FnMut(u32, u32, u32, &[i16])) -> Result<()> {
+    unsafe {
+        let reader = MFCreateSourceReaderFromURL(&HSTRING::from(src.as_os_str()), None).context("open clip for analysis")?;
+        reader.SetStreamSelection(MF_SOURCE_READER_ALL_STREAMS.0 as u32, false)?;
+        // (rate, channels) per selected audio stream.
+        let mut formats: Vec<(u32, u32, u32)> = Vec::new();
+        let mut i = 0u32;
+        while let Ok(native) = reader.GetNativeMediaType(i, 0) {
+            if native.GetGUID(&MF_MT_MAJOR_TYPE)? == MFMediaType_Audio {
+                let a = MFCreateMediaType()?;
+                a.SetGUID(&MF_MT_MAJOR_TYPE, &MFMediaType_Audio)?;
+                a.SetGUID(&MF_MT_SUBTYPE, &MFAudioFormat_PCM)?;
+                a.SetUINT32(&MF_MT_AUDIO_BITS_PER_SAMPLE, 16)?;
+                if reader.SetCurrentMediaType(i, None, &a).is_ok() {
+                    let cur = reader.GetCurrentMediaType(i)?;
+                    let rate = cur.GetUINT32(&MF_MT_AUDIO_SAMPLES_PER_SECOND)?;
+                    let channels = cur.GetUINT32(&MF_MT_AUDIO_NUM_CHANNELS)?;
+                    reader.SetStreamSelection(i, true)?;
+                    formats.push((i, rate, channels));
+                }
+            }
+            i += 1;
+        }
+        if formats.is_empty() {
+            bail!("this clip has no audio to analyze");
+        }
+        let mut ended = 0;
+        while ended < formats.len() {
+            let mut index = 0u32;
+            let mut flags = 0u32;
+            let mut sample = None;
+            reader.ReadSample(MF_SOURCE_READER_ANY_STREAM.0 as u32, 0, Some(&mut index), Some(&mut flags), None, Some(&mut sample))?;
+            if flags & MF_SOURCE_READERF_ENDOFSTREAM.0 as u32 != 0 {
+                let _ = reader.SetStreamSelection(index, false);
+                ended += 1;
+                continue;
+            }
+            let (Some(sample), Some(&(_, rate, channels))) = (sample, formats.iter().find(|x| x.0 == index)) else { continue };
+            let buf = sample.ConvertToContiguousBuffer()?;
+            let mut data = std::ptr::null_mut();
+            let mut len = 0u32;
+            buf.Lock(&mut data, None, Some(&mut len))?;
+            let pcm = std::slice::from_raw_parts(data as *const i16, len as usize / 2);
+            f(index, rate, channels, pcm);
+            buf.Unlock()?;
+        }
+        Ok(())
+    }
+}
+
 /// Re-encode `src` for `preset`, writing next to it. Returns the new file.
 pub fn export(src: &Path, preset: Preset) -> Result<std::path::PathBuf> {
     let out = super::output_path(src, preset);

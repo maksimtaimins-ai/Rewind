@@ -223,7 +223,7 @@ mod tests {
         std::fs::write(library::thumb_path(&a), b"jpg").unwrap();
         std::fs::write(library::custom_thumb_path(&a), b"custom").unwrap();
 
-        let meta = ClipMeta { favorite: true, tags: vec!["x".into()] };
+        let meta = ClipMeta { favorite: true, tags: vec!["x".into()], highlights: None };
         let n = delete_into(&bin, &[a.clone()], 1_000, &mut |_| meta.clone()).unwrap();
         assert_eq!(n, 1);
         assert!(!a.exists() && !library::thumb_path(&a).exists());

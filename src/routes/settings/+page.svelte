@@ -614,6 +614,21 @@
 					<button class="secondary" disabled={!inApp} onclick={importProfile}>Import</button>
 				</Row>
 
+				<h3>Smart highlights</h3>
+				<p class="intro">Listens to a clip's audio for loud spikes, excited voices and long loud stretches, and marks them on the trim timeline. Runs on this PC only. Off, it never runs.</p>
+				<Row label="Smart highlights" hint={s.smart_highlights.enabled ? 'Analyze clips from the library, one session at a time.' : 'Off. Nothing is analyzed.'}>
+					<Toggle checked={s.smart_highlights.enabled} label="Smart highlights" onchange={(v) => set((x) => (x.smart_highlights.enabled = v))} />
+				</Row>
+				{#if s.smart_highlights.enabled}
+					<Row label="Loudness threshold" hint="How loud a spike or stretch must get. Lower flags more moments." help="Measured in dBFS, where 0 is the loudest a recording can be. Game audio usually sits between -30 and -20; gunshots and explosions reach -15 to -5. Start at -14 and lower it if quiet games get no highlights.">
+						<input type="range" min="-30" max="-3" step="1" value={s.smart_highlights.threshold_db} onchange={(e) => set((x) => (x.smart_highlights.threshold_db = num(e)))} aria-label="Loudness threshold" />
+						<span class="readout num">{s.smart_highlights.threshold_db} dB</span>
+					</Row>
+					<Row label="Analyze on save" hint={s.smart_highlights.analyze_on_save ? 'Each clip is analyzed a moment after it saves, about a second of CPU per minute of clip.' : 'Manual only: use Analyze in the library.'}>
+						<Toggle checked={s.smart_highlights.analyze_on_save} label="Analyze on save" onchange={(v) => set((x) => (x.smart_highlights.analyze_on_save = v))} />
+					</Row>
+				{/if}
+
 				<h3>Games</h3>
 				<p class="intro">Overrides that apply while a game runs. Empty fields use the settings above.</p>
 				{#if s.profiles.length}
