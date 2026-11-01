@@ -11,6 +11,7 @@
 	import Segmented from '#lib/components/Segmented.svelte';
 	import { allTags, applyFilters, emptyFilters, isFiltering, type DateRange, type LengthRange } from '#lib/filter.ts';
 	import { defaultSessionName, groupSessions } from '#lib/sessions.ts';
+	import { postToDiscord } from '#lib/share.ts';
 
 	let selecting = $state(false);
 	let selected = $state<string[]>([]);
@@ -65,7 +66,8 @@
 
 	function openMenu(c: Clip, e: MouseEvent) {
 		tagging = null;
-		menu = { clip: c, ...place(e.clientX, e.clientY, 200, 152) };
+		const extra = app.settings?.sharing.discord_webhooks.length ?? 0;
+		menu = { clip: c, ...place(e.clientX, e.clientY, 200, 152 + extra * 36) };
 	}
 
 	function closeFloating(e: Event) {
@@ -319,6 +321,9 @@
 			}}>{m.clip.favorite ? 'Remove from favorites' : 'Add to favorites'}</button
 		>
 		<button role="menuitem" onclick={() => (menu = null, goto(`/trim?path=${encodeURIComponent(m.clip.path)}`))}>Open</button>
+		{#each app.settings?.sharing.discord_webhooks ?? [] as w, i (i)}
+			<button role="menuitem" onclick={() => ((menu = null), postToDiscord(m.clip, i))}>Post to {w.name || 'Discord'}</button>
+		{/each}
 		<button role="menuitem" onclick={() => ((menu = null), removeOne(m.clip))}>Delete</button>
 	</div>
 {/if}

@@ -14,6 +14,7 @@ pub mod platform;
 pub mod profiles;
 pub mod recycled;
 pub mod settings;
+pub mod share;
 
 use engine::{Engine, Events, Level, Status};
 use library::ClipInfo;
@@ -176,6 +177,7 @@ pub fn run() {
             commands::export_settings,
             commands::import_settings,
             commands::running_apps,
+            commands::post_to_discord,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Rewind")

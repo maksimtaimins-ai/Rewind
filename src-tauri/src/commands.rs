@@ -244,3 +244,13 @@ pub fn running_apps() -> Vec<String> {
     v.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
     v
 }
+
+/// Upload a clip to the configured Discord webhook at `webhook` (its index).
+#[tauri::command]
+pub async fn post_to_discord(engine: State<'_, Engine>, path: PathBuf, webhook: usize) -> R<()> {
+    let w = engine.settings().sharing.discord_webhooks.get(webhook).cloned().ok_or("That webhook was removed")?;
+    tauri::async_runtime::spawn_blocking(move || crate::share::discord::post(&w, &path))
+        .await
+        .map_err(err)?
+        .map_err(|e| format!("{e:#}"))
+}

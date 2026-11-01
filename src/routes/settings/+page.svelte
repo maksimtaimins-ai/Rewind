@@ -20,6 +20,10 @@
 	let benching = $state(false);
 	let newPrivacy = $state('');
 	let newProfile = $state('');
+	let hookName = $state('');
+	let hookUrl = $state('');
+	// Same rule as the backend: https on a Discord host, a /webhooks/ path.
+	const hookOk = $derived(/^https:\/\/(canary\.|ptb\.)?discord(app)?\.com\/.*webhooks\/\S+$/i.test(hookUrl.trim()));
 
 	onMount(async () => {
 		if (!inApp) {
@@ -42,6 +46,7 @@
 			['hotkeys', 'Hotkeys'],
 			['appearance', 'Appearance'],
 			['library', 'Library'],
+			['sharing', 'Sharing'],
 			['advanced', 'Advanced']
 		].filter(([id]) => pro || id !== 'advanced')
 	);
@@ -346,6 +351,41 @@
 			</Row>
 		</section>
 
+		<section id="sharing">
+			<h2>Sharing</h2>
+			<p class="intro">Discord webhooks post a clip straight into a channel. Make one in the channel's settings under Integrations, then paste its URL here. Anyone with the URL can post, so keep it private.</p>
+			{#each s.sharing.discord_webhooks as w, i (i)}
+				<Row label={w.name || 'Unnamed webhook'} hint={w.url.replace(/\/[^/]+$/, '/••••')}>
+					<Segmented
+						label="Upload limit for {w.name}"
+						value={w.limit_mb}
+						options={[
+							{ value: 10, label: '10 MB' },
+							{ value: 25, label: '25 MB, boosted' }
+						]}
+						onchange={(v) => set((x) => (x.sharing.discord_webhooks[i].limit_mb = v))}
+					/>
+					<button class="link" onclick={() => set((x) => x.sharing.discord_webhooks.splice(i, 1))}>Remove</button>
+				</Row>
+			{/each}
+			<form
+				class="add"
+				onsubmit={(e) => {
+					e.preventDefault();
+					if (!hookOk) return;
+					const name = hookName.trim() || 'Discord';
+					const url = hookUrl.trim();
+					set((x) => x.sharing.discord_webhooks.push({ name, url, limit_mb: 10 }));
+					hookName = '';
+					hookUrl = '';
+				}}
+			>
+				<input type="text" placeholder="Name, e.g. Squad #clips" bind:value={hookName} aria-label="Webhook name" />
+				<input class="grow" type="text" placeholder="https://discord.com/api/webhooks/…" bind:value={hookUrl} aria-label="Webhook URL" />
+				<button class="secondary" type="submit" disabled={!hookOk}>Add webhook</button>
+			</form>
+		</section>
+
 		{#if pro}
 			<section id="advanced">
 				<h2>Advanced</h2>
@@ -605,6 +645,10 @@
 		display: flex;
 		gap: 8px;
 		margin-top: 12px;
+	}
+	.add .grow {
+		flex: 1;
+		min-width: 0;
 	}
 	.chips {
 		list-style: none;

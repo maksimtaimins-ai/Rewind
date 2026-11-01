@@ -62,10 +62,10 @@ NSIS via Tauri (`src-tauri/tauri.conf.json`, template in `src-tauri/windows/inst
 
 Done (MVP): ring buffer + hotkey save, settings UI with a Pro mode toggle, clip library (play, rename, soft delete with a 30-day Recently deleted bin, open folder, search and filters, sessions, favorites, tags, custom thumbnails), keyframe-aligned trim, multi-track audio (system / per-app / everything-except-app / mic), first-run wizard with encoder benchmark, installer.
 
-Also in: session markers, extend last clip, up to three replay lengths, slow-mo replay (retimed, video only), export presets (Discord 10/25 MB, Shorts, X, GIF; Media Foundation decode/encode, WIC for GIF), per-game profiles with game detection, screenshots, pause hotkey, privacy apps (capture pauses while they're focused), clip merge, benchmark in settings, settings import/export, daily SSD write warning, tray menu.
+Also in: session markers, extend last clip, up to three replay lengths, slow-mo replay (retimed, video only), export presets (Discord 10/25 MB, Shorts, X, GIF; Media Foundation decode/encode, WIC for GIF), per-game profiles with game detection, screenshots, pause hotkey, privacy apps (capture pauses while they're focused), clip merge, benchmark in settings, settings import/export, daily SSD write warning, tray menu, Discord webhook posting (Settings > Sharing; WinHTTP multipart upload, per-webhook 10/25 MB cap with an export offer when a clip is over it).
 
 Not yet:
 - Frame-exact trim (re-encode): trim currently snaps the start to the previous keyframe.
 - HDR tonemapping: HDR desktops are captured as 8-bit BGRA; the tonemap shader is still to do, and the option is hidden until it exists.
 - Window capture (a single game window instead of the whole monitor).
-- The rest of the advanced list: overlay, annotate/blur, auto-crop, Discord webhook, LAN send, HUD mode, highlights.
+- The rest of the advanced list: overlay, annotate/blur, auto-crop, LAN send, HUD mode, highlights.

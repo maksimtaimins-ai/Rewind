@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-pub const SETTINGS_VERSION: u32 = 9;
+pub const SETTINGS_VERSION: u32 = 10;
 
 /// Allowed range for [`BufferSettings::seconds`].
 pub const MIN_BUFFER_SECS: u32 = 10;
@@ -166,6 +166,21 @@ pub struct GameProfile {
     pub buffer_seconds: Option<u32>,
 }
 
+/// A Discord channel webhook clips can be posted to. No bot, no token: the
+/// URL itself is the credential.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DiscordWebhook {
+    pub name: String,
+    pub url: String,
+    /// Upload cap in MB: 10 (default) or 25 (boosted server).
+    pub limit_mb: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SharingSettings {
+    pub discord_webhooks: Vec<DiscordWebhook>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Settings {
     pub version: u32,
@@ -189,6 +204,7 @@ pub struct Settings {
     pub privacy_apps: Vec<String>,
     /// Warn once a day's written clip volume exceeds this many GiB.
     pub ssd_warn_gb_per_day: u32,
+    pub sharing: SharingSettings,
 }
 
 impl Default for Settings {
@@ -253,6 +269,7 @@ impl Default for Settings {
             profiles: Vec::new(),
             privacy_apps: vec!["KeePassXC.exe".into(), "1Password.exe".into(), "Bitwarden.exe".into()],
             ssd_warn_gb_per_day: 50,
+            sharing: SharingSettings { discord_webhooks: Vec::new() },
         }
     }
 }
@@ -316,6 +333,9 @@ impl Settings {
         for slot in &mut self.buffer.extra_slots {
             slot.seconds = slot.seconds.clamp(MIN_BUFFER_SECS, MAX_BUFFER_SECS);
         }
+        for w in &mut self.sharing.discord_webhooks {
+            w.limit_mb = if w.limit_mb >= 25 { 25 } else { 10 };
+        }
     }
 
     /// Seconds a normal save records after the keypress (0 when post-roll is off).
@@ -345,6 +365,7 @@ fn migrate(value: &mut toml::Table) -> Result<()> {
             h.remove("save_long_clip");
         }
     }
+    // v9 -> v10: `sharing` (Discord webhooks) added; defaults fill it in.
     // v8 -> v9: opt-in `post_roll` added (off); defaults fill it in. Unrelated
     // to the v1 `buffer.post_roll_secs`, which stays dropped.
     // v7 -> v8: `library.purge_days` added; defaults fill it in.
@@ -504,6 +525,19 @@ extend_last = \"Ctrl+E\"
         let s = parse("version = 5\n[slow_mo]\nseconds = 4\nspeed = 2.0\n").unwrap();
         assert_eq!(s.slow_mo, SlowMoSettings { seconds: 3, speed: 0.5 });
         assert_eq!(s.hotkeys.slow_mo, "Alt+F5");
+    }
+
+    #[test]
+    fn webhook_limit_snaps() {
+        let s = parse("version = 10
+[[sharing.discord_webhooks]]
+name = \"a\"
+url = \"u\"
+limit_mb = 50
+").unwrap();
+        assert_eq!(s.sharing.discord_webhooks[0].limit_mb, 25);
+        assert!(parse("version = 9
+").unwrap().sharing.discord_webhooks.is_empty());
     }
 
     #[test]

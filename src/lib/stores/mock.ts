@@ -3,7 +3,7 @@ import type { Clip, Settings, Status } from '#lib/api.ts';
 
 export function mockSettings(): Settings {
 	return {
-		version: 9,
+		version: 10,
 		first_run_complete: true,
 		pro_mode: false,
 		theme: 'system',
@@ -49,7 +49,8 @@ export function mockSettings(): Settings {
 		},
 		profiles: [],
 		privacy_apps: ['KeePassXC.exe', '1Password.exe', 'Bitwarden.exe'],
-		ssd_warn_gb_per_day: 50
+		ssd_warn_gb_per_day: 50,
+		sharing: { discord_webhooks: [{ name: 'Squad #clips', url: 'https://discord.com/api/webhooks/1/x', limit_mb: 10 }] }
 	};
 }
 

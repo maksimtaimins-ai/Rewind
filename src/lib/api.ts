@@ -42,6 +42,13 @@ export interface BufferSlot {
 	hotkey: string;
 }
 
+export interface DiscordWebhook {
+	name: string;
+	url: string;
+	/** Upload cap in MB: 10, or 25 for a boosted server. */
+	limit_mb: 10 | 25;
+}
+
 export interface Settings {
 	version: number;
 	first_run_complete: boolean;
@@ -81,6 +88,7 @@ export interface Settings {
 	profiles: GameProfile[];
 	privacy_apps: string[];
 	ssd_warn_gb_per_day: number;
+	sharing: { discord_webhooks: DiscordWebhook[] };
 }
 
 export type HotkeyAction = 'save_clip' | 'marker' | 'screenshot' | 'extend_last' | 'slow_mo' | 'favorite_last';
@@ -223,7 +231,9 @@ export const api = {
 	keyframes: (path: string) => invoke<[number[], number]>('clip_keyframes', { path }),
 	exportSettings: (path: string) => invoke<void>('export_settings', { path }),
 	importSettings: (path: string) => invoke<Settings>('import_settings', { path }),
-	runningApps: () => invoke<string[]>('running_apps')
+	runningApps: () => invoke<string[]>('running_apps'),
+	/** `webhook` is the index into `settings.sharing.discord_webhooks`. */
+	postToDiscord: (path: string, webhook: number) => invoke<void>('post_to_discord', { path, webhook })
 };
 
 export const fileUrl = (path: string) => convertFileSrc(path);
