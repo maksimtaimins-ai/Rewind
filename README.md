@@ -45,6 +45,14 @@ npm run package
 
 `npm run package` runs `cargo tauri build` and copies the installer to `src-tauri/target/release/bundle/nsis/Rewind-Setup.exe`. Plain `cargo tauri build` also works; it leaves the installer as `Rewind_<version>_x64-setup.exe` in the same folder (Tauri hard-codes that name).
 
+To build for publishing, use:
+
+```bash
+npm run release
+```
+
+It runs `tauri build`, then `scripts/organize-release.js`, which moves `Rewind_<version>_x64-setup.exe`, its `.sig` and `latest.json` (if present) into `src-tauri/target/release/bundle/nsis/<version>/`. It deletes everything else at the top of `nsis/` and keeps older version folders. The version comes from `src-tauri/tauri.conf.json`. Write `latest.json` into `nsis/` before running the script, or into the version folder afterwards.
+
 Release builds also sign the installer for the updater, so the build needs the updater's private key. Set `TAURI_SIGNING_PRIVATE_KEY` (the key file's path or contents) and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` before building. The build then writes `Rewind_<version>_x64-setup.exe.sig`; `latest.json` for a release is built from that signature.
 
 Development:

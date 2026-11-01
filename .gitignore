@@ -5,3 +5,8 @@ src-tauri/target/
 src-tauri/gen/
 *.log
 desktop.ini
+# Release artifacts (already under src-tauri/target/, listed explicitly so they stay out if that changes)
+src-tauri/target/release/bundle/nsis/*.exe
+src-tauri/target/release/bundle/nsis/*.sig
+src-tauri/target/release/bundle/nsis/latest.json
+src-tauri/target/release/bundle/nsis/*/
