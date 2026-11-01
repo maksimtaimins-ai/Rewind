@@ -60,7 +60,7 @@ NSIS via Tauri (`src-tauri/tauri.conf.json`, template in `src-tauri/windows/inst
 
 ## Status
 
-Done (MVP): ring buffer + hotkey save, settings UI with an Advanced toggle, clip library (play, rename, Recycle Bin delete, open folder), keyframe-aligned trim, multi-track audio (system / per-app / everything-except-app / mic), first-run wizard with encoder benchmark, installer.
+Done (MVP): ring buffer + hotkey save, settings UI with an Advanced toggle, clip library (play, rename, soft delete with a 30-day Recently deleted bin, open folder, search and filters, sessions, favorites, tags, custom thumbnails), keyframe-aligned trim, multi-track audio (system / per-app / everything-except-app / mic), first-run wizard with encoder benchmark, installer.
 
 Also in: session markers, extend last clip, up to three replay lengths, slow-mo replay (retimed, video only), export presets (Discord 10/25 MB, Shorts, X, GIF; Media Foundation decode/encode, WIC for GIF), per-game profiles with game detection, screenshots, pause hotkey, privacy apps (capture pauses while they're focused), clip merge, benchmark in settings, settings import/export, daily SSD write warning, tray menu.
 

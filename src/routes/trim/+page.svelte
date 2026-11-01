@@ -6,6 +6,7 @@
 	import ExportMenu from '#lib/components/ExportMenu.svelte';
 	import TagChip from '#lib/components/TagChip.svelte';
 	import TagEditor from '#lib/components/TagEditor.svelte';
+	import ThumbnailPicker from '#lib/components/ThumbnailPicker.svelte';
 	import { app, inApp, refreshClips, setFavorite, setTags, toast } from '#lib/stores/app.svelte.ts';
 
 	const path = $derived(page.url.searchParams.get('path') ?? '');
@@ -99,6 +100,18 @@
 		}
 	}
 
+	let picking = $state(false);
+	async function pickThumb(secs: number) {
+		try {
+			const updated = await api.setThumbnail(path, secs);
+			app.clips = app.clips.map((c) => (c.path === updated.path ? updated : c));
+			toast('success', 'Thumbnail updated');
+		} catch (e) {
+			toast('error', `Couldn't set the thumbnail: ${e}`);
+			throw e;
+		}
+	}
+
 	let exporting = $state(false);
 	async function exportAs(preset: ExportPreset) {
 		if (!inApp) return;
@@ -135,7 +148,11 @@
 	}
 </script>
 
-<svelte:window onkeydown={keys} />
+<svelte:window onkeydown={(e) => !picking && keys(e)} />
+
+{#if picking}
+	<ThumbnailPicker {path} {duration} start={current} onpick={pickThumb} onclose={() => (picking = false)} />
+{/if}
 
 <div class="page">
 	<nav class="crumbs"><a href="/library">Clips</a></nav>
@@ -235,6 +252,7 @@
 		<div class="buttons">
 			<button class="secondary" onclick={() => clip && inApp && revealItemInDir(clip.path)}>Show in folder</button>
 			<button class="secondary" onclick={remove}>Delete</button>
+			<button class="secondary" onclick={() => (picking = true)}>Pick thumbnail</button>
 			<ExportMenu busy={exporting} onexport={exportAs} />
 			<button class="primary" disabled={busy || (inPt <= 0.01 && outPt >= duration - 0.01)} onclick={exportCut}>
 				{busy ? 'Saving…' : 'Save trimmed copy'}

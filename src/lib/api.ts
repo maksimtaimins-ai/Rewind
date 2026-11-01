@@ -127,6 +127,8 @@ export interface Clip {
 	modified: number;
 	duration: number;
 	thumb: string | null;
+	/** Changes when the thumbnail file is replaced. */
+	thumb_rev: number;
 	favorite: boolean;
 	tags: string[];
 }
@@ -201,6 +203,7 @@ export const api = {
 	trim: (path: string, from: number, to: number) => invoke<Clip>('trim_clip', { path, from, to }),
 	merge: (paths: string[]) => invoke<Clip>('merge_clips', { paths }),
 	exportClip: (path: string, preset: ExportPreset) => invoke<string>('export_clip', { path, preset }),
+	setThumbnail: (path: string, secs: number) => invoke<Clip>('set_thumbnail', { path, secs }),
 	keyframes: (path: string) => invoke<[number[], number]>('clip_keyframes', { path }),
 	exportSettings: (path: string) => invoke<void>('export_settings', { path }),
 	importSettings: (path: string) => invoke<Settings>('import_settings', { path }),

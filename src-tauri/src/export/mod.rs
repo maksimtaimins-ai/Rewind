@@ -387,7 +387,12 @@ mod tests {
         let Some(clip) = std::env::var_os("REWIND_EXPORT_CLIP") else { return };
         crate::platform::com_init();
         crate::encode::mf::mf_startup();
-        for preset in [Preset::Discord10, Preset::Discord25, Preset::Shorts, Preset::Twitter, Preset::Gif] {
+        let (w, h, px) = mf::frame_at(Path::new(&clip), 3.0, 640).unwrap();
+        assert_eq!((w as usize * h as usize * 4, w <= 640), (px.len(), true));
+        let thumb = Path::new(&clip).with_extension("frame.jpg");
+        crate::platform::write_image(&thumb, w, h, &px, crate::platform::ImageFormat::Jpeg).unwrap();
+        println!("frame_at: {w}x{h} -> {}", thumb.display());
+        for preset in [Preset::Discord10, Preset::Discord25, Preset::Shorts, Preset::Twitter, Preset::Gif].into_iter().filter(|_| std::env::var_os("REWIND_EXPORT_FRAME_ONLY").is_none()) {
             let t = std::time::Instant::now();
             let out = mf::export(Path::new(&clip), preset).unwrap_or_else(|e| panic!("{preset:?}: {e:#}"));
             let len = std::fs::metadata(&out).unwrap().len();

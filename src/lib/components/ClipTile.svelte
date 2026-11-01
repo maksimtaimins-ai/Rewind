@@ -26,7 +26,8 @@
 		oncontextmenu?: (e: MouseEvent) => void;
 	} = $props();
 
-	const thumb = $derived(clip.thumb && inApp ? fileUrl(clip.thumb) : null);
+	// The revision busts the webview's image cache when a thumbnail is replaced.
+	const thumb = $derived(clip.thumb && inApp ? `${fileUrl(clip.thumb)}?v=${clip.thumb_rev}` : null);
 </script>
 
 <article class="tile" class:selected oncontextmenu={oncontextmenu && ((e) => (e.preventDefault(), oncontextmenu(e)))}>

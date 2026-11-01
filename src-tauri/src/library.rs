@@ -18,6 +18,8 @@ pub struct ClipInfo {
     pub modified: i64,
     pub duration: f64,
     pub thumb: Option<PathBuf>,
+    /// Thumbnail file's modified time (Unix ms), so the UI can reload a replaced one.
+    pub thumb_rev: i64,
     pub favorite: bool,
     pub tags: Vec<String>,
 }
@@ -115,6 +117,14 @@ pub fn thumbs_dir(clips_dir: &Path) -> PathBuf {
     clips_dir.join(".thumbs")
 }
 
+/// A thumbnail the user picked: `<clip name>-thumb.jpg` next to the clip.
+/// Wins over the automatic one.
+pub fn custom_thumb_path(clip: &Path) -> PathBuf {
+    let dir = clip.parent().unwrap_or(Path::new("."));
+    let stem = clip.file_stem().unwrap_or_default().to_string_lossy();
+    dir.join(format!("{stem}-thumb.jpg"))
+}
+
 pub fn thumb_path(clip: &Path) -> PathBuf {
     let dir = clip.parent().unwrap_or(Path::new("."));
     let stem = clip.file_stem().unwrap_or_default().to_string_lossy();
@@ -206,7 +216,14 @@ fn info_bare(path: &Path) -> Result<ClipInfo> {
         .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
         .map(|d| d.as_millis() as i64)
         .unwrap_or(0);
-    let thumb = thumb_path(path);
+    let custom = custom_thumb_path(path);
+    let thumb = if custom.exists() { custom } else { thumb_path(path) };
+    let thumb_rev = std::fs::metadata(&thumb)
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0);
     let c = ClipInfo {
         path: path.to_path_buf(),
         name: path.file_stem().unwrap_or_default().to_string_lossy().to_string(),
@@ -214,6 +231,7 @@ fn info_bare(path: &Path) -> Result<ClipInfo> {
         modified,
         duration: probe_duration(path).unwrap_or(0.0),
         thumb: thumb.exists().then_some(thumb),
+        thumb_rev,
         favorite: false,
         tags: Vec::new(),
     };
@@ -266,16 +284,37 @@ pub fn rename(path: &Path, new_name: &str) -> Result<PathBuf> {
     }
     std::fs::rename(path, &target)?;
     let _ = update_meta(|m| m.rename(path, &target));
-    let old_thumb = thumb_path(path);
-    if old_thumb.exists() {
-        let _ = std::fs::rename(&old_thumb, thumb_path(&target));
+    for (from, to) in [(thumb_path(path), thumb_path(&target)), (custom_thumb_path(path), custom_thumb_path(&target))] {
+        if from.exists() {
+            let _ = std::fs::rename(&from, to);
+        }
     }
     Ok(target)
 }
 
-/// Thumbnail files that belong to a clip and move with it.
-pub fn side_thumbs(clip: &Path) -> Vec<PathBuf> {
-    [thumb_path(clip)].into_iter().filter(|p| p.exists()).collect()
+/// Kinds of thumbnail file that belong to a clip and move with it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ThumbKind {
+    Auto,
+    Custom,
+}
+
+impl ThumbKind {
+    pub const ALL: [ThumbKind; 2] = [ThumbKind::Auto, ThumbKind::Custom];
+
+    pub fn path_for(self, clip: &Path) -> PathBuf {
+        match self {
+            ThumbKind::Auto => thumb_path(clip),
+            ThumbKind::Custom => custom_thumb_path(clip),
+        }
+    }
+
+    pub fn tag(self) -> &'static str {
+        match self {
+            ThumbKind::Auto => "thumb",
+            ThumbKind::Custom => "custom",
+        }
+    }
 }
 
 /// Star or unstar a clip.

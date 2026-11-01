@@ -47,8 +47,8 @@ fn store(bin: &Path, entries: &[Entry]) -> Result<()> {
     crate::settings::write_atomic(&index_path(bin), serde_json::to_string_pretty(entries)?.as_bytes())
 }
 
-fn thumb_in_bin(bin: &Path, id: &str) -> PathBuf {
-    bin.join(format!("{id}.thumb.jpg"))
+fn thumb_in_bin(bin: &Path, id: &str, kind: library::ThumbKind) -> PathBuf {
+    bin.join(format!("{id}.{}.jpg", kind.tag()))
 }
 
 /// Rename, or copy and remove when the bin is on another drive.
@@ -74,8 +74,11 @@ pub fn delete_into(bin: &Path, paths: &[PathBuf], now_ms: i64, take_meta: &mut d
         let dest = library::unique_path(bin, &stem, "mp4");
         let id = dest.file_name().unwrap_or_default().to_string_lossy().to_string();
         move_file(p, &dest)?;
-        for thumb in library::side_thumbs(p) {
-            let _ = move_file(&thumb, &thumb_in_bin(bin, &id));
+        for kind in library::ThumbKind::ALL {
+            let thumb = kind.path_for(p);
+            if thumb.exists() {
+                let _ = move_file(&thumb, &thumb_in_bin(bin, &id, kind));
+            }
         }
         entries.push(Entry { id, original: p.clone(), deleted_ms: now_ms, meta: take_meta(p) });
         moved += 1;
@@ -98,13 +101,15 @@ pub fn restore_from(bin: &Path, ids: &[String]) -> Result<Vec<(PathBuf, ClipMeta
         let stem = e.original.file_stem().unwrap_or_default().to_string_lossy();
         let dest = library::unique_path(&dir, &stem, "mp4");
         move_file(&bin.join(&e.id), &dest)?;
-        let thumb = thumb_in_bin(bin, &e.id);
-        if thumb.exists() {
-            let t = library::thumb_path(&dest);
-            if let Some(d) = t.parent() {
-                let _ = std::fs::create_dir_all(d);
+        for kind in library::ThumbKind::ALL {
+            let thumb = thumb_in_bin(bin, &e.id, kind);
+            if thumb.exists() {
+                let t = kind.path_for(&dest);
+                if let Some(d) = t.parent() {
+                    let _ = std::fs::create_dir_all(d);
+                }
+                let _ = move_file(&thumb, &t);
             }
-            let _ = move_file(&thumb, &t);
         }
         out.push((dest, e.meta));
         store(bin, &entries)?;
@@ -122,7 +127,9 @@ pub fn purge_older(bin: &Path, now_ms: i64, days: u32) -> Result<usize> {
         let old = e.deleted_ms < cutoff;
         if old {
             let _ = std::fs::remove_file(bin.join(&e.id));
-            let _ = std::fs::remove_file(thumb_in_bin(bin, &e.id));
+            for kind in library::ThumbKind::ALL {
+                let _ = std::fs::remove_file(thumb_in_bin(bin, &e.id, kind));
+            }
         }
         !old
     });
@@ -138,12 +145,12 @@ pub fn list_in(bin: &Path) -> Vec<RecycledClip> {
         .filter_map(|e| {
             let path = bin.join(&e.id);
             let meta = std::fs::metadata(&path).ok()?;
-            let thumb = thumb_in_bin(bin, &e.id);
+            let thumb = [library::ThumbKind::Custom, library::ThumbKind::Auto].into_iter().map(|k| thumb_in_bin(bin, &e.id, k)).find(|t| t.exists());
             Some(RecycledClip {
                 name: e.original.file_stem().unwrap_or_default().to_string_lossy().to_string(),
                 size: meta.len(),
                 duration: library::probe_duration(&path).unwrap_or(0.0),
-                thumb: thumb.exists().then_some(thumb),
+                thumb,
                 id: e.id,
                 original: e.original,
                 deleted_ms: e.deleted_ms,
@@ -202,6 +209,7 @@ mod tests {
         let a = clips.join("A.mp4");
         std::fs::write(&a, b"video").unwrap();
         std::fs::write(library::thumb_path(&a), b"jpg").unwrap();
+        std::fs::write(library::custom_thumb_path(&a), b"custom").unwrap();
 
         let meta = ClipMeta { favorite: true, tags: vec!["x".into()] };
         let n = delete_into(&bin, &[a.clone()], 1_000, &mut |_| meta.clone()).unwrap();
@@ -215,6 +223,7 @@ mod tests {
         assert_eq!(back[0].0, a);
         assert_eq!(back[0].1, meta);
         assert!(a.exists() && library::thumb_path(&a).exists());
+        assert_eq!(std::fs::read(library::custom_thumb_path(&a)).unwrap(), b"custom");
         assert!(list_in(&bin).is_empty());
 
         delete_into(&bin, &[a.clone()], 1_000, &mut |_| ClipMeta::default()).unwrap();

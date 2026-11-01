@@ -182,6 +182,20 @@ pub async fn export_clip(path: PathBuf, preset: crate::export::Preset) -> R<Path
     .map_err(|e| format!("{e:#}"))
 }
 
+/// Use the frame at `secs` as the clip's thumbnail (`<clip>-thumb.jpg`).
+#[tauri::command]
+pub async fn set_thumbnail(path: PathBuf, secs: f64) -> R<ClipInfo> {
+    tauri::async_runtime::spawn_blocking(move || {
+        platform::com_init();
+        let (w, h, px) = crate::export::mf::frame_at(&path, secs, 640)?;
+        platform::write_image(&library::custom_thumb_path(&path), w, h, &px, platform::ImageFormat::Jpeg)?;
+        library::info(&path)
+    })
+    .await
+    .map_err(err)?
+    .map_err(|e| format!("{e:#}"))
+}
+
 /// Keyframe times (seconds) and duration, for the trim scrubber.
 #[tauri::command]
 pub async fn clip_keyframes(path: PathBuf) -> R<(Vec<f64>, f64)> {

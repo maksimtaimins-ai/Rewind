@@ -169,6 +169,7 @@ pub fn run() {
             commands::trim_clip,
             commands::merge_clips,
             commands::export_clip,
+            commands::set_thumbnail,
             commands::clip_keyframes,
             commands::autostart_enabled,
             commands::export_settings,

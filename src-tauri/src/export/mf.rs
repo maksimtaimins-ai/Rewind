@@ -192,6 +192,34 @@ impl Reader {
     }
 }
 
+/// Decode the frame shown at `secs`, scaled to at most `max_w` wide, as BGRA.
+pub fn frame_at(src: &Path, secs: f64, max_w: u32) -> Result<(u32, u32, Vec<u8>)> {
+    let probe = Reader::open(src, false, None)?;
+    let (sw, sh) = (probe.width, probe.height);
+    drop(probe);
+    let k = (max_w as f64 / sw as f64).min(1.0);
+    let (w, h) = (((sw as f64 * k) as u32) & !1, ((sh as f64 * k) as u32) & !1);
+    let mut r = Reader::open(src, false, Some((w, h)))?;
+    let target = (secs.max(0.0) * TICKS as f64) as i64;
+    let mut origin = None;
+    let mut last = None;
+    while let Some((_, ts, sample)) = r.next()? {
+        let t = ts - *origin.get_or_insert(ts);
+        let Some(sample) = sample else { continue };
+        // The frame on screen at `secs` is the last one starting at or before it.
+        if t > target && last.is_some() {
+            break;
+        }
+        last = Some(r.frame(&sample, t)?);
+    }
+    let f = last.ok_or_else(|| anyhow!("no frames decoded"))?;
+    if (r.width, r.height) == (w, h) {
+        Ok((w, h, f.px))
+    } else {
+        Ok((w, h, scale_bgra(&f.px, r.width, r.height, (0, 0, r.width, r.height), w, h)))
+    }
+}
+
 /// Re-encode `src` for `preset`, writing next to it. Returns the new file.
 pub fn export(src: &Path, preset: Preset) -> Result<std::path::PathBuf> {
     let duration = crate::library::probe_duration(src).context("read clip length")?;
