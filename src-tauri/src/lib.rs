@@ -11,6 +11,7 @@ pub mod export;
 pub mod gpu;
 pub mod highlight;
 pub mod hotkey;
+pub mod input;
 pub mod library;
 pub mod mux;
 pub mod pipeline;
@@ -281,6 +282,7 @@ pub fn run() {
             commands::run_live_benchmark,
             commands::hud_menu,
             commands::analyze_clips,
+            commands::keystroke_presets,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Rewind")

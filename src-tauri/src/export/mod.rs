@@ -9,6 +9,8 @@ use serde::{Deserialize, Serialize};
 
 #[cfg(windows)]
 pub mod mf;
+#[cfg(windows)]
+pub mod overlay;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -398,7 +400,7 @@ mod tests {
         println!("frame_at: {w}x{h} -> {}", thumb.display());
         for preset in [Preset::Discord10, Preset::Discord25, Preset::Shorts, Preset::Twitter, Preset::Gif].into_iter().filter(|_| std::env::var_os("REWIND_EXPORT_FRAME_ONLY").is_none()) {
             let t = std::time::Instant::now();
-            let out = mf::export(Path::new(&clip), preset).unwrap_or_else(|e| panic!("{preset:?}: {e:#}"));
+            let out = mf::export(Path::new(&clip), preset, None).unwrap_or_else(|e| panic!("{preset:?}: {e:#}"));
             let len = std::fs::metadata(&out).unwrap().len();
             println!("{preset:?}: {} ({len} bytes, {:.1}s)", out.display(), t.elapsed().as_secs_f64());
             assert!(len > 1000);

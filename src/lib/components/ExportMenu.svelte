@@ -2,7 +2,11 @@
 <script lang="ts">
 	import type { ExportPreset } from '#lib/api.ts';
 
-	let { busy = false, onexport }: { busy?: boolean; onexport: (p: ExportPreset) => void } = $props();
+	import Toggle from './Toggle.svelte';
+
+	// `keys`: the clip has recorded keystrokes, so offer to draw them in.
+	let { busy = false, keys = false, onexport }: { busy?: boolean; keys?: boolean; onexport: (p: ExportPreset, overlay: boolean) => void } = $props();
+	let overlay = $state(true);
 
 	const presets: { id: ExportPreset; name: string; what: string }[] = [
 		{ id: 'discord10', name: 'Discord, 10 MB', what: 'Free upload limit. Long clips are cut to fit.' },
@@ -17,7 +21,7 @@
 
 	function pick(p: ExportPreset) {
 		open = false;
-		onexport(p);
+		onexport(p, keys && overlay);
 	}
 </script>
 
@@ -32,6 +36,12 @@
 	</button>
 	{#if open}
 		<div class="menu" role="menu">
+			{#if keys}
+				<div class="opt">
+					<span><span class="name">Draw keystrokes</span><span class="what">Bakes the recorded keys into the copy, styled in Settings.</span></span>
+					<Toggle checked={overlay} label="Draw keystrokes" onchange={(v) => (overlay = v)} />
+				</div>
+			{/if}
 			{#each presets as p (p.id)}
 				<button role="menuitem" onclick={() => pick(p.id)}>
 					<span class="name">{p.name}</span>
@@ -90,6 +100,19 @@
 	}
 	.name {
 		font-weight: 500;
+	}
+	.opt {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		padding: 8px 12px 10px;
+		margin-bottom: 4px;
+		box-shadow: 0 1px 0 var(--line-strong);
+	}
+	.opt > span {
+		display: grid;
+		gap: 2px;
 	}
 	.what {
 		color: var(--muted);

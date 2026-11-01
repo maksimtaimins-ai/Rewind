@@ -3,7 +3,7 @@ import type { Clip, Settings, Status } from '#lib/api.ts';
 
 export function mockSettings(): Settings {
 	return {
-		version: 17,
+		version: 18,
 		first_run_complete: true,
 		tour_complete: false,
 		pro_mode: false,
@@ -64,6 +64,36 @@ export function mockSettings(): Settings {
 		disk: { warn_gb: 10, block_gb: 2 },
 		highlight: { color: 'off', custom_color: '#ffc53d', thickness: 2, opacity: 60, position: 'border', only_in_game: false },
 		smart_highlights: { enabled: true, threshold_db: -14, analyze_on_save: false },
+		keystrokes: {
+			enabled: true,
+			keyboard: true,
+			clicks: true,
+			movement: false,
+			scroll: false,
+			filter: 'allow',
+			keys: ['W', 'A', 'S', 'D'],
+			preset: 'wasd_clicks',
+			pause_in_text_fields: true,
+			style: {
+				keycap: 'three_d',
+				size: 44,
+				font: 'theme',
+				base_color: '#e7e7e5',
+				text_color: '',
+				border: false,
+				border_color: '#ffffff',
+				radius: 8,
+				shadow: true,
+				shadow_intensity: 40,
+				animation: 'pop',
+				fade_secs: 2,
+				idle_opacity: 30,
+				pressed_opacity: 100,
+				hold_indicator: true,
+				combo: 'chain'
+			},
+			position: { anchor: 'bottom_left', x: 0.05, y: 0.8, margin: 40, click_position: 'cursor', click_style: 'ring', trail: false, trail_ms: 400 }
+		},
 		watch_folders: [
 			{ enabled: true, input: 'C:\\clips\\outbox\\youtube-shorts', preset: 'shorts', output: 'C:\\clips\\exported\\youtube', delete_original: false }
 		]
@@ -124,6 +154,7 @@ export function mockClips(): Clip[] {
 		thumb_rev: 0,
 		favorite: i === 1 || i === 4,
 		tags: [['ace', 'clutch'], ['clutch'], [], [], ['boss'], ['boss', 'fail']][i],
+		has_input: i < 2,
 		highlights: i === 0
 			? [
 					{ at: 8.4, end: 9.1, score: 0.82, reason: 'spike' as const },
@@ -145,3 +176,17 @@ export function mockLevels(): number[] {
 		return Math.min(1, 0.06 + Math.random() * 0.08 + burst * (0.35 + Math.random() * 0.25));
 	});
 }
+
+/** Mirrors `input::presets()` for the browser preview. */
+export const mockKeystrokePresets = (): import('#lib/api.ts').KeystrokePreset[] => {
+	const wasd = ['W', 'A', 'S', 'D'];
+	return [
+		{ id: 'wasd', label: 'WASD only', filter: 'allow', keys: wasd, keyboard: true, clicks: false, scroll: false },
+		{ id: 'wasd_clicks', label: 'WASD + mouse clicks', filter: 'allow', keys: wasd, keyboard: true, clicks: true, scroll: false },
+		{ id: 'gaming', label: 'Gaming', filter: 'allow', keys: [...wasd, 'Space', 'Shift', 'Ctrl', 'Q', 'E', 'R', 'F', 'G', 'C', 'Tab', '1', '2', '3', '4', '5'], keyboard: true, clicks: true, scroll: true },
+		{ id: 'arrows', label: 'Arrow keys', filter: 'allow', keys: ['Up', 'Down', 'Left', 'Right'], keyboard: true, clicks: false, scroll: false },
+		{ id: 'typing', label: 'Typing', filter: 'allow', keys: [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'Space'], keyboard: true, clicks: false, scroll: false },
+		{ id: 'all_keys', label: 'All keys', filter: 'all', keys: [], keyboard: true, clicks: false, scroll: false },
+		{ id: 'all', label: 'All inputs', filter: 'all', keys: [], keyboard: true, clicks: true, scroll: true }
+	];
+};

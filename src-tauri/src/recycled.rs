@@ -47,6 +47,11 @@ fn store(bin: &Path, entries: &[Entry]) -> Result<()> {
     crate::settings::write_atomic(&index_path(bin), serde_json::to_string_pretty(entries)?.as_bytes())
 }
 
+/// Recorded keystrokes (`<clip>-input.json`) travel with the clip.
+fn input_in_bin(bin: &Path, id: &str) -> PathBuf {
+    bin.join(format!("{id}.input.json"))
+}
+
 fn thumb_in_bin(bin: &Path, id: &str, kind: library::ThumbKind) -> PathBuf {
     bin.join(format!("{id}.{}.jpg", kind.tag()))
 }
@@ -80,6 +85,10 @@ pub fn delete_into(bin: &Path, paths: &[PathBuf], now_ms: i64, take_meta: &mut d
                 let _ = move_file(&thumb, &thumb_in_bin(bin, &id, kind));
             }
         }
+        let input = crate::input::sidecar_path(p);
+        if input.exists() {
+            let _ = move_file(&input, &input_in_bin(bin, &id));
+        }
         entries.push(Entry { id, original: p.clone(), deleted_ms: now_ms, meta: take_meta(p) });
         moved += 1;
         store(bin, &entries)?;
@@ -111,6 +120,9 @@ pub fn restore_from(bin: &Path, ids: &[String]) -> Result<Vec<(PathBuf, ClipMeta
                 let _ = move_file(&thumb, &t);
             }
         }
+        if input_in_bin(bin, &e.id).exists() {
+            let _ = move_file(&input_in_bin(bin, &e.id), &crate::input::sidecar_path(&dest));
+        }
         out.push((dest, e.meta));
         store(bin, &entries)?;
     }
@@ -133,6 +145,7 @@ pub fn purge_older(bin: &Path, now_ms: i64, days: u32) -> Result<usize> {
             for kind in library::ThumbKind::ALL {
                 let _ = std::fs::remove_file(thumb_in_bin(bin, &e.id, kind));
             }
+            let _ = std::fs::remove_file(input_in_bin(bin, &e.id));
         }
         !old
     });

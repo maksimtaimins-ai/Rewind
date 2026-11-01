@@ -11,6 +11,7 @@
 	import ThemePicker from '#lib/components/ThemePicker.svelte';
 	import WatchFolders from '#lib/components/WatchFolders.svelte';
 	import BenchReportView from '#lib/components/BenchReport.svelte';
+	import KeystrokeOverlay from '#lib/components/KeystrokeOverlay.svelte';
 	import { highlightColor } from '#lib/highlight.ts';
 
 	const s = $derived(app.settings!);
@@ -318,6 +319,8 @@
 				<input type="text" placeholder="App name, e.g. chrome.exe" bind:value={newPrivacy} aria-label="App to pause for" />
 				<button class="secondary" type="submit">Add</button>
 			</form>
+
+			<KeystrokeOverlay />
 		</section>
 
 		<section id="hotkeys">

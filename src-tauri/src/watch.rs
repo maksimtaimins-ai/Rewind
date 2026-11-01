@@ -188,7 +188,7 @@ fn run(w: &WatchFolder, path: &Path) -> Op {
 
 #[cfg(windows)]
 fn export(src: &Path, preset: Preset, out: &Path) -> Result<()> {
-    crate::export::mf::export_to(src, preset, out)
+    crate::export::mf::export_to(src, preset, out, None)
 }
 
 #[cfg(not(windows))]

@@ -126,11 +126,11 @@
 	}
 
 	let exporting = $state(false);
-	async function exportAs(preset: ExportPreset) {
+	async function exportAs(preset: ExportPreset, overlay: boolean) {
 		if (!inApp) return;
 		exporting = true;
 		try {
-			const out = await api.exportClip(path, preset);
+			const out = await api.exportClip(path, preset, overlay);
 			await refreshClips();
 			toast('success', `Exported ${out.split(/[\/]/).pop()}`);
 		} catch (e) {
@@ -285,7 +285,7 @@
 			<button class="secondary" onclick={() => clip && inApp && revealItemInDir(clip.path)}>Show in folder</button>
 			<button class="secondary" onclick={remove}>Delete</button>
 			<button class="secondary" onclick={() => (picking = true)}>Pick thumbnail</button>
-			<ExportMenu busy={exporting} onexport={exportAs} />
+			<ExportMenu busy={exporting} keys={clip?.has_input} onexport={exportAs} />
 			{#if clip}<DiscordMenu {clip} /><SendMenu {clip} />{/if}
 			<button class="primary" disabled={busy || (inPt <= 0.01 && outPt >= duration - 0.01)} onclick={exportCut}>
 				{busy ? 'Saving…' : 'Save trimmed copy'}

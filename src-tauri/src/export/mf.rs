@@ -11,7 +11,9 @@ use windows::Win32::Graphics::Imaging::*;
 use windows::Win32::Media::MediaFoundation::*;
 use windows::Win32::System::Com::{CoCreateInstance, CLSCTX_INPROC_SERVER};
 
+use super::overlay::{draw_or_warn, Renderer};
 use super::{gif_set_timing, plan, prescale, scale_bgra, Plan, Preset, Rect};
+use crate::settings::KeystrokeSettings;
 use crate::gpu::Gpu;
 
 const VIDEO: u32 = MF_SOURCE_READER_FIRST_VIDEO_STREAM.0 as u32;
@@ -274,30 +276,31 @@ pub fn decode_audio(src: &Path, f: &mut dyn FnMut(u32, u32, u32, &[i16])) -> Res
 }
 
 /// Re-encode `src` for `preset`, writing next to it. Returns the new file.
-pub fn export(src: &Path, preset: Preset) -> Result<std::path::PathBuf> {
+/// With `overlay`, recorded keystrokes (if the clip has any) are drawn in.
+pub fn export(src: &Path, preset: Preset, overlay: Option<&KeystrokeSettings>) -> Result<std::path::PathBuf> {
     let out = super::output_path(src, preset);
-    export_to(src, preset, &out)?;
+    export_to(src, preset, &out, overlay)?;
     Ok(out)
 }
 
 /// Re-encode `src` for `preset` into `out`. Nothing is left behind on failure.
-pub fn export_to(src: &Path, preset: Preset, out: &Path) -> Result<()> {
+pub fn export_to(src: &Path, preset: Preset, out: &Path, overlay: Option<&KeystrokeSettings>) -> Result<()> {
     let duration = crate::library::probe_duration(src).context("read clip length")?;
-    let result = if preset == Preset::Gif { export_gif(src, out, duration) } else { export_video(src, out, preset, duration) };
+    let result = if preset == Preset::Gif { export_gif(src, out, duration, overlay) } else { export_video(src, out, preset, duration, overlay) };
     if result.is_err() {
         let _ = std::fs::remove_file(out);
     }
     result
 }
 
-fn export_video(src: &Path, out: &Path, preset: Preset, duration: f64) -> Result<()> {
+fn export_video(src: &Path, out: &Path, preset: Preset, duration: f64, overlay: Option<&KeystrokeSettings>) -> Result<()> {
     let probe = Reader::open(src, false, None)?;
     let mut p = plan(preset, probe.width, probe.height, probe.fps, duration)?;
     let src_size = (probe.width, probe.height);
     drop(probe);
     // Encoders overshoot a little: if the file comes out too big, try again lower.
     for _ in 0..3 {
-        encode_mp4(src, out, &p, src_size)?;
+        encode_mp4(src, out, &p, src_size, overlay)?;
         let size = std::fs::metadata(out)?.len();
         match p.size_limit {
             Some(limit) if size > limit => {
@@ -319,8 +322,9 @@ fn open_for(src: &Path, p: &Plan, src_size: (u32, u32), with_audio: bool) -> Res
     Ok((r, crop))
 }
 
-fn encode_mp4(src: &Path, out: &Path, p: &Plan, src_size: (u32, u32)) -> Result<()> {
+fn encode_mp4(src: &Path, out: &Path, p: &Plan, src_size: (u32, u32), overlay: Option<&KeystrokeSettings>) -> Result<()> {
     let (mut r, crop) = open_for(src, p, src_size, p.audio_bps > 0)?;
+    let mut keys = overlay.map(|c| Renderer::open(src, c)).transpose()?.flatten();
     unsafe {
         let writer = MFCreateSinkWriterFromURL(&HSTRING::from(out.as_os_str()), None, None).context("create export file")?;
         let size = ((p.width as u64) << 32) | p.height as u64;
@@ -393,7 +397,8 @@ fn encode_mp4(src: &Path, out: &Path, p: &Plan, src_size: (u32, u32)) -> Result<
                 }
                 next_due = if t - next_due > interval { t + interval } else { next_due + interval };
                 let f = r.frame(&sample, t)?;
-                let px = scale_bgra(&f.px, r.width, r.height, crop, p.width, p.height);
+                let mut px = scale_bgra(&f.px, r.width, r.height, crop, p.width, p.height);
+                draw_or_warn(&mut keys, &mut px, (p.width, p.height), f.ts as f64 / TICKS as f64, (r.width, r.height), crop);
                 writer.WriteSample(vstream, &bgra_sample(&px, f.ts, interval)?)?;
             } else if let Some(a) = astream {
                 if t >= 0 {
@@ -423,12 +428,13 @@ unsafe fn bgra_sample(px: &[u8], ts: i64, duration: i64) -> Result<IMFSample> {
     }
 }
 
-fn export_gif(src: &Path, out: &Path, duration: f64) -> Result<()> {
+fn export_gif(src: &Path, out: &Path, duration: f64, overlay: Option<&KeystrokeSettings>) -> Result<()> {
     let probe = Reader::open(src, false, None)?;
     let p = plan(Preset::Gif, probe.width, probe.height, probe.fps, duration)?;
     let src_size = (probe.width, probe.height);
     drop(probe);
     let (mut r, crop) = open_for(src, &p, src_size, false)?;
+    let mut keys = overlay.map(|c| Renderer::open(src, c)).transpose()?.flatten();
     unsafe {
         let factory: IWICImagingFactory = CoCreateInstance(&CLSID_WICImagingFactory, None, CLSCTX_INPROC_SERVER)?;
         let stream = factory.CreateStream()?;
@@ -452,7 +458,8 @@ fn export_gif(src: &Path, out: &Path, duration: f64) -> Result<()> {
             }
             next_due = if t - next_due > interval { t + interval } else { next_due + interval };
             let f = r.frame(&sample.unwrap(), t)?;
-            let px = scale_bgra(&f.px, r.width, r.height, crop, p.width, p.height);
+            let mut px = scale_bgra(&f.px, r.width, r.height, crop, p.width, p.height);
+            draw_or_warn(&mut keys, &mut px, (p.width, p.height), t as f64 / TICKS as f64, (r.width, r.height), crop);
 
             let bitmap = factory.CreateBitmapFromMemory(p.width, p.height, &GUID_WICPixelFormat32bppBGRA, p.width * 4, &px)?;
             let palette = factory.CreatePalette()?;

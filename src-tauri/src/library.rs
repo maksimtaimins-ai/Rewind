@@ -24,6 +24,8 @@ pub struct ClipInfo {
     pub tags: Vec<String>,
     /// Smart-highlight moments; `None` until the clip has been analysed.
     pub highlights: Option<Vec<crate::analysis::Moment>>,
+    /// Keystrokes were recorded with it (`<clip>-input.json`).
+    pub has_input: bool,
 }
 
 /// What Rewind knows about a clip beyond the file itself.
@@ -241,6 +243,7 @@ fn info_bare(path: &Path) -> Result<ClipInfo> {
         favorite: false,
         tags: Vec::new(),
         highlights: None,
+        has_input: crate::input::sidecar_path(path).exists(),
     };
     Ok(c)
 }
@@ -291,7 +294,8 @@ pub fn rename(path: &Path, new_name: &str) -> Result<PathBuf> {
     }
     std::fs::rename(path, &target)?;
     let _ = update_meta(|m| m.rename(path, &target));
-    for (from, to) in [(thumb_path(path), thumb_path(&target)), (custom_thumb_path(path), custom_thumb_path(&target))] {
+    let input = (crate::input::sidecar_path(path), crate::input::sidecar_path(&target));
+    for (from, to) in [(thumb_path(path), thumb_path(&target)), (custom_thumb_path(path), custom_thumb_path(&target)), input] {
         if from.exists() {
             let _ = std::fs::rename(&from, to);
         }

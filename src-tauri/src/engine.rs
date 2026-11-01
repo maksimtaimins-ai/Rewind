@@ -211,6 +211,8 @@ struct Inner {
     shutdown: AtomicBool,
     /// Buffer length in effect (a game profile may override the setting).
     buffer_secs: AtomicU32,
+    /// Keystroke overlay recording; holds no hook or thread while it's off.
+    input: Mutex<crate::input::Recorder>,
 }
 
 #[derive(Clone)]
@@ -231,9 +233,11 @@ impl Engine {
         tracing::info!("settings: buffer {}s, first run done {}, clips {}", settings.buffer.seconds, settings.first_run_complete, settings.clips_dir.display());
         let (save_tx, save_rx) = unbounded();
         let (post_tx, post_rx) = unbounded::<SaveJob>();
+        let flags = Arc::new(Flags::default());
         let inner = Arc::new(Inner {
             buffer: Arc::new(Mutex::new(ReplayBuffer::new(1, MB))),
-            flags: Arc::new(Flags::default()),
+            input: Mutex::new(crate::input::Recorder::new(flags.clone())),
+            flags,
             pipeline: Mutex::new(None),
             encoders: Mutex::new(Vec::new()),
             events,
@@ -255,6 +259,7 @@ impl Engine {
             settings: RwLock::new(settings),
         });
         let engine = Engine { inner };
+        engine.apply_input();
 
         let (action_tx, action_rx) = unbounded();
         let (hk_err_tx, hk_err_rx) = unbounded::<String>();
@@ -333,10 +338,26 @@ impl Engine {
             let keep = keep_secs(&new, self.inner.buffer_secs.load(Ordering::Relaxed));
             self.inner.buffer.lock().set_max_secs(keep);
         }
+        if old.keystrokes != new.keystrokes || old.buffer != new.buffer || old.post_roll != new.post_roll {
+            self.apply_input();
+        }
         if old.launch_on_startup != new.launch_on_startup {
             platform::set_autostart(new.launch_on_startup)?;
         }
         Ok(())
+    }
+
+    /// Start or stop keystroke recording to match the settings. Off means
+    /// no hook and no thread.
+    fn apply_input(&self) {
+        let s = self.inner.settings.read().clone();
+        let keep = keep_secs(&s, self.inner.buffer_secs.load(Ordering::Relaxed));
+        self.inner.input.lock().apply(&s.keystrokes, keep);
+    }
+
+    /// Whether the keystroke overlay's input hook is installed right now.
+    pub fn input_recording(&self) -> bool {
+        self.inner.input.lock().running()
     }
 
     pub fn encoders(&self) -> Vec<EncoderInfo> {
@@ -659,6 +680,7 @@ impl Engine {
                 mux::write_snapshot(&job.path, &snap)?
             };
             self.add_written(bytes);
+            self.write_input(&job.path, start, end, job.slow_mo.unwrap_or(1.0));
             if let Some(rx) = job.thumb {
                 if let Ok((w, h, px)) = rx.recv_timeout(Duration::from_millis(500)) {
                     let (tw, th, small) = platform::downscale_bgra(w, h, &px, 640);
@@ -681,6 +703,25 @@ impl Engine {
                 self.inner.events.notice(Level::Success, &format!("{verb} {:.0}s clip", info.duration));
             }
             Err(e) => self.inner.events.notice(Level::Error, &format!("Saving clip failed: {e:#}")),
+        }
+    }
+
+    /// Save the keystrokes recorded during a clip next to it, if recording is on.
+    fn write_input(&self, clip: &Path, from: i64, to: i64, speed: f64) {
+        let Some(mut events) = self.inner.input.lock().between(from, to, speed) else { return };
+        let Some((sx, sy, w, h)) = self.inner.pipeline.lock().as_ref().map(|p| p.screen) else { return };
+        if events.is_empty() {
+            let _ = std::fs::remove_file(crate::input::sidecar_path(clip));
+            return;
+        }
+        for e in &mut events {
+            if let (Some(x), Some(y)) = (e.x, e.y) {
+                e.x = Some(x - sx);
+                e.y = Some(y - sy);
+            }
+        }
+        if let Err(e) = crate::input::write_sidecar(clip, crate::input::Screen { width: w, height: h }, events) {
+            tracing::warn!("save keystrokes: {e:#}");
         }
     }
 
@@ -956,12 +997,13 @@ impl Engine {
     /// Keyframe-aligned trim into a new file next to the source.
     pub fn trim(&self, path: &Path, from: f64, to: f64) -> Result<ClipInfo> {
         let tracks = mux::reader::read_file(path)?;
-        let (cut, _) = mux::trim(&tracks, from, to)?;
+        let (cut, start) = mux::trim(&tracks, from, to)?;
         let stem = format!("{} trim", path.file_stem().unwrap_or_default().to_string_lossy());
         let out = library::unique_path(path.parent().unwrap_or(Path::new(".")), &stem, "mp4");
         let bytes = mux::fmp4::write_file(&out, &cut)?;
         self.add_written(bytes);
         library::copy_thumb(path, &out);
+        let _ = crate::input::trim_sidecar(path, &out, start, to);
         library::info(&out)
     }
 

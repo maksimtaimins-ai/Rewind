@@ -12,6 +12,9 @@ pub struct MonitorInfo {
     pub name: String,
     pub width: u32,
     pub height: u32,
+    /// Top-left on the virtual desktop.
+    pub x: i32,
+    pub y: i32,
     pub primary: bool,
     #[serde(skip)]
     pub handle: isize,
@@ -40,6 +43,8 @@ pub fn monitors() -> Vec<MonitorInfo> {
                 name,
                 width: (r.right - r.left) as u32,
                 height: (r.bottom - r.top) as u32,
+                x: r.left,
+                y: r.top,
                 primary: info.monitorInfo.dwFlags & 1 != 0,
                 handle: m.0 as isize,
             });

@@ -109,6 +109,70 @@ export interface Settings {
 	disk: { warn_gb: number; block_gb: number };
 	highlight: Highlight;
 	smart_highlights: SmartHighlights;
+	keystrokes: Keystrokes;
+}
+
+export type KeyFilterMode = 'all' | 'allow' | 'block';
+export type KeycapStyle = 'flat' | 'three_d' | 'minimal' | 'outlined' | 'mechanical';
+export type OverlayFont = 'theme' | 'mono' | 'sans' | 'condensed';
+export type PressAnimation = 'none' | 'pop' | 'flash' | 'spring' | 'pulse';
+export type OverlayAnchor = 'top_left' | 'top_right' | 'bottom_left' | 'bottom_right' | 'top_center' | 'bottom_center' | 'custom';
+
+/** Keystroke overlay. Off: no input hook is installed and nothing is recorded. */
+export interface Keystrokes {
+	enabled: boolean;
+	keyboard: boolean;
+	clicks: boolean;
+	/** ~60 positions a second; large files. */
+	movement: boolean;
+	scroll: boolean;
+	filter: KeyFilterMode;
+	/** Key names for the allow or block list. */
+	keys: string[];
+	preset: string;
+	pause_in_text_fields: boolean;
+	style: {
+		keycap: KeycapStyle;
+		/** Keycap height in px at 1080p, 16-120. */
+		size: number;
+		font: OverlayFont;
+		/** `#rrggbb`; empty = default. */
+		base_color: string;
+		/** `#rrggbb`; empty = automatic contrast. */
+		text_color: string;
+		border: boolean;
+		border_color: string;
+		radius: number;
+		shadow: boolean;
+		shadow_intensity: number;
+		animation: PressAnimation;
+		fade_secs: number;
+		idle_opacity: number;
+		pressed_opacity: number;
+		hold_indicator: boolean;
+		combo: 'chain' | 'stack';
+	};
+	position: {
+		anchor: OverlayAnchor;
+		/** Custom top-left, 0-1 of the frame. */
+		x: number;
+		y: number;
+		margin: number;
+		click_position: 'cursor' | 'with_keys';
+		click_style: 'dot' | 'ring' | 'flash';
+		trail: boolean;
+		trail_ms: number;
+	};
+}
+
+export interface KeystrokePreset {
+	id: string;
+	label: string;
+	filter: KeyFilterMode;
+	keys: string[];
+	keyboard: boolean;
+	clicks: boolean;
+	scroll: boolean;
 }
 
 /** Audio-based smart highlights. Off: nothing is ever analysed. */
@@ -257,6 +321,8 @@ export interface Clip {
 	tags: string[];
 	/** Smart-highlight moments; null until analysed. */
 	highlights: Moment[] | null;
+	/** Keystrokes were recorded with this clip. */
+	has_input: boolean;
 }
 
 export type ExportPreset = 'discord10' | 'discord25' | 'shorts' | 'twitter' | 'gif';
@@ -354,7 +420,9 @@ export const api = {
 	runAction: (action: HotkeyAction) => invoke<void>('run_action', { action }),
 	trim: (path: string, from: number, to: number) => invoke<Clip>('trim_clip', { path, from, to }),
 	merge: (paths: string[]) => invoke<Clip>('merge_clips', { paths }),
-	exportClip: (path: string, preset: ExportPreset) => invoke<string>('export_clip', { path, preset }),
+	/** `overlay`: draw recorded keystrokes in, when the clip has any. */
+	exportClip: (path: string, preset: ExportPreset, overlay = false) => invoke<string>('export_clip', { path, preset, overlay }),
+	keystrokePresets: () => invoke<KeystrokePreset[]>('keystroke_presets'),
 	setThumbnail: (path: string, secs: number) => invoke<Clip>('set_thumbnail', { path, secs }),
 	keyframes: (path: string) => invoke<[number[], number]>('clip_keyframes', { path }),
 	exportSettings: (path: string) => invoke<void>('export_settings', { path }),

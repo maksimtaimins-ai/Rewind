@@ -181,12 +181,20 @@ pub async fn merge_clips(engine: State<'_, Engine>, paths: Vec<PathBuf>) -> R<Cl
     tauri::async_runtime::spawn_blocking(move || engine.merge(&paths)).await.map_err(err)?.map_err(err)
 }
 
+/// Recording presets for the keystroke overlay.
+#[tauri::command]
+pub fn keystroke_presets() -> Vec<crate::input::Preset> {
+    crate::input::presets()
+}
+
 /// Re-encode a clip with an export preset; returns the new file's path.
 #[tauri::command]
-pub async fn export_clip(path: PathBuf, preset: crate::export::Preset) -> R<PathBuf> {
+pub async fn export_clip(engine: State<'_, Engine>, path: PathBuf, preset: crate::export::Preset, overlay: bool) -> R<PathBuf> {
+    // Drawn with the overlay style as set now; only clips with recorded input have any.
+    let style = overlay.then(|| engine.settings().keystrokes);
     tauri::async_runtime::spawn_blocking(move || {
         platform::com_init();
-        crate::export::mf::export(&path, preset)
+        crate::export::mf::export(&path, preset, style.as_ref())
     })
     .await
     .map_err(err)?

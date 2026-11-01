@@ -46,6 +46,8 @@ pub struct Pipeline {
     audio: Vec<AudioTrackHandle>,
     pub stats: Arc<EncoderStats>,
     pub output: (u32, u32),
+    /// The captured monitor on the virtual desktop: x, y, width, height.
+    pub screen: (i32, i32, u32, u32),
     pub encoder_name: String,
     /// Frame-rate cap in effect.
     pub fps: u32,
@@ -151,6 +153,7 @@ impl Pipeline {
             audio,
             stats,
             output: out,
+            screen: (cfg.monitor.x, cfg.monitor.y, cfg.monitor.width, cfg.monitor.height),
             encoder_name: cfg.encoder.name.clone(),
             fps: cfg.params.fps,
             grab,

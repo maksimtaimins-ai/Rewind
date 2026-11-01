@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-pub const SETTINGS_VERSION: u32 = 17;
+pub const SETTINGS_VERSION: u32 = 18;
 
 /// Allowed range for [`BufferSettings::seconds`].
 pub const MIN_BUFFER_SECS: u32 = 10;
@@ -277,6 +277,161 @@ pub struct SmartHighlightSettings {
     pub analyze_on_save: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum KeyFilterMode {
+    All,
+    /// Only `keys`.
+    Allow,
+    /// Everything but `keys`.
+    Block,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum KeycapStyle {
+    Flat,
+    ThreeD,
+    Minimal,
+    Outlined,
+    /// A mechanical keyboard key: darker skirt around a lighter top.
+    Mechanical,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OverlayFont {
+    /// Closest installed match to the app's own typeface.
+    Theme,
+    Mono,
+    Sans,
+    Condensed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PressAnimation {
+    None,
+    Pop,
+    Flash,
+    Spring,
+    Pulse,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ComboStyle {
+    /// `Ctrl + Shift + P` in one row.
+    Chain,
+    /// Modifiers stacked above the key.
+    Stack,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OverlayAnchor {
+    TopLeft,
+    TopRight,
+    BottomLeft,
+    BottomRight,
+    TopCenter,
+    BottomCenter,
+    /// `OverlayPlacement::x`/`y`.
+    Custom,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ClickStyle {
+    Dot,
+    Ring,
+    Flash,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ClickPosition {
+    /// Where the click happened.
+    Cursor,
+    /// As a mouse-button keycap next to the keys.
+    WithKeys,
+}
+
+/// How recorded input is drawn into exports. Sizes are pixels at 1080p and
+/// scale with the export's height.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OverlayStyle {
+    pub keycap: KeycapStyle,
+    /// Keycap height, 16-120.
+    pub size: u32,
+    pub font: OverlayFont,
+    /// `#rrggbb`; empty = the theme accent at the time it was turned on.
+    pub base_color: String,
+    /// `#rrggbb`; empty = black or white, whichever reads better.
+    pub text_color: String,
+    pub border: bool,
+    pub border_color: String,
+    /// Corner radius, 0-40.
+    pub radius: u32,
+    pub shadow: bool,
+    /// 0-100.
+    pub shadow_intensity: u32,
+    pub animation: PressAnimation,
+    /// Seconds a released key takes to fade, 0.5-10.
+    pub fade_secs: f32,
+    /// Percent for allowlisted keys at rest, 0-100.
+    pub idle_opacity: u32,
+    /// Percent while pressed, 0-100.
+    pub pressed_opacity: u32,
+    /// Held keys filled, released ones outlined.
+    pub hold_indicator: bool,
+    pub combo: ComboStyle,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OverlayPlacement {
+    pub anchor: OverlayAnchor,
+    /// Custom position of the overlay's top-left, 0-1 of the frame.
+    pub x: f32,
+    pub y: f32,
+    /// Distance from the frame edge, pixels at 1080p, 0-200.
+    pub margin: u32,
+    pub click_position: ClickPosition,
+    pub click_style: ClickStyle,
+    /// Draw the pointer's recent path (needs mouse movement recorded).
+    pub trail: bool,
+    /// Trail length in milliseconds, 100-2000.
+    pub trail_ms: u32,
+}
+
+/// Keystroke overlay. Off by default; while off no input hook is installed
+/// and nothing is recorded.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct KeystrokeSettings {
+    pub enabled: bool,
+    pub keyboard: bool,
+    pub clicks: bool,
+    /// Pointer position, ~60 times a second. Makes much larger files.
+    pub movement: bool,
+    pub scroll: bool,
+    pub filter: KeyFilterMode,
+    /// Key names (`W`, `Space`, `Ctrl`) for the allow or block list.
+    pub keys: Vec<String>,
+    /// Last preset picked, or "custom".
+    pub preset: String,
+    /// Skip keys while a text box anywhere has the caret.
+    pub pause_in_text_fields: bool,
+    pub style: OverlayStyle,
+    pub position: OverlayPlacement,
+}
+
+impl KeystrokeSettings {
+    /// Whether the input hook should be installed at all.
+    pub fn records(&self) -> bool {
+        self.enabled && (self.keyboard || self.clicks || self.movement || self.scroll)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Settings {
     pub version: u32,
@@ -308,6 +463,7 @@ pub struct Settings {
     pub disk: DiskSettings,
     pub highlight: HighlightSettings,
     pub smart_highlights: SmartHighlightSettings,
+    pub keystrokes: KeystrokeSettings,
 }
 
 impl Default for Settings {
@@ -395,6 +551,45 @@ impl Default for Settings {
                 only_in_game: false,
             },
             smart_highlights: SmartHighlightSettings { enabled: false, threshold_db: -14.0, analyze_on_save: false },
+            keystrokes: KeystrokeSettings {
+                enabled: false,
+                keyboard: true,
+                clicks: false,
+                movement: false,
+                scroll: false,
+                filter: KeyFilterMode::All,
+                keys: Vec::new(),
+                preset: "all_keys".into(),
+                pause_in_text_fields: true,
+                style: OverlayStyle {
+                    keycap: KeycapStyle::ThreeD,
+                    size: 44,
+                    font: OverlayFont::Theme,
+                    base_color: String::new(),
+                    text_color: String::new(),
+                    border: false,
+                    border_color: "#ffffff".into(),
+                    radius: 8,
+                    shadow: true,
+                    shadow_intensity: 40,
+                    animation: PressAnimation::Pop,
+                    fade_secs: 2.0,
+                    idle_opacity: 30,
+                    pressed_opacity: 100,
+                    hold_indicator: true,
+                    combo: ComboStyle::Chain,
+                },
+                position: OverlayPlacement {
+                    anchor: OverlayAnchor::BottomLeft,
+                    x: 0.05,
+                    y: 0.8,
+                    margin: 40,
+                    click_position: ClickPosition::Cursor,
+                    click_style: ClickStyle::Ring,
+                    trail: false,
+                    trail_ms: 400,
+                },
+            },
         }
     }
 }
@@ -462,10 +657,30 @@ impl Settings {
         self.disk.block_gb = self.disk.block_gb.min(self.disk.warn_gb);
         self.highlight.thickness = self.highlight.thickness.min(10);
         self.highlight.opacity = self.highlight.opacity.clamp(10, 100);
-        let c = &self.highlight.custom_color;
-        if !(c.len() == 7 && c.starts_with('#') && c[1..].chars().all(|ch| ch.is_ascii_hexdigit())) {
+        if !is_hex_color(&self.highlight.custom_color) {
             self.highlight.custom_color = "#ffc53d".into();
         }
+        let k = &mut self.keystrokes;
+        k.style.size = k.style.size.clamp(16, 120);
+        k.style.radius = k.style.radius.min(40);
+        k.style.shadow_intensity = k.style.shadow_intensity.min(100);
+        k.style.fade_secs = if k.style.fade_secs.is_finite() { k.style.fade_secs.clamp(0.5, 10.0) } else { 2.0 };
+        k.style.idle_opacity = k.style.idle_opacity.min(100);
+        k.style.pressed_opacity = k.style.pressed_opacity.min(100);
+        for c in [&mut k.style.base_color, &mut k.style.text_color] {
+            if !c.is_empty() && !is_hex_color(c) {
+                c.clear();
+            }
+        }
+        if !is_hex_color(&k.style.border_color) {
+            k.style.border_color = "#ffffff".into();
+        }
+        let unit = |v: f32, d: f32| if v.is_finite() { v.clamp(0.0, 1.0) } else { d };
+        k.position.x = unit(k.position.x, 0.05);
+        k.position.y = unit(k.position.y, 0.8);
+        k.position.margin = k.position.margin.min(200);
+        k.position.trail_ms = k.position.trail_ms.clamp(100, 2000);
+        k.keys.dedup();
         let t = self.smart_highlights.threshold_db;
         self.smart_highlights.threshold_db = if t.is_finite() { t.clamp(-30.0, -3.0) } else { -14.0 };
         if self.sharing.lan_port < 1024 {
@@ -487,6 +702,11 @@ impl Settings {
     }
 }
 
+/// `#rrggbb`.
+pub fn is_hex_color(c: &str) -> bool {
+    c.len() == 7 && c.starts_with('#') && c[1..].chars().all(|ch| ch.is_ascii_hexdigit())
+}
+
 /// Upgrade an older settings table in place to [`SETTINGS_VERSION`].
 fn migrate(value: &mut toml::Table) -> Result<()> {
     let version = value.get("version").and_then(|v| v.as_integer()).unwrap_or(0) as u32;
@@ -503,6 +723,7 @@ fn migrate(value: &mut toml::Table) -> Result<()> {
             h.remove("save_long_clip");
         }
     }
+    // v17 -> v18: `keystrokes` added (off); defaults fill it in.
     // v16 -> v17: `smart_highlights` added (off); defaults fill it in.
     // v15 -> v16: `tour_complete` added (false: existing installs see the tour once).
     // v14 -> v15: `highlight` added (off); defaults fill it in.
@@ -771,6 +992,17 @@ thickness = 0
         assert!(!s.smart_highlights.enabled && !s.smart_highlights.analyze_on_save);
         let s = parse("version = 17\n[smart_highlights]\nenabled = true\nthreshold_db = 5.0\n").unwrap();
         assert_eq!(s.smart_highlights.threshold_db, -3.0);
+    }
+
+    #[test]
+    fn keystrokes_default_off_and_sanitized() {
+        let s = parse("version = 17\n").unwrap();
+        assert!(!s.keystrokes.enabled && !s.keystrokes.records());
+        assert!(s.keystrokes.pause_in_text_fields);
+        let s = parse("version = 18\n[keystrokes]\nenabled = true\n[keystrokes.style]\nsize = 900\nbase_color = \"red\"\nfade_secs = 0.0\n").unwrap();
+        assert!(s.keystrokes.records());
+        assert_eq!((s.keystrokes.style.size, s.keystrokes.style.fade_secs), (120, 0.5));
+        assert!(s.keystrokes.style.base_color.is_empty());
     }
 
     #[test]
