@@ -3,7 +3,8 @@
 	import { goto } from '$app/navigation';
 	import { open, save } from '@tauri-apps/plugin-dialog';
 	import { api, type BenchReport, type BenchResult, type Device, type EncoderInfo, type Monitor, type Settings, type AudioSource } from '#lib/api.ts';
-	import { app, inApp, toast, updateSettings } from '#lib/stores/app.svelte.ts';
+	import { app, inApp, refreshStorage, toast, updateSettings } from '#lib/stores/app.svelte.ts';
+	import StorageBar from '#lib/components/StorageBar.svelte';
 	import Row from '#lib/components/Row.svelte';
 	import Toggle from '#lib/components/Toggle.svelte';
 	import Segmented from '#lib/components/Segmented.svelte';
@@ -30,6 +31,7 @@
 	const hookOk = $derived(/^https:\/\/(canary\.|ptb\.)?discord(app)?\.com\/.*webhooks\/\S+$/i.test(hookUrl.trim()));
 
 	onMount(async () => {
+		refreshStorage();
 		if (!inApp) {
 			monitors = [{ index: 0, name: 'DISPLAY1', width: 2560, height: 1440, primary: true }];
 			encoders = [
@@ -450,6 +452,9 @@
 
 		<section id="storage">
 			<h2>Storage</h2>
+			<div class="storage-bar">
+				<StorageBar data={app.storage} />
+			</div>
 			<Row label="Free on the clips drive" hint={app.status?.disk === 'full' ? `Under ${s.disk.block_gb} GB: saving clips is paused.` : app.status?.disk === 'low' ? `Under ${s.disk.warn_gb} GB: running low.` : 'Checked every few seconds.'}>
 				<span class="readout num wide">{app.status?.disk_free_gb != null ? `${app.status.disk_free_gb.toFixed(1)} GB` : '—'}</span>
 			</Row>
@@ -697,6 +702,9 @@
 	}
 	.block {
 		padding: 12px 0 16px;
+	}
+	.storage-bar {
+		padding: 8px 0 16px;
 	}
 	.block-label {
 		font-weight: 500;

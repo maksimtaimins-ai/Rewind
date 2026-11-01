@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { api, fileUrl, fmtBytes, fmtDuration, type Clip, type HotkeyAction } from '#lib/api.ts';
-	import { app, inApp, toast, updateSettings } from '#lib/stores/app.svelte.ts';
+	import { app, inApp, refreshStorage, toast, updateSettings } from '#lib/stores/app.svelte.ts';
+	import { onMount } from 'svelte';
+	import StorageBar from '#lib/components/StorageBar.svelte';
 	import BufferTimeline from '#lib/components/BufferTimeline.svelte';
 	import Keycap from '#lib/components/Keycap.svelte';
 	import MarkerList from '#lib/components/MarkerList.svelte';
@@ -147,6 +149,8 @@
 	});
 
 	const encoderName = $derived(s?.encoder?.replace(/ Encoder MFT$/, '').replace(/ Encoder$/, '') ?? null);
+	// Measured once here, then refreshed when clips change; never polled.
+	onMount(() => void refreshStorage());
 </script>
 
 <div class="page">
@@ -310,6 +314,9 @@
 		{#if s?.resolution}<span>{s.resolution[0]}×{s.resolution[1]}</span>{/if}
 		<span>{s?.game ? `Game: ${s.game}` : 'Desktop'}</span>
 		{#if live && s?.dropped}<span class="warn">{s.dropped} dropped</span>{/if}
+		<a class="disk-mini" href="/settings#storage" aria-label="Storage used, details in Settings">
+			<StorageBar data={app.storage} mini />
+		</a>
 	</footer>
 </div>
 
@@ -709,6 +716,10 @@
 	}
 	.statusline .warn {
 		color: #f5a524;
+	}
+	.disk-mini {
+		margin-left: auto;
+		align-self: center;
 	}
 
 	@media (max-width: 1000px) {

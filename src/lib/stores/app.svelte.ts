@@ -1,8 +1,8 @@
 import { isTauri } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { goto } from '$app/navigation';
-import { api, type Clip, type LanOffer, type LanProgress, type LibraryMeta, type Settings, type Status } from '#lib/api.ts';
-import { mockClips, mockLevels, mockSettings, mockStatus, mockTagColors } from './mock.ts';
+import { api, type Clip, type LanOffer, type LanProgress, type LibraryMeta, type Settings, type Status, type StorageBreakdown } from '#lib/api.ts';
+import { mockClips, mockLevels, mockSettings, mockStatus, mockStorage, mockTagColors } from './mock.ts';
 
 export type ToastLevel = 'info' | 'success' | 'warning' | 'error';
 export interface Toast {
@@ -22,8 +22,32 @@ export const app = $state({
 	toasts: [] as Toast[],
 	lastSaved: null as Clip | null,
 	/** A LAN transfer in progress, either way. */
-	transfer: null as LanProgress | null
+	transfer: null as LanProgress | null,
+	/** Storage breakdown, once something has asked for it. */
+	storage: null as StorageBreakdown | null
 });
+
+let storageWanted = false;
+let storageTimer: ReturnType<typeof setTimeout> | undefined;
+/** Measure Rewind's disk use now. After the first call it also refreshes
+ *  (debounced) when clips change; nothing is measured until then. */
+export async function refreshStorage() {
+	storageWanted = true;
+	if (!inApp) {
+		app.storage = mockStorage();
+		return;
+	}
+	try {
+		app.storage = await api.storageBreakdown();
+	} catch {
+		// Leave the last reading.
+	}
+}
+function storageChanged() {
+	if (!storageWanted) return;
+	clearTimeout(storageTimer);
+	storageTimer = setTimeout(refreshStorage, 1500);
+}
 
 /** Audio loudness steps (100 ms each) since launch, newest last, capped at ten minutes. */
 export const levelLog: number[] = [];
@@ -45,6 +69,8 @@ export async function refreshClips() {
 		return;
 	}
 	[app.clips, app.meta] = await Promise.all([api.clips(), api.libraryMeta()]);
+	// Deletes, trims, exports and montages all end in a refresh.
+	storageChanged();
 }
 
 let started = false;
@@ -85,8 +111,9 @@ export async function init(opts: { hud?: boolean } = {}) {
 	await listen<Clip>('clip-saved', (e) => {
 		app.lastSaved = e.payload;
 		app.clips = [e.payload, ...app.clips.filter((c) => c.path !== e.payload.path)];
+		storageChanged();
 	});
-	await listen('library-changed', () => refreshClips());
+	await listen('library-changed', () => (refreshClips(), storageChanged()));
 	await listen<{ level: ToastLevel; message: string }>('notice', (e) =>
 		toast(e.payload.level, e.payload.message)
 	);

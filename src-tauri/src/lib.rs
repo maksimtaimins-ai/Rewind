@@ -20,6 +20,7 @@ pub mod profiles;
 pub mod recycled;
 pub mod settings;
 pub mod share;
+pub mod storage;
 pub mod watch;
 
 use engine::{Engine, Events, Level, Status};
@@ -290,6 +291,7 @@ pub fn run() {
             commands::analyze_clips,
             commands::keystroke_presets,
             commands::make_montage,
+            commands::storage_breakdown,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Rewind")

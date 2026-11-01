@@ -387,3 +387,10 @@ pub async fn make_montage(app: tauri::AppHandle, engine: State<'_, Engine>, requ
     .map_err(err)?
     .map_err(|e| format!("{e:#}"))
 }
+
+/// Disk use of Rewind's files by kind. Measured now, on request only.
+#[tauri::command]
+pub async fn storage_breakdown(engine: State<'_, Engine>) -> R<crate::storage::Breakdown> {
+    let dir = engine.settings().clips_dir;
+    tauri::async_runtime::spawn_blocking(move || crate::storage::breakdown(&dir)).await.map_err(err)
+}

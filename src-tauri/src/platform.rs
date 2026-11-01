@@ -37,6 +37,14 @@ pub fn disk_free(path: &Path) -> Option<u64> {
     Some(avail)
 }
 
+/// Size and free space of the drive holding `path`: (total, free for this user).
+pub fn disk_space(path: &Path) -> Option<(u64, u64)> {
+    let dir = path.ancestors().find(|p| p.exists())?;
+    let (mut avail, mut total) = (0u64, 0u64);
+    unsafe { windows::Win32::Storage::FileSystem::GetDiskFreeSpaceExW(&HSTRING::from(dir.as_os_str()), Some(&mut avail), Some(&mut total), None).ok()? };
+    Some((total, avail))
+}
+
 pub fn qpc_now() -> i64 {
     unsafe {
         let mut c = 0i64;

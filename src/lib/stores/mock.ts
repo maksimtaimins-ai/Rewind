@@ -197,3 +197,16 @@ export const mockKeystrokePresets = (): import('#lib/api.ts').KeystrokePreset[] 
 		{ id: 'all', label: 'All inputs', filter: 'all', keys: [], keyboard: true, clicks: true, scroll: true }
 	];
 };
+
+export function mockStorage(): import('#lib/api.ts').StorageBreakdown {
+	const c = (kind: import('#lib/api.ts').StorageKind, bytes: number, files: number) => ({ kind, bytes, files });
+	const categories = [
+		c('clips', 12.4e9, 214),
+		c('screenshots', 0.38e9, 61),
+		c('exports', 2.1e9, 18),
+		c('recycled', 1.6e9, 23),
+		c('thumbnails', 0.09e9, 236),
+		c('app_data', 0.004e9, 5)
+	];
+	return { categories, total: categories.reduce((n, x) => n + x.bytes, 0), drive_total: 1000.2e9, drive_free: 412.7e9 };
+}

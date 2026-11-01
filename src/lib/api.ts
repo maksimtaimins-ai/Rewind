@@ -188,6 +188,16 @@ export interface MontageRequest {
 	clip_audio: boolean;
 }
 
+export type StorageKind = 'clips' | 'screenshots' | 'exports' | 'recycled' | 'thumbnails' | 'app_data';
+
+/** Disk use of Rewind's files by kind, measured on request. */
+export interface StorageBreakdown {
+	categories: { kind: StorageKind; bytes: number; files: number }[];
+	total: number;
+	drive_total: number | null;
+	drive_free: number | null;
+}
+
 export interface KeystrokePreset {
 	id: string;
 	label: string;
@@ -450,6 +460,7 @@ export const api = {
 	keystrokePresets: () => invoke<KeystrokePreset[]>('keystroke_presets'),
 	/** Resolves with the new clip. Progress (0-1): `montage-progress` events. */
 	makeMontage: (request: MontageRequest) => invoke<Clip>('make_montage', { request }),
+	storageBreakdown: () => invoke<StorageBreakdown>('storage_breakdown'),
 	setThumbnail: (path: string, secs: number) => invoke<Clip>('set_thumbnail', { path, secs }),
 	keyframes: (path: string) => invoke<[number[], number]>('clip_keyframes', { path }),
 	exportSettings: (path: string) => invoke<void>('export_settings', { path }),
