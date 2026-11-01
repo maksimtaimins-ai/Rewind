@@ -1,5 +1,8 @@
 <script lang="ts">
 	import { app } from '#lib/stores/app.svelte.ts';
+	import { fly } from 'svelte/transition';
+	import { flip } from 'svelte/animate';
+	import { enter, exit, ms, standard } from '#lib/motion.ts';
 
 	// Post-roll countdown: status arrives every 500 ms, so tick locally between updates.
 	const post = $derived(app.status?.post_roll ?? null);
@@ -19,7 +22,7 @@
 
 <div class="toasts" aria-live="polite">
 	{#if post}
-		<div class="toast post" role="status">
+		<div class="toast post" role="status" in:fly={{ y: 16, duration: ms(200), easing: enter }} out:fly={{ y: 16, duration: ms(150), easing: exit }}>
 			<span class="rec" aria-hidden="true"></span>
 			<span>Recording +{post.seconds}s…</span>
 			<span class="num left">{Math.ceil(left)}s</span>
@@ -27,7 +30,15 @@
 		</div>
 	{/if}
 	{#each app.toasts as t (t.id)}
-		<div class="toast {t.level}" role={t.level === 'error' ? 'alert' : 'status'}>{t.message}</div>
+		<div
+			class="toast {t.level}"
+			role={t.level === 'error' ? 'alert' : 'status'}
+			in:fly={{ y: 16, duration: ms(200), easing: enter }}
+			out:fly={{ y: 16, duration: ms(150), easing: exit }}
+			animate:flip={{ duration: ms(200), easing: standard }}
+		>
+			{t.message}
+		</div>
 	{/each}
 </div>
 
@@ -47,7 +58,6 @@
 		background: var(--text);
 		color: var(--ground);
 		font-weight: 500;
-		animation: rise 160ms ease-out;
 	}
 	.toast.error {
 		background: var(--danger);
@@ -76,11 +86,5 @@
 	.post .queued {
 		opacity: 0.7;
 		font-weight: 400;
-	}
-	@keyframes rise {
-		from {
-			transform: translateY(8px);
-			opacity: 0;
-		}
 	}
 </style>

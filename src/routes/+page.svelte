@@ -354,6 +354,14 @@
 	.save:hover {
 		filter: brightness(1.08);
 	}
+	.save.done .mark {
+		animation: settle 260ms var(--ease);
+	}
+	@keyframes settle {
+		from {
+			transform: scale(0.8);
+		}
+	}
 	.mark {
 		width: 36px;
 		height: 36px;
@@ -431,7 +439,11 @@
 			transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1),
 			box-shadow 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
 	}
-	.tool:hover {
+	.tool:active {
+		transform: translateY(-1px) scale(0.97);
+		transition-duration: 100ms;
+	}
+	.tool:hover:not(:active) {
 		transform: translateY(-2px);
 		box-shadow:
 			inset 0 0 0 1px var(--line-strong),

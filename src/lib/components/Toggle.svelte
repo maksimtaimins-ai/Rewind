@@ -27,6 +27,10 @@
 		background: var(--line-strong);
 		cursor: pointer;
 		flex: none;
+		transition: background-color 180ms var(--ease);
+	}
+	.switch:active {
+		transform: none;
 	}
 	.switch span {
 		display: block;
@@ -34,7 +38,7 @@
 		height: 16px;
 		border-radius: 50%;
 		background: var(--ground);
-		transition: transform 120ms ease-out;
+		transition: transform 180ms var(--ease);
 	}
 	.switch.on {
 		background: var(--text);

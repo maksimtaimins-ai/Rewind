@@ -1,3 +1,9 @@
+<script lang="ts" module>
+	// Only a fresh "favorite" click celebrates, not tiles that load already starred.
+	// Module-wide: starring can move the clip into the Favorites grid, a new tile.
+	let starred = $state<string | null>(null);
+</script>
+
 <script lang="ts">
 	import { fileUrl, fmtDuration, fmtWhen, type Clip } from '#lib/api.ts';
 	import { inApp } from '#lib/stores/app.svelte.ts';
@@ -66,10 +72,15 @@
 				<button
 					class="act"
 					class:on={clip.favorite}
+					class:pop={starred === clip.path && clip.favorite}
+					onanimationend={() => (starred = null)}
 					aria-pressed={clip.favorite}
 					aria-label={clip.favorite ? `Remove ${clip.name} from favorites` : `Add ${clip.name} to favorites`}
 					title={clip.favorite ? 'Unfavorite' : 'Favorite'}
-					onclick={() => onfavorite(!clip.favorite)}
+					onclick={() => {
+						starred = clip.favorite ? null : clip.path;
+						onfavorite(!clip.favorite);
+					}}
 				>
 					<svg viewBox="0 0 24 24" aria-hidden="true"><path d={star} /></svg>
 				</button>
@@ -225,6 +236,22 @@
 	.act:first-child svg,
 	.act.on svg {
 		fill: currentColor;
+	}
+	.act.pop svg {
+		animation: star-pop 300ms var(--ease);
+	}
+	@keyframes star-pop {
+		0% {
+			transform: scale(0.6);
+		}
+		45% {
+			transform: scale(1.3);
+			filter: drop-shadow(0 0 6px currentColor);
+		}
+		100% {
+			transform: scale(1);
+			filter: drop-shadow(0 0 0 transparent);
+		}
 	}
 	.meta {
 		padding: 8px 0 0;

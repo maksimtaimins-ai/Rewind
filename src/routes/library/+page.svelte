@@ -2,6 +2,9 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
+	import { fly, scale } from 'svelte/transition';
+	import { flip } from 'svelte/animate';
+	import { enter, exit, ms, standard } from '#lib/motion.ts';
 	import TagChip from '#lib/components/TagChip.svelte';
 	import TagEditor from '#lib/components/TagEditor.svelte';
 	import { openPath } from '@tauri-apps/plugin-opener';
@@ -219,20 +222,22 @@
 					<span class="count"><span class="num">{favorites.length}</span> {favorites.length === 1 ? 'clip' : 'clips'}</span>
 				</div>
 				<div class="grid">
-					{#each favorites as c (c.path)}
-						<ClipTile
-							clip={c}
-							{selecting}
-							selected={selected.includes(c.path)}
-							onopen={() => goto(`/trim?path=${encodeURIComponent(c.path)}`)}
-							onselect={() => toggle(c)}
-							onfavorite={(v) => setFavorite(c.path, v)}
-							ondelete={() => removeOne(c)}
-							onedittags={(e) => editTags(c, e)}
-							ontag={toggleTag}
-							activeTags={f.tags}
-							oncontextmenu={(e) => openMenu(c, e)}
-						/>
+					{#each favorites as c, i (c.path)}
+						<div class="cell" in:fly|global={{ y: 6, duration: ms(220), delay: ms(Math.min(i, 16) * 30), easing: enter }} out:scale={{ start: 0.92, duration: ms(160), easing: exit }} animate:flip={{ duration: ms(220), easing: standard }}>
+							<ClipTile
+								clip={c}
+								{selecting}
+								selected={selected.includes(c.path)}
+								onopen={() => goto(`/trim?path=${encodeURIComponent(c.path)}`)}
+								onselect={() => toggle(c)}
+								onfavorite={(v) => setFavorite(c.path, v)}
+								ondelete={() => removeOne(c)}
+								onedittags={(e) => editTags(c, e)}
+								ontag={toggleTag}
+								activeTags={f.tags}
+								oncontextmenu={(e) => openMenu(c, e)}
+							/>
+						</div>
 					{/each}
 				</div>
 			</section>
@@ -270,20 +275,22 @@
 				</div>
 				{#if open}
 					<div class="grid">
-						{#each sess.shown as c (c.path)}
-							<ClipTile
-								clip={c}
-								{selecting}
-								selected={selected.includes(c.path)}
-								onopen={() => goto(`/trim?path=${encodeURIComponent(c.path)}`)}
-								onselect={() => toggle(c)}
-								onfavorite={(v) => setFavorite(c.path, v)}
-								ondelete={() => removeOne(c)}
-								onedittags={(e) => editTags(c, e)}
-								ontag={toggleTag}
-								activeTags={f.tags}
-								oncontextmenu={(e) => openMenu(c, e)}
-							/>
+						{#each sess.shown as c, i (c.path)}
+							<div class="cell" in:fly|global={{ y: 6, duration: ms(220), delay: ms(Math.min(i, 16) * 30), easing: enter }} out:scale={{ start: 0.92, duration: ms(160), easing: exit }} animate:flip={{ duration: ms(220), easing: standard }}>
+								<ClipTile
+									clip={c}
+									{selecting}
+									selected={selected.includes(c.path)}
+									onopen={() => goto(`/trim?path=${encodeURIComponent(c.path)}`)}
+									onselect={() => toggle(c)}
+									onfavorite={(v) => setFavorite(c.path, v)}
+									ondelete={() => removeOne(c)}
+									onedittags={(e) => editTags(c, e)}
+									ontag={toggleTag}
+									activeTags={f.tags}
+									oncontextmenu={(e) => openMenu(c, e)}
+								/>
+							</div>
 						{/each}
 					</div>
 				{/if}
@@ -358,6 +365,8 @@
 		position: fixed;
 		z-index: 40;
 		border-radius: 6px;
+		transform-origin: top left;
+		animation: pop-in 140ms ease-out;
 		background: var(--raised);
 		box-shadow: 0 8px 24px var(--scrim-soft);
 	}

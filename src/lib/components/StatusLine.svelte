@@ -46,7 +46,7 @@
 	}
 	.dot.recording {
 		background: var(--signal);
-		animation: breathe 2.4s ease-in-out infinite;
+		animation: breathe 2s ease-in-out infinite;
 	}
 	.dot.paused {
 		background: transparent;
@@ -56,8 +56,12 @@
 		background: var(--text);
 	}
 	@keyframes breathe {
+		0%,
+		100% {
+			opacity: 0.6;
+		}
 		50% {
-			opacity: 0.45;
+			opacity: 1;
 		}
 	}
 </style>

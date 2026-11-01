@@ -7,7 +7,9 @@
 	import TitleBar from '#lib/components/TitleBar.svelte';
 	import Rail from '#lib/components/Rail.svelte';
 	import Toasts from '#lib/components/Toasts.svelte';
-	import { apply as applyTheme, resolve as resolveTheme, SYSTEM } from '#lib/themes.ts';
+	import { apply as applyTheme, resolve as resolveTheme, SYSTEM, type Palette } from '#lib/themes.ts';
+	import { fly } from 'svelte/transition';
+	import { enter, ms, reducedMotion } from '#lib/motion.ts';
 
 	let { children } = $props();
 
@@ -29,8 +31,15 @@
 		return () => mq.removeEventListener('change', on);
 	});
 
+	// Crossfade the whole window when the theme actually changes (not on every settings save).
+	let palette: Palette | null = null;
 	$effect(() => {
-		applyTheme(resolveTheme(app.settings?.theme ?? SYSTEM, prefersLight));
+		const next = resolveTheme(app.settings?.theme ?? SYSTEM, prefersLight);
+		if (next === palette) return;
+		const first = !palette;
+		palette = next;
+		if (first || reducedMotion() || !document.startViewTransition) applyTheme(next);
+		else document.startViewTransition(() => applyTheme(next));
 	});
 
 	$effect(() => {
@@ -53,7 +62,11 @@
 			<TitleBar title={bare ? 'Rewind setup' : ''} />
 			<main>
 				{#if app.ready}
-					{@render children()}
+					{#key page.url.pathname}
+						<div class="route" in:fly={{ y: 4, duration: ms(150), easing: enter }}>
+							{@render children()}
+						</div>
+					{/key}
 				{/if}
 			</main>
 		</div>
@@ -76,5 +89,8 @@
 		flex: 1;
 		min-height: 0;
 		overflow: auto;
+	}
+	.route {
+		height: 100%;
 	}
 </style>

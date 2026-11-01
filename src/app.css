@@ -119,11 +119,61 @@ select {
 	background: transparent;
 }
 
+/* Motion: 120-300 ms. Ease out to enter, ease in to leave, and
+   cubic-bezier(0.2, 0.8, 0.2, 1) for things that change in place. */
+:root {
+	--ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Every button gives a little under the pointer. */
+button {
+	transition: transform 100ms var(--ease);
+}
+button:active:not(:disabled) {
+	transform: scale(0.97);
+}
+
+dialog[open] {
+	animation: modal-in 180ms ease-out;
+}
+dialog[open]::backdrop {
+	animation: fade-in 180ms ease-out;
+}
+@keyframes modal-in {
+	from {
+		opacity: 0;
+		transform: translateY(8px);
+	}
+}
+@keyframes fade-in {
+	from {
+		opacity: 0;
+	}
+}
+/* Menus and popovers. */
+@keyframes pop-in {
+	from {
+		opacity: 0;
+		transform: translateY(-4px) scale(0.98);
+	}
+}
+
+/* Theme switch: the whole window crossfades. */
+::view-transition-old(root),
+::view-transition-new(root) {
+	animation-duration: 200ms;
+}
+
 @media (prefers-reduced-motion: reduce) {
 	*,
 	*::before,
-	*::after {
+	*::after,
+	::view-transition-group(*) {
 		animation-duration: 0.01ms !important;
+		animation-delay: 0ms !important;
 		transition-duration: 0.01ms !important;
+	}
+	button:active:not(:disabled) {
+		transform: none;
 	}
 }
