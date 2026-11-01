@@ -24,14 +24,15 @@ if (!fs.existsSync(nsis)) {
 const installer = `Rewind_${version}_x64-setup.exe`;
 const keep = [installer, `${installer}.sig`];
 
-// latest.json is written by hand, so only keep it if it describes this version.
+// A hand-written latest.json is kept only if it describes this version.
 const latestPath = path.join(nsis, 'latest.json');
+let haveLatest = false;
 if (fs.existsSync(latestPath)) {
   let latestVersion;
   try {
     latestVersion = JSON.parse(fs.readFileSync(latestPath, 'utf8')).version;
   } catch {}
-  if (latestVersion === undefined || latestVersion === version) keep.push('latest.json');
+  if (latestVersion === undefined || latestVersion === version) haveLatest = true;
   else console.warn(`latest.json is for ${latestVersion}, not ${version}; deleting it`);
 }
 
@@ -39,6 +40,26 @@ if (!fs.existsSync(path.join(nsis, installer))) {
   console.error(`${installer} not found in ${nsisRel}`);
   process.exit(1);
 }
+
+// tauri build doesn't write latest.json, so build one from the .sig for the updater.
+const sigPath = path.join(nsis, `${installer}.sig`);
+if (!haveLatest && fs.existsSync(sigPath)) {
+  const latest = {
+    version,
+    notes: `Rewind v${version}`,
+    pub_date: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
+    platforms: {
+      'windows-x86_64': {
+        signature: fs.readFileSync(sigPath, 'utf8').trim(),
+        url: `https://github.com/maksimtaimins-ai/Rewind/releases/download/v${version}/${installer}`,
+      },
+    },
+  };
+  fs.writeFileSync(latestPath, JSON.stringify(latest, null, 2) + '\n');
+  console.log(`wrote:   latest.json`);
+  haveLatest = true;
+}
+if (haveLatest) keep.push('latest.json');
 
 const out = path.join(nsis, version);
 fs.mkdirSync(out, { recursive: true });
