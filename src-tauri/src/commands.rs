@@ -118,6 +118,18 @@ pub async fn merge_clips(engine: State<'_, Engine>, paths: Vec<PathBuf>) -> R<Cl
     tauri::async_runtime::spawn_blocking(move || engine.merge(&paths)).await.map_err(err)?.map_err(err)
 }
 
+/// Re-encode a clip with an export preset; returns the new file's path.
+#[tauri::command]
+pub async fn export_clip(path: PathBuf, preset: crate::export::Preset) -> R<PathBuf> {
+    tauri::async_runtime::spawn_blocking(move || {
+        platform::com_init();
+        crate::export::mf::export(&path, preset)
+    })
+    .await
+    .map_err(err)?
+    .map_err(|e| format!("{e:#}"))
+}
+
 /// Keyframe times (seconds) and duration, for the trim scrubber.
 #[tauri::command]
 pub async fn clip_keyframes(path: PathBuf) -> R<(Vec<f64>, f64)> {

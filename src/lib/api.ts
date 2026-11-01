@@ -127,6 +127,8 @@ export interface Clip {
 	thumb: string | null;
 }
 
+export type ExportPreset = 'discord10' | 'discord25' | 'shorts' | 'twitter' | 'gif';
+
 export interface Monitor {
 	index: number;
 	name: string;
@@ -170,6 +172,7 @@ export const api = {
 	screenshot: () => invoke<void>('take_screenshot'),
 	trim: (path: string, from: number, to: number) => invoke<Clip>('trim_clip', { path, from, to }),
 	merge: (paths: string[]) => invoke<Clip>('merge_clips', { paths }),
+	exportClip: (path: string, preset: ExportPreset) => invoke<string>('export_clip', { path, preset }),
 	keyframes: (path: string) => invoke<[number[], number]>('clip_keyframes', { path }),
 	exportSettings: (path: string) => invoke<void>('export_settings', { path }),
 	importSettings: (path: string) => invoke<Settings>('import_settings', { path }),

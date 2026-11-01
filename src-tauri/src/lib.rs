@@ -4,6 +4,7 @@ pub mod capture;
 mod commands;
 pub mod encode;
 pub mod engine;
+pub mod export;
 pub mod gpu;
 pub mod hotkey;
 pub mod library;
@@ -155,6 +156,7 @@ pub fn run() {
             commands::take_screenshot,
             commands::trim_clip,
             commands::merge_clips,
+            commands::export_clip,
             commands::clip_keyframes,
             commands::autostart_enabled,
             commands::export_settings,

@@ -2,7 +2,8 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { revealItemInDir } from '@tauri-apps/plugin-opener';
-	import { api, fileUrl, fmtBytes, fmtDuration, fmtWhen } from '#lib/api.ts';
+	import { api, fileUrl, fmtBytes, fmtDuration, fmtWhen, type ExportPreset } from '#lib/api.ts';
+	import ExportMenu from '#lib/components/ExportMenu.svelte';
 	import { app, inApp, refreshClips, toast } from '#lib/stores/app.svelte.ts';
 
 	const path = $derived(page.url.searchParams.get('path') ?? '');
@@ -93,6 +94,21 @@
 			toast('error', String(e));
 		} finally {
 			busy = false;
+		}
+	}
+
+	let exporting = $state(false);
+	async function exportAs(preset: ExportPreset) {
+		if (!inApp) return;
+		exporting = true;
+		try {
+			const out = await api.exportClip(path, preset);
+			await refreshClips();
+			toast('success', `Exported ${out.split(/[\/]/).pop()}`);
+		} catch (e) {
+			toast('error', `Export failed: ${e}`);
+		} finally {
+			exporting = false;
 		}
 	}
 
@@ -202,6 +218,7 @@
 		<div class="buttons">
 			<button class="secondary" onclick={() => clip && inApp && revealItemInDir(clip.path)}>Show in folder</button>
 			<button class="secondary" onclick={remove}>Move to Recycle Bin</button>
+			<ExportMenu busy={exporting} onexport={exportAs} />
 			<button class="primary" disabled={busy || (inPt <= 0.01 && outPt >= duration - 0.01)} onclick={exportCut}>
 				{busy ? 'Saving…' : 'Save trimmed copy'}
 			</button>
