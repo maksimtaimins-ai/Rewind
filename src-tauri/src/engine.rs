@@ -357,6 +357,65 @@ impl Engine {
         encode::benchmark(&list, w, h, per.max(0.4))
     }
 
+    /// Watch the running pipeline for `secs` and judge the current settings.
+    pub fn live_benchmark(&self, secs: f64) -> Result<crate::bench::Report> {
+        use crate::bench::{self, sys};
+        let (stats, encoder, (width, height), target_fps) = {
+            let p = self.inner.pipeline.lock();
+            let p = p.as_ref().ok_or_else(|| anyhow!("Capture is still starting. Try again in a few seconds."))?;
+            (p.stats.clone(), p.encoder_name.clone(), p.output, p.fps)
+        };
+        let snap = || {
+            let s = &stats;
+            [&s.frames_in, &s.frames_out, &s.dropped, &s.bytes_out, &s.busy_ns].map(|v| v.load(Ordering::Relaxed))
+        };
+        let a = snap();
+        let cpu_a = sys::cpu();
+        let mut gpu = sys::Gpu::open();
+        let start = Instant::now();
+        while start.elapsed().as_secs_f64() < secs {
+            std::thread::sleep(Duration::from_millis(1000));
+            if let Some(g) = gpu.as_mut() {
+                g.sample();
+            }
+            let same = self.inner.pipeline.lock().as_ref().is_some_and(|p| Arc::ptr_eq(&p.stats, &stats));
+            if !same {
+                return Err(anyhow!("Capture restarted during the test (settings or game changed). Run it again."));
+            }
+            if self.inner.flags.blocked() {
+                return Err(anyhow!("A private app was focused, so capture paused. Run it again."));
+            }
+        }
+        let b = snap();
+        let wall = start.elapsed().as_secs_f64();
+        let (cpu_pct, rewind_cpu_pct) = sys::cpu_pct(cpu_a, sys::cpu());
+        let d = |i: usize| b[i].saturating_sub(a[i]);
+        let busy = d(4) as f64 / 1e9;
+        let (gpu_pct, gpu_encode_pct) = gpu.as_ref().map(|g| g.average()).unwrap_or((None, None));
+        let mut r = bench::Report {
+            secs: wall,
+            encoder,
+            width,
+            height,
+            target_fps,
+            capture_fps: d(0) as f64 / wall,
+            encoded_fps: d(1) as f64 / wall,
+            encoder_max_fps: if busy > 0.0 { d(1) as f64 / busy } else { 0.0 },
+            encoder_load: (busy / wall).min(1.0),
+            dropped: d(2),
+            bitrate_kbps: d(3) as f64 * 8.0 / 1000.0 / wall,
+            cpu_pct,
+            rewind_cpu_pct,
+            gpu_pct,
+            gpu_encode_pct,
+            ram_mb: sys::ram_mb(),
+            buffer_mb: self.inner.buffer.lock().total_bytes() as f64 / MB as f64,
+            verdict: Default::default(),
+        };
+        r.verdict = bench::verdict(&r);
+        Ok(r)
+    }
+
     pub fn shutdown(&self) {
         self.inner.shutdown.store(true, Ordering::Relaxed);
         if let Some(mut p) = self.inner.pipeline.lock().take() {

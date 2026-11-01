@@ -258,6 +258,30 @@ export interface BenchResult extends EncoderInfo {
 	error: string | null;
 }
 
+/** Settings benchmark: the live pipeline measured over a few seconds. */
+export interface BenchReport {
+	secs: number;
+	encoder: string;
+	width: number;
+	height: number;
+	target_fps: number;
+	capture_fps: number;
+	encoded_fps: number;
+	/** Highest rate the encoder could keep up, from how busy it was. */
+	encoder_max_fps: number;
+	/** 0-1. */
+	encoder_load: number;
+	dropped: number;
+	bitrate_kbps: number;
+	cpu_pct: number;
+	rewind_cpu_pct: number;
+	gpu_pct: number | null;
+	gpu_encode_pct: number | null;
+	ram_mb: number;
+	buffer_mb: number;
+	verdict: { grade: 'pass' | 'warn' | 'fail'; headline: string; detail: string[] };
+}
+
 export interface Device {
 	id: string;
 	name: string;
@@ -305,7 +329,8 @@ export const api = {
 	watchHistory: () => invoke<WatchOp[]>('watch_history'),
 	setCompactHud: (on: boolean) => invoke<void>('set_compact_hud', { on }),
 	/** Right-click menu on the HUD pill. */
-	hudMenu: () => invoke<void>('hud_menu')
+	hudMenu: () => invoke<void>('hud_menu'),
+	liveBenchmark: (secs: number) => invoke<BenchReport>('run_live_benchmark', { secs })
 };
 
 export const fileUrl = (path: string) => convertFileSrc(path);

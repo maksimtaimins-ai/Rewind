@@ -1,4 +1,5 @@
 pub mod audio;
+pub mod bench;
 pub mod buffer;
 pub mod capture;
 mod commands;
@@ -232,6 +233,7 @@ pub fn run() {
             commands::lan_answer,
             commands::watch_history,
             commands::set_compact_hud,
+            commands::run_live_benchmark,
             commands::hud_menu,
         ])
         .build(tauri::generate_context!())

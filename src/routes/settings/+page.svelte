@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { open, save } from '@tauri-apps/plugin-dialog';
-	import { api, type BenchResult, type Device, type EncoderInfo, type Monitor, type Settings, type AudioSource } from '#lib/api.ts';
+	import { api, type BenchReport, type BenchResult, type Device, type EncoderInfo, type Monitor, type Settings, type AudioSource } from '#lib/api.ts';
 	import { app, inApp, toast, updateSettings } from '#lib/stores/app.svelte.ts';
 	import Row from '#lib/components/Row.svelte';
 	import Toggle from '#lib/components/Toggle.svelte';
@@ -9,6 +9,7 @@
 	import HotkeyInput from '#lib/components/HotkeyInput.svelte';
 	import ThemePicker from '#lib/components/ThemePicker.svelte';
 	import WatchFolders from '#lib/components/WatchFolders.svelte';
+	import BenchReportView from '#lib/components/BenchReport.svelte';
 
 	const s = $derived(app.settings!);
 	const pro = $derived(s.pro_mode);
@@ -96,6 +97,27 @@
 			toast('error', String(e));
 		} finally {
 			benching = false;
+		}
+	}
+
+	let live = $state<BenchReport | null>(null);
+	let liveRunning = $state(false);
+	async function runLiveBench() {
+		liveRunning = true;
+		live = null;
+		try {
+			live = inApp
+				? await api.liveBenchmark(10)
+				: {
+						secs: 10, encoder: 'NVIDIA H.264 Encoder MFT', width: 2560, height: 1440, target_fps: 60, capture_fps: 59.8, encoded_fps: 59.8,
+						encoder_max_fps: 214, encoder_load: 0.28, dropped: 0, bitrate_kbps: 19800, cpu_pct: 34, rewind_cpu_pct: 1.6,
+						gpu_pct: 71, gpu_encode_pct: 27, ram_mb: 412, buffer_mb: 318,
+						verdict: { grade: 'pass', headline: 'Your current settings are fine for 1440p 60fps gameplay.', detail: [] }
+					};
+		} catch (e) {
+			toast('error', `Benchmark failed: ${e}`);
+		} finally {
+			liveRunning = false;
 		}
 	}
 
@@ -498,8 +520,14 @@
 					<input class="numbox num" type="number" min="0" max={s.disk.warn_gb} value={s.disk.block_gb} onchange={(e) => set((x) => (x.disk.block_gb = Math.min(x.disk.warn_gb, Math.max(0, num(e)))))} aria-label="Stop saving below GB free" />
 					<span class="unit">GB</span>
 				</Row>
-				<Row label="Encoder benchmark" hint="Tests every encoder found, about 5 seconds.">
-					<button class="secondary" disabled={benching || !inApp} onclick={runBench}>{benching ? 'Running…' : 'Run benchmark'}</button>
+				<Row label="Test current settings" hint="Watches 10 seconds of real capture at these settings and says whether they hold up. Best run while a game is moving.">
+					<button class="secondary" disabled={liveRunning} onclick={runLiveBench}>{liveRunning ? 'Measuring… 10s' : 'Run benchmark'}</button>
+				</Row>
+				{#if live}
+					<BenchReportView report={live} />
+				{/if}
+				<Row label="Encoder benchmark" hint="Tests every encoder found on synthetic frames, about 5 seconds.">
+					<button class="secondary" disabled={benching || !inApp} onclick={runBench}>{benching ? 'Running…' : 'Compare encoders'}</button>
 				</Row>
 				{#if bench}
 					<table class="bench">

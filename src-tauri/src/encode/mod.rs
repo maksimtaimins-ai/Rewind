@@ -105,6 +105,9 @@ mod win {
         pub frames_out: AtomicU64,
         pub bytes_out: AtomicU64,
         pub dropped: AtomicU64,
+        /// Nanoseconds the encoder thread spent working rather than waiting
+        /// for a frame. Busy time / wall time is how loaded it is.
+        pub busy_ns: AtomicU64,
     }
 
     pub struct EncoderHandle {
@@ -263,12 +266,16 @@ mod win {
                 pk.process(f, enc.sequence_header.as_deref(), sink);
             }
         };
+        let mut since = std::time::Instant::now();
         loop {
             while !enc.needs_input() {
                 enc.wait_event(&mut out)?;
                 emit(&mut out, enc, &mut pk);
             }
-            match rx.recv() {
+            stats.busy_ns.fetch_add(since.elapsed().as_nanos() as u64, Ordering::Relaxed);
+            let msg = rx.recv();
+            since = std::time::Instant::now();
+            match msg {
                 Ok(Msg::Frame(tex, pts)) => {
                     // Time-based keyframes: clips can start anywhere within
                     // `keyframe_secs`, even when frames arrive irregularly.

@@ -298,3 +298,13 @@ pub fn set_compact_hud(app: tauri::AppHandle, on: bool) -> R<()> {
 pub fn hud_menu(window: tauri::WebviewWindow) -> R<()> {
     crate::hud::popup_menu(&window).map_err(err)
 }
+
+/// Watch the live pipeline for `secs` and judge the current settings.
+#[tauri::command]
+pub async fn run_live_benchmark(engine: State<'_, Engine>, secs: f64) -> R<crate::bench::Report> {
+    let engine = engine.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || engine.live_benchmark(secs.clamp(3.0, 30.0)))
+        .await
+        .map_err(err)?
+        .map_err(|e| format!("{e:#}"))
+}

@@ -47,6 +47,8 @@ pub struct Pipeline {
     pub stats: Arc<EncoderStats>,
     pub output: (u32, u32),
     pub encoder_name: String,
+    /// Frame-rate cap in effect.
+    pub fps: u32,
     grab: Arc<Mutex<Vec<Sender<FrameGrab>>>>,
     /// GPU copy of the newest recorded frame, so a screenshot works even when
     /// the screen is static and capture delivers no new frames.
@@ -150,6 +152,7 @@ impl Pipeline {
             stats,
             output: out,
             encoder_name: cfg.encoder.name.clone(),
+            fps: cfg.params.fps,
             grab,
             latest,
             gpu,
