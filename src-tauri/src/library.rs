@@ -288,6 +288,15 @@ pub fn recycle(paths: &[PathBuf]) -> Result<()> {
     crate::platform::recycle(&refs)
 }
 
+/// Star or unstar a clip.
+pub fn set_favorite(path: &Path, favorite: bool) -> Result<()> {
+    update_meta(|m| {
+        let mut c = m.clip(path);
+        c.favorite = favorite;
+        m.set_clip(path, c);
+    })
+}
+
 pub fn copy_thumb(from_clip: &Path, to_clip: &Path) {
     let src = thumb_path(from_clip);
     if src.exists() {

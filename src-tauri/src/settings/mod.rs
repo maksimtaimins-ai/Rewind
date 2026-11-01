@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-pub const SETTINGS_VERSION: u32 = 6;
+pub const SETTINGS_VERSION: u32 = 7;
 
 /// Allowed range for [`BufferSettings::seconds`].
 pub const MIN_BUFFER_SECS: u32 = 10;
@@ -82,6 +82,7 @@ pub struct Hotkeys {
     pub screenshot: String,
     pub extend_last: String,
     pub slow_mo: String,
+    pub favorite_last: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -232,6 +233,7 @@ impl Default for Settings {
                 screenshot: "Alt+F12".into(),
                 extend_last: "Alt+F6".into(),
                 slow_mo: "Alt+F5".into(),
+                favorite_last: "Alt+Shift+F".into(),
             },
             profiles: Vec::new(),
             privacy_apps: vec!["KeePassXC.exe".into(), "1Password.exe".into(), "Bitwarden.exe".into()],
@@ -321,6 +323,7 @@ fn migrate(value: &mut toml::Table) -> Result<()> {
             h.remove("save_long_clip");
         }
     }
+    // v6 -> v7: `hotkeys.favorite_last` added; defaults fill it in.
     // v5 -> v6: `library` added; defaults fill it in.
     // v4 -> v5: `slow_mo` and `hotkeys.slow_mo` added; defaults fill them in.
     // v3 -> v4: `buffer.extra_slots` added; missing fields take defaults.

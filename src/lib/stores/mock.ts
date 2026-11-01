@@ -3,7 +3,7 @@ import type { Clip, Settings, Status } from '#lib/api.ts';
 
 export function mockSettings(): Settings {
 	return {
-		version: 6,
+		version: 7,
 		first_run_complete: true,
 		pro_mode: false,
 		theme: 'system',
@@ -43,7 +43,8 @@ export function mockSettings(): Settings {
 			marker: 'Alt+F7',
 			screenshot: 'Alt+F12',
 			extend_last: 'Alt+F6',
-			slow_mo: 'Alt+F5'
+			slow_mo: 'Alt+F5',
+			favorite_last: 'Alt+Shift+F'
 		},
 		profiles: [],
 		privacy_apps: ['KeePassXC.exe', '1Password.exe', 'Bitwarden.exe'],

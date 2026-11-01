@@ -15,6 +15,7 @@ pub enum Action {
     Screenshot,
     ExtendLast,
     SlowMo,
+    FavoriteLast,
 }
 
 /// Parsed hotkey: Win32 modifier flags + virtual key.
@@ -116,6 +117,7 @@ pub fn bindings(s: &crate::settings::Settings) -> Vec<(Action, String)> {
         (Action::Screenshot, h.screenshot.clone()),
         (Action::ExtendLast, h.extend_last.clone()),
         (Action::SlowMo, h.slow_mo.clone()),
+        (Action::FavoriteLast, h.favorite_last.clone()),
     ]);
     v
 }
@@ -218,6 +220,14 @@ mod win {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn default_bindings_parse() {
+        for (action, text) in bindings(&crate::settings::Settings::default()) {
+            assert!(parse(&text).is_ok(), "{action:?}: {text}");
+        }
+        assert_eq!(parse("Alt+Shift+F").unwrap(), Some(Combo { mods: MOD_ALT | MOD_SHIFT, vk: b'F' as u32 }));
+    }
 
     #[test]
     fn parses_combos() {

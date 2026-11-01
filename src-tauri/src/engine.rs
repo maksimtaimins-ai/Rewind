@@ -118,6 +118,8 @@ pub trait Events: Send + Sync {
     fn status(&self, status: &Status);
     fn clip_saved(&self, clip: &ClipInfo);
     fn notice(&self, level: Level, message: &str);
+    /// Clip metadata changed outside the UI (e.g. a hotkey); reload the library.
+    fn library_changed(&self);
 }
 
 struct SaveJob {
@@ -151,6 +153,8 @@ struct Inner {
     markers: Mutex<Vec<Marker>>,
     next_marker: AtomicU64,
     last_save: Mutex<Option<LastSave>>,
+    /// Most recently written clip of any kind, for "favorite last clip".
+    last_clip: Mutex<Option<PathBuf>>,
     save_tx: Sender<SaveJob>,
     error: Mutex<Option<String>>,
     hotkeys: Mutex<Option<HotkeyThread>>,
@@ -185,6 +189,7 @@ impl Engine {
             markers: Mutex::new(Vec::new()),
             next_marker: AtomicU64::new(1),
             last_save: Mutex::new(None),
+            last_clip: Mutex::new(None),
             save_tx,
             error: Mutex::new(None),
             hotkeys: Mutex::new(None),
@@ -303,6 +308,7 @@ impl Engine {
             Action::Screenshot => self.screenshot(),
             Action::ExtendLast => self.extend_last(),
             Action::SlowMo => self.save_slow_mo(),
+            Action::FavoriteLast => self.favorite_last(),
         };
         if let Err(e) = r {
             self.inner.events.notice(Level::Error, &format!("{e:#}"));
@@ -384,6 +390,17 @@ impl Engine {
         let at_ms = chrono::Local::now().timestamp_millis();
         self.inner.markers.lock().push(Marker { id, at: qpc_now(), at_ms });
         self.inner.events.notice(Level::Info, "Marker set");
+        Ok(())
+    }
+
+    fn favorite_last(&self) -> Result<()> {
+        let path = self.inner.last_clip.lock().clone().ok_or_else(|| anyhow!("No clip saved yet"))?;
+        if !path.exists() {
+            return Err(anyhow!("The last clip was renamed or deleted"));
+        }
+        library::set_favorite(&path, true)?;
+        self.inner.events.library_changed();
+        self.inner.events.notice(Level::Success, "Added the last clip to favorites");
         Ok(())
     }
 
@@ -500,6 +517,7 @@ impl Engine {
         })();
         match result {
             Ok(info) => {
+                *self.inner.last_clip.lock() = Some(job.path.clone());
                 // A slow-mo clip isn't a stretch of the buffer, so it can't be extended.
                 if job.slow_mo.is_none() {
                     *self.inner.last_save.lock() = Some(LastSave { from: start, to: end, path: job.path.clone() });

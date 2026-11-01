@@ -7,13 +7,15 @@
 		selected = false,
 		selecting = false,
 		onopen,
-		onselect
+		onselect,
+		onfavorite
 	}: {
 		clip: Clip;
 		selected?: boolean;
 		selecting?: boolean;
 		onopen: () => void;
 		onselect: () => void;
+		onfavorite?: (favorite: boolean) => void;
 	} = $props();
 
 	const thumb = $derived(clip.thumb && inApp ? fileUrl(clip.thumb) : null);
@@ -35,6 +37,17 @@
 			<span class="check" aria-hidden="true">{selected ? '✓' : ''}</span>
 		{/if}
 	</button>
+	{#if onfavorite && !selecting}
+		<button
+			class="star"
+			class:on={clip.favorite}
+			aria-pressed={clip.favorite}
+			aria-label={clip.favorite ? `Remove ${clip.name} from favorites` : `Add ${clip.name} to favorites`}
+			onclick={() => onfavorite(!clip.favorite)}
+		>
+			<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" /></svg>
+		</button>
+	{/if}
 	<div class="meta">
 		<div class="name" title={clip.name}>{clip.name}</div>
 		<div class="when">{fmtWhen(clip.modified)}</div>
@@ -43,7 +56,40 @@
 
 <style>
 	.tile {
+		position: relative;
 		min-width: 0;
+	}
+	.star {
+		position: absolute;
+		top: 6px;
+		right: 6px;
+		width: 28px;
+		height: 28px;
+		display: grid;
+		place-items: center;
+		border: 0;
+		border-radius: 4px;
+		background: var(--scrim-soft);
+		color: var(--on-scrim);
+		cursor: pointer;
+		opacity: 0;
+	}
+	.tile:hover .star,
+	.star:focus-visible,
+	.star.on {
+		opacity: 1;
+	}
+	.star svg {
+		width: 16px;
+		height: 16px;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 1.6;
+		stroke-linejoin: round;
+	}
+	.star.on svg {
+		fill: var(--accent);
+		stroke: var(--accent);
 	}
 	.frame {
 		position: relative;

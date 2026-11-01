@@ -78,6 +78,12 @@ pub fn rename_clip(path: PathBuf, name: String) -> R<ClipInfo> {
     library::info(&p).map_err(err)
 }
 
+#[tauri::command]
+pub fn set_favorite(path: PathBuf, favorite: bool) -> R<ClipInfo> {
+    library::set_favorite(&path, favorite).map_err(err)?;
+    library::info(&path).map_err(err)
+}
+
 /// Tag colours and session names from `library.json`.
 #[tauri::command]
 pub fn library_meta() -> serde_json::Value {

@@ -45,6 +45,10 @@ impl Events for UiEvents {
         }
     }
 
+    fn library_changed(&self) {
+        let _ = self.0.emit("library-changed", ());
+    }
+
     fn notice(&self, level: Level, message: &str) {
         tracing::info!("notice {level:?}: {message}");
         let _ = self.0.emit("notice", serde_json::json!({ "level": level, "message": message }));
@@ -152,6 +156,7 @@ pub fn run() {
             commands::delete_clips,
             commands::library_meta,
             commands::rename_session,
+            commands::set_favorite,
             commands::clips_dir,
             commands::save_clip_now,
             commands::save_marker,

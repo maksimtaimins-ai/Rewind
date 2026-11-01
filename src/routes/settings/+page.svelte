@@ -366,6 +366,9 @@
 			<Row label="Screenshot" hint="Saves the current frame as a PNG in your clips folder.">
 				<HotkeyInput label="Screenshot" value={s.hotkeys.screenshot} onchange={(v) => set((x) => (x.hotkeys.screenshot = v))} />
 			</Row>
+			<Row label="Favorite the last clip" hint="Stars the clip you saved most recently.">
+				<HotkeyInput label="Favorite the last clip" value={s.hotkeys.favorite_last} onchange={(v) => set((x) => (x.hotkeys.favorite_last = v))} />
+			</Row>
 			<Row label="Slow-mo replay" hint="Saves the last {s.slow_mo.seconds} seconds at {s.slow_mo.speed}× speed, {Math.round(s.slow_mo.seconds / s.slow_mo.speed)} seconds long. Video only.">
 				<HotkeyInput label="Slow-mo replay" value={s.hotkeys.slow_mo} onchange={(v) => set((x) => (x.hotkeys.slow_mo = v))} />
 			</Row>

@@ -2,7 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { openPath } from '@tauri-apps/plugin-opener';
 	import { api, fmtBytes, type Clip } from '#lib/api.ts';
-	import { app, inApp, refreshClips, toast } from '#lib/stores/app.svelte.ts';
+	import { app, inApp, refreshClips, setFavorite, toast } from '#lib/stores/app.svelte.ts';
 	import ClipTile from '#lib/components/ClipTile.svelte';
 	import Segmented from '#lib/components/Segmented.svelte';
 	import { allTags, applyFilters, emptyFilters, isFiltering, type DateRange, type LengthRange } from '#lib/filter.ts';
@@ -15,10 +15,12 @@
 
 	const shown = $derived(applyFilters(app.clips, f));
 	const tags = $derived(allTags(app.clips));
+	// Favorites are pinned above the sessions instead of inside them.
+	const favorites = $derived(shown.filter((c) => c.favorite));
 	// Sessions come from every clip so their keys (and names) don't shift while filtering.
 	const sessions = $derived(
 		groupSessions(app.clips, app.settings?.library.session_gap_mins ?? 30)
-			.map((s) => ({ ...s, shown: s.clips.filter((c) => shown.includes(c)) }))
+			.map((s) => ({ ...s, shown: s.clips.filter((c) => !c.favorite && shown.includes(c)) }))
 			.filter((s) => s.shown.length)
 	);
 	let collapsed = $state<Record<string, boolean>>({});
@@ -158,6 +160,26 @@
 	</div>
 
 	{#if shown.length}
+		{#if favorites.length}
+			<section class="session" aria-labelledby="fav-h">
+				<div class="sess-head">
+					<h2 id="fav-h" class="sess-title">Favorites</h2>
+					<span class="count"><span class="num">{favorites.length}</span> {favorites.length === 1 ? 'clip' : 'clips'}</span>
+				</div>
+				<div class="grid">
+					{#each favorites as c (c.path)}
+						<ClipTile
+							clip={c}
+							{selecting}
+							selected={selected.includes(c.path)}
+							onopen={() => goto(`/trim?path=${encodeURIComponent(c.path)}`)}
+							onselect={() => toggle(c)}
+							onfavorite={(v) => setFavorite(c.path, v)}
+						/>
+					{/each}
+				</div>
+			</section>
+		{/if}
 		{#each sessions as sess (sess.key)}
 			{@const open = !collapsed[sess.key]}
 			<section class="session" aria-label={sessionName(sess.key, sess.start)}>
@@ -198,6 +220,7 @@
 								selected={selected.includes(c.path)}
 								onopen={() => goto(`/trim?path=${encodeURIComponent(c.path)}`)}
 								onselect={() => toggle(c)}
+								onfavorite={(v) => setFavorite(c.path, v)}
 							/>
 						{/each}
 					</div>
@@ -364,6 +387,7 @@
 		transform: rotate(90deg);
 	}
 	.sess-title {
+		margin: 0;
 		border: 0;
 		background: none;
 		padding: 0;

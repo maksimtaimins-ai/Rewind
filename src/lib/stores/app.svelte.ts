@@ -58,10 +58,23 @@ export async function init() {
 		app.lastSaved = e.payload;
 		app.clips = [e.payload, ...app.clips.filter((c) => c.path !== e.payload.path)];
 	});
+	await listen('library-changed', () => refreshClips());
 	await listen<{ level: ToastLevel; message: string }>('notice', (e) =>
 		toast(e.payload.level, e.payload.message)
 	);
 	app.ready = true;
+}
+
+/** Star or unstar a clip, updating the list right away. */
+export async function setFavorite(path: string, favorite: boolean) {
+	app.clips = app.clips.map((c) => (c.path === path ? { ...c, favorite } : c));
+	if (!inApp) return;
+	try {
+		await api.setFavorite(path, favorite);
+	} catch (e) {
+		toast('error', String(e));
+		await refreshClips();
+	}
 }
 
 /** Apply a change to settings and persist it. */

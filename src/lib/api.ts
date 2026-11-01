@@ -33,6 +33,7 @@ export interface Hotkeys {
 	screenshot: string;
 	extend_last: string;
 	slow_mo: string;
+	favorite_last: string;
 }
 
 export interface BufferSlot {
@@ -176,6 +177,7 @@ export const api = {
 	clips: () => invoke<Clip[]>('list_clips'),
 	renameClip: (path: string, name: string) => invoke<Clip>('rename_clip', { path, name }),
 	deleteClips: (paths: string[]) => invoke<void>('delete_clips', { paths }),
+	setFavorite: (path: string, favorite: boolean) => invoke<Clip>('set_favorite', { path, favorite }),
 	libraryMeta: () => invoke<LibraryMeta>('library_meta'),
 	renameSession: (key: string, name: string) => invoke<void>('rename_session', { key, name }),
 	clipsDir: () => invoke<string>('clips_dir'),

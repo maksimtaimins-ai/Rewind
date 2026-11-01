@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { api, fmtDuration, type Clip } from '#lib/api.ts';
-	import { app, inApp, toast } from '#lib/stores/app.svelte.ts';
+	import { app, inApp, setFavorite, toast } from '#lib/stores/app.svelte.ts';
 	import Tape from '#lib/components/Tape.svelte';
 	import StatusLine from '#lib/components/StatusLine.svelte';
 	import ClipTile from '#lib/components/ClipTile.svelte';
@@ -38,6 +38,7 @@
 				.map((x) => ({ keys: x.hotkey, what: `Save the last ${fmtDuration(x.seconds)}` })),
 			{ keys: settings.hotkeys.marker, what: 'Mark this moment' },
 			{ keys: settings.hotkeys.screenshot, what: 'Screenshot' },
+			{ keys: settings.hotkeys.favorite_last, what: 'Favorite the last clip' },
 			{
 				keys: settings.hotkeys.slow_mo,
 				what: `Slow-mo of the last ${settings.slow_mo.seconds}s at ${settings.slow_mo.speed}×`
@@ -154,7 +155,7 @@
 			{#if recent.length}
 				<div class="grid">
 					{#each recent as c (c.path)}
-						<ClipTile clip={c} onopen={() => open(c)} onselect={() => open(c)} />
+						<ClipTile clip={c} onopen={() => open(c)} onselect={() => open(c)} onfavorite={(v) => setFavorite(c.path, v)} />
 					{/each}
 				</div>
 			{:else}
