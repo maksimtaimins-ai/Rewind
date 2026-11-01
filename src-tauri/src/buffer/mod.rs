@@ -230,6 +230,19 @@ impl ReplayBuffer {
         self.snapshot_from(start_idx, to)
     }
 
+    /// Like [`snapshot`](Self::snapshot), but `from` snaps to whichever
+    /// keyframe is closest, so the length is as near `to - from` as GOPs allow.
+    pub fn snapshot_nearest(&self, from: i64, to: i64) -> Option<Snapshot> {
+        let pk = &self.video.packets;
+        let start_idx = pk
+            .iter()
+            .enumerate()
+            .filter(|(_, p)| p.keyframe && p.pts < to)
+            .min_by_key(|(_, p)| (p.pts - from).abs())
+            .map(|(i, _)| i)?;
+        self.snapshot_from(start_idx, to)
+    }
+
     fn snapshot_from(&self, start_idx: usize, to: i64) -> Option<Snapshot> {
         let cfg = self.video_config.clone()?;
         let pk = &self.video.packets;
@@ -303,6 +316,16 @@ mod tests {
         assert_eq!(s.start(), 3 * TICKS_PER_SEC);
         assert!(s.video[0].keyframe);
         assert_eq!(s.end(), 8 * TICKS_PER_SEC);
+    }
+
+    #[test]
+    fn snapshot_nearest_picks_closest_keyframe() {
+        let mut b = ReplayBuffer::new(60, usize::MAX);
+        b.set_video_config(cfg());
+        fill(&mut b, 10);
+        // Keyframes every second: 3.2 s back from 10 s is 6.8 s, nearest keyframe 7 s.
+        let s = b.snapshot_nearest(68 * TICKS_PER_SEC / 10, 10 * TICKS_PER_SEC).unwrap();
+        assert_eq!(s.start(), 7 * TICKS_PER_SEC);
     }
 
     #[test]

@@ -18,6 +18,21 @@ pub enum Action {
     FavoriteLast,
 }
 
+impl Action {
+    /// Name shown to the user, matching the Settings labels.
+    pub fn label(self) -> String {
+        match self {
+            Action::SaveClip => "Save clip".into(),
+            Action::SaveSlot(i) => format!("Save slot {}", ["B", "C"][(i as usize).min(1)]),
+            Action::Marker => "Mark this moment".into(),
+            Action::Screenshot => "Screenshot".into(),
+            Action::ExtendLast => "Extend last clip".into(),
+            Action::SlowMo => "Slow-mo replay".into(),
+            Action::FavoriteLast => "Favorite the last clip".into(),
+        }
+    }
+}
+
 /// Parsed hotkey: Win32 modifier flags + virtual key.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Combo {
@@ -137,14 +152,14 @@ mod win {
 
     pub struct HotkeyThread {
         thread_id: u32,
-        pending: Sender<Vec<(Action, Combo)>>,
+        pending: Sender<Vec<(Action, Combo, String)>>,
     }
 
     impl HotkeyThread {
         /// Spawn the hotkey message loop. Pressed actions go to `actions`;
         /// registration failures (key taken by another app) go to `errors`.
         pub fn spawn(actions: Sender<Action>, errors: Sender<String>) -> Self {
-            let (pending_tx, pending_rx) = crossbeam_channel::unbounded::<Vec<(Action, Combo)>>();
+            let (pending_tx, pending_rx) = crossbeam_channel::unbounded::<Vec<(Action, Combo, String)>>();
             let (id_tx, id_rx) = crossbeam_channel::bounded(1);
             std::thread::Builder::new()
                 .name("rewind-hotkeys".into())
@@ -165,13 +180,13 @@ mod win {
                                     let _ = UnregisterHotKey(None, *id);
                                 }
                                 registered.clear();
-                                for (i, (action, combo)) in list.into_iter().enumerate() {
+                                for (i, (action, combo, combo_text)) in list.into_iter().enumerate() {
                                     let id = i as i32 + 1;
                                     let mods = HOT_KEY_MODIFIERS(combo.mods | MOD_NOREPEAT);
                                     if RegisterHotKey(None, id, mods, combo.vk).is_ok() {
                                         registered.insert(id, action);
                                     } else {
-                                        let _ = errors.send(format!("{action:?}"));
+                                        let _ = errors.send(format!("{} ({combo_text})", action.label()));
                                     }
                                 }
                             }
@@ -191,9 +206,9 @@ mod win {
             let mut errors = Vec::new();
             for (action, text) in bindings(settings) {
                 match parse(&text) {
-                    Ok(Some(c)) => list.push((action, c)),
+                    Ok(Some(c)) => list.push((action, c, text.trim().to_string())),
                     Ok(None) => {}
-                    Err(e) => errors.push(format!("{action:?}: {e}")),
+                    Err(e) => errors.push(format!("{}: {e}", action.label())),
                 }
             }
             let _ = self.pending.send(list);

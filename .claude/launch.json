@@ -1,6 +1,7 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "ui", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev"], "port": 1420 }
+    { "name": "ui", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev"], "port": 1420 },
+    { "name": "app", "runtimeExecutable": "npm", "runtimeArgs": ["run", "tauri", "--", "dev"], "port": 1420 }
   ]
 }

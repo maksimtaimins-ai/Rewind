@@ -218,7 +218,7 @@ impl Engine {
                         Err(_) => break,
                     },
                     recv(hk_err_rx) -> m => if let Ok(m) = m {
-                        e.inner.events.notice(Level::Warning, &format!("{m} hotkey is already used by another app"));
+                        e.inner.events.notice(Level::Warning, &format!("{m} is already used by another app. Pick a different key in Settings > Hotkeys."));
                     },
                 }
             }
@@ -485,7 +485,12 @@ impl Engine {
             }
             std::thread::sleep(Duration::from_millis(30));
         }
-        let snapshot = self.inner.buffer.lock().snapshot_within(job.from, job.to);
+        // Slow-mo starts at the keyframe nearest the asked-for length; normal saves
+        // never run longer than asked.
+        let snapshot = {
+            let b = self.inner.buffer.lock();
+            if job.slow_mo.is_some() { b.snapshot_nearest(job.from, job.to) } else { b.snapshot_within(job.from, job.to) }
+        };
         let Some(snap) = snapshot else {
             self.inner.events.notice(Level::Error, "Nothing in the buffer to save yet");
             return;
