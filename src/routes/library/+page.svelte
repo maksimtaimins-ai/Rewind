@@ -6,6 +6,7 @@
 	import ClipTile from '#lib/components/ClipTile.svelte';
 	import Segmented from '#lib/components/Segmented.svelte';
 	import { allTags, applyFilters, emptyFilters, isFiltering, type DateRange, type LengthRange } from '#lib/filter.ts';
+	import { defaultSessionName, groupSessions } from '#lib/sessions.ts';
 
 	let selecting = $state(false);
 	let selected = $state<string[]>([]);
@@ -14,6 +15,30 @@
 
 	const shown = $derived(applyFilters(app.clips, f));
 	const tags = $derived(allTags(app.clips));
+	// Sessions come from every clip so their keys (and names) don't shift while filtering.
+	const sessions = $derived(
+		groupSessions(app.clips, app.settings?.library.session_gap_mins ?? 30)
+			.map((s) => ({ ...s, shown: s.clips.filter((c) => shown.includes(c)) }))
+			.filter((s) => s.shown.length)
+	);
+	let collapsed = $state<Record<string, boolean>>({});
+	let editing = $state<string | null>(null);
+	const sessionName = (key: string, start: number) => app.meta.sessions[key] ?? defaultSessionName(start);
+
+	async function renameSession(key: string, name: string) {
+		editing = null;
+		const current = app.meta.sessions[key] ?? '';
+		if (name.trim() === current) return;
+		app.meta.sessions = { ...app.meta.sessions, [key]: name.trim() };
+		if (!name.trim()) delete app.meta.sessions[key];
+		if (!inApp) return;
+		try {
+			await api.renameSession(key, name);
+		} catch (e) {
+			toast('error', String(e));
+		}
+	}
+
 	const toggleTag = (t: string) => (f.tags = f.tags.includes(t) ? f.tags.filter((x) => x !== t) : [...f.tags, t]);
 	const totalSize = $derived(app.clips.reduce((n, c) => n + c.size, 0));
 
@@ -133,17 +158,52 @@
 	</div>
 
 	{#if shown.length}
-		<div class="grid">
-			{#each shown as c (c.path)}
-				<ClipTile
-					clip={c}
-					{selecting}
-					selected={selected.includes(c.path)}
-					onopen={() => goto(`/trim?path=${encodeURIComponent(c.path)}`)}
-					onselect={() => toggle(c)}
-				/>
-			{/each}
-		</div>
+		{#each sessions as sess (sess.key)}
+			{@const open = !collapsed[sess.key]}
+			<section class="session" aria-label={sessionName(sess.key, sess.start)}>
+				<div class="sess-head">
+					<button class="caret" aria-expanded={open} aria-label="{open ? 'Collapse' : 'Expand'} session" onclick={() => (collapsed[sess.key] = open)}>
+						<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M3 2l4 3-4 3" /></svg>
+					</button>
+					{#if editing === sess.key}
+						<!-- svelte-ignore a11y_autofocus -->
+						<input
+							class="sess-name"
+							value={app.meta.sessions[sess.key] ?? ''}
+							placeholder={defaultSessionName(sess.start)}
+							autofocus
+							onblur={(e) => renameSession(sess.key, e.currentTarget.value)}
+							onkeydown={(e) => {
+								if (e.key === 'Enter') e.currentTarget.blur();
+								if (e.key === 'Escape') editing = null;
+							}}
+							aria-label="Session name"
+						/>
+					{:else}
+						<button class="sess-title" ondblclick={() => (editing = sess.key)} onclick={() => (collapsed[sess.key] = open)}>
+							{sessionName(sess.key, sess.start)}
+						</button>
+					{/if}
+					<span class="count"><span class="num">{sess.shown.length}</span> {sess.shown.length === 1 ? 'clip' : 'clips'}</span>
+					{#if editing !== sess.key}
+						<button class="rename" onclick={() => (editing = sess.key)}>Rename</button>
+					{/if}
+				</div>
+				{#if open}
+					<div class="grid">
+						{#each sess.shown as c (c.path)}
+							<ClipTile
+								clip={c}
+								{selecting}
+								selected={selected.includes(c.path)}
+								onopen={() => goto(`/trim?path=${encodeURIComponent(c.path)}`)}
+								onselect={() => toggle(c)}
+							/>
+						{/each}
+					</div>
+				{/if}
+			</section>
+		{/each}
 	{:else if app.clips.length}
 		<p class="empty">
 			No clips match these filters.
@@ -269,6 +329,75 @@
 	.secondary:disabled {
 		color: var(--faint);
 		cursor: default;
+	}
+	.session {
+		margin-bottom: 24px;
+	}
+	.sess-head {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-bottom: 12px;
+		padding-bottom: 8px;
+		border-bottom: 1px solid var(--line);
+	}
+	.caret {
+		width: 24px;
+		height: 24px;
+		display: grid;
+		place-items: center;
+		border: 0;
+		border-radius: 4px;
+		background: transparent;
+		color: var(--muted);
+		cursor: pointer;
+	}
+	.caret svg {
+		width: 10px;
+		height: 10px;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 1.5;
+		transition: transform 120ms ease-out;
+	}
+	.caret[aria-expanded='true'] svg {
+		transform: rotate(90deg);
+	}
+	.sess-title {
+		border: 0;
+		background: none;
+		padding: 0;
+		font-size: 16px;
+		font-weight: 600;
+		cursor: pointer;
+	}
+	.sess-name {
+		height: 28px;
+		width: 280px;
+		padding: 0 8px;
+		font-size: 16px;
+		font-weight: 600;
+		border: 1px solid var(--muted);
+		border-radius: 4px;
+		background: var(--ground);
+		outline: none;
+		user-select: text;
+	}
+	.count {
+		color: var(--muted);
+		font-size: 13px;
+	}
+	.rename {
+		margin-left: auto;
+		border: 0;
+		background: none;
+		color: var(--faint);
+		font-size: 13px;
+		cursor: pointer;
+	}
+	.rename:hover,
+	.sess-head:hover .rename {
+		color: var(--muted);
 	}
 	.grid {
 		display: grid;

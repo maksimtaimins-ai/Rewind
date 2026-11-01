@@ -78,6 +78,27 @@ pub fn rename_clip(path: PathBuf, name: String) -> R<ClipInfo> {
     library::info(&p).map_err(err)
 }
 
+/// Tag colours and session names from `library.json`.
+#[tauri::command]
+pub fn library_meta() -> serde_json::Value {
+    let m = library::load_meta();
+    serde_json::json!({ "tag_colors": m.tag_colors, "sessions": m.sessions })
+}
+
+/// Name a session; an empty name goes back to the default.
+#[tauri::command]
+pub fn rename_session(key: String, name: String) -> R<()> {
+    let name = name.trim().to_string();
+    library::update_meta(|m| {
+        if name.is_empty() {
+            m.sessions.remove(&key);
+        } else {
+            m.sessions.insert(key, name);
+        }
+    })
+    .map_err(err)
+}
+
 #[tauri::command]
 pub fn delete_clips(paths: Vec<PathBuf>) -> R<()> {
     platform::com_init();

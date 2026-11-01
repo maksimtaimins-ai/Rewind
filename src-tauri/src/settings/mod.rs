@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-pub const SETTINGS_VERSION: u32 = 5;
+pub const SETTINGS_VERSION: u32 = 6;
 
 /// Allowed range for [`BufferSettings::seconds`].
 pub const MIN_BUFFER_SECS: u32 = 10;
@@ -82,6 +82,12 @@ pub struct Hotkeys {
     pub screenshot: String,
     pub extend_last: String,
     pub slow_mo: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LibrarySettings {
+    /// Clips saved within this many minutes of each other form one session.
+    pub session_gap_mins: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -160,6 +166,7 @@ pub struct Settings {
     pub video: VideoSettings,
     pub buffer: BufferSettings,
     pub slow_mo: SlowMoSettings,
+    pub library: LibrarySettings,
     pub audio: Vec<AudioTrack>,
     pub hotkeys: Hotkeys,
     pub profiles: Vec<GameProfile>,
@@ -203,6 +210,7 @@ impl Default for Settings {
                 extend_secs: 15,
             },
             slow_mo: SlowMoSettings { seconds: 3, speed: 0.25 },
+            library: LibrarySettings { session_gap_mins: 30 },
             audio: vec![
                 AudioTrack { name: "Desktop".into(), enabled: true, source: AudioSource::System, volume: 1.0 },
                 AudioTrack {
@@ -281,6 +289,7 @@ impl Settings {
         self.buffer.seconds = self.buffer.seconds.clamp(MIN_BUFFER_SECS, MAX_BUFFER_SECS);
         self.buffer.extend_secs = self.buffer.extend_secs.clamp(5, 120);
         self.buffer.extra_slots.resize(EXTRA_SLOTS, BufferSlot { enabled: false, seconds: 60, hotkey: String::new() });
+        self.library.session_gap_mins = self.library.session_gap_mins.clamp(1, 24 * 60);
         if ![2, 3, 5].contains(&self.slow_mo.seconds) {
             self.slow_mo.seconds = 3;
         }
@@ -312,6 +321,7 @@ fn migrate(value: &mut toml::Table) -> Result<()> {
             h.remove("save_long_clip");
         }
     }
+    // v5 -> v6: `library` added; defaults fill it in.
     // v4 -> v5: `slow_mo` and `hotkeys.slow_mo` added; defaults fill them in.
     // v3 -> v4: `buffer.extra_slots` added; missing fields take defaults.
     // v2 -> v3: "extend last clip" gets a default hotkey.

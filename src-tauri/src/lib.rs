@@ -150,6 +150,8 @@ pub fn run() {
             commands::list_clips,
             commands::rename_clip,
             commands::delete_clips,
+            commands::library_meta,
+            commands::rename_session,
             commands::clips_dir,
             commands::save_clip_now,
             commands::save_marker,

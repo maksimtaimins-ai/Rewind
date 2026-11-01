@@ -72,6 +72,7 @@ export interface Settings {
 		extend_secs: number;
 	};
 	slow_mo: { seconds: 2 | 3 | 5; speed: number };
+	library: { session_gap_mins: number };
 	audio: AudioTrack[];
 	hotkeys: Hotkeys;
 	profiles: GameProfile[];
@@ -131,6 +132,13 @@ export interface Clip {
 
 export type ExportPreset = 'discord10' | 'discord25' | 'shorts' | 'twitter' | 'gif';
 
+export interface LibraryMeta {
+	/** Tag -> CSS colour. */
+	tag_colors: Record<string, string>;
+	/** Session key -> name. */
+	sessions: Record<string, string>;
+}
+
 export interface Monitor {
 	index: number;
 	name: string;
@@ -168,6 +176,8 @@ export const api = {
 	clips: () => invoke<Clip[]>('list_clips'),
 	renameClip: (path: string, name: string) => invoke<Clip>('rename_clip', { path, name }),
 	deleteClips: (paths: string[]) => invoke<void>('delete_clips', { paths }),
+	libraryMeta: () => invoke<LibraryMeta>('library_meta'),
+	renameSession: (key: string, name: string) => invoke<void>('rename_session', { key, name }),
 	clipsDir: () => invoke<string>('clips_dir'),
 	saveNow: (secs?: number) => invoke<void>('save_clip_now', { secs: secs ?? null }),
 	saveMarker: (id: number, secs: number) => invoke<void>('save_marker', { id, secs }),

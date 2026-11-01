@@ -1,6 +1,6 @@
 import { isTauri } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { api, type Clip, type Settings, type Status } from '#lib/api.ts';
+import { api, type Clip, type LibraryMeta, type Settings, type Status } from '#lib/api.ts';
 import { mockClips, mockSettings, mockStatus } from './mock.ts';
 
 export type ToastLevel = 'info' | 'success' | 'warning' | 'error';
@@ -17,6 +17,7 @@ export const app = $state({
 	settings: null as Settings | null,
 	status: null as Status | null,
 	clips: [] as Clip[],
+	meta: { tag_colors: {}, sessions: {} } as LibraryMeta,
 	toasts: [] as Toast[],
 	lastSaved: null as Clip | null
 });
@@ -29,7 +30,11 @@ export function toast(level: ToastLevel, message: string) {
 }
 
 export async function refreshClips() {
-	app.clips = inApp ? await api.clips() : mockClips();
+	if (!inApp) {
+		app.clips = mockClips();
+		return;
+	}
+	[app.clips, app.meta] = await Promise.all([api.clips(), api.libraryMeta()]);
 }
 
 let started = false;

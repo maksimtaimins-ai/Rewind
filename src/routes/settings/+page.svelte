@@ -192,6 +192,10 @@
 					<span class="unit">MB</span>
 				</Row>
 			{/if}
+			<Row label="Group clips into sessions" hint="Clips saved within this many minutes of each other are shown together in the library.">
+				<input class="numbox num" type="number" min="1" max="1440" value={s.library.session_gap_mins} onchange={(e) => set((x) => (x.library.session_gap_mins = Math.min(1440, Math.max(1, num(e)))))} aria-label="Session gap in minutes" />
+				<span class="unit">min</span>
+			</Row>
 			<Row label="Save clips to" hint={s.clips_dir}>
 				<button class="secondary" onclick={pickFolder}>Change</button>
 			</Row>

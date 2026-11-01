@@ -3,7 +3,7 @@ import type { Clip, Settings, Status } from '#lib/api.ts';
 
 export function mockSettings(): Settings {
 	return {
-		version: 5,
+		version: 6,
 		first_run_complete: true,
 		pro_mode: false,
 		theme: 'system',
@@ -32,6 +32,7 @@ export function mockSettings(): Settings {
 			],
 			max_memory_mb: 1024, extend_secs: 15 },
 		slow_mo: { seconds: 3, speed: 0.25 },
+		library: { session_gap_mins: 30 },
 		audio: [
 			{ name: 'Desktop', enabled: true, source: { kind: 'system' }, volume: 1 },
 			{ name: 'Microphone', enabled: false, source: { kind: 'mic', device_id: null }, volume: 1 },
@@ -91,7 +92,7 @@ export function mockClips(): Clip[] {
 		path: `C:\\clips\\${name}.mp4`,
 		name,
 		size: 40e6 + i * 13e6,
-		modified: now - i * 9e6,
+		modified: now - [0, 9e5, 2.1e6, 9e6, 9.9e6, 4e7][i],
 		duration: [60, 60, 35, 12, 60, 90][i],
 		thumb: null,
 		favorite: i === 1 || i === 4,
