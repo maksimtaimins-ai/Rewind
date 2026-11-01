@@ -351,3 +351,39 @@ pub async fn analyze_clips(app: tauri::AppHandle, engine: State<'_, Engine>, pat
     .await
     .map_err(err)
 }
+
+/// Join clips into one MP4 in the clips folder. One at a time; progress
+/// arrives as `montage-progress` events (0-1).
+#[tauri::command]
+pub async fn make_montage(app: tauri::AppHandle, engine: State<'_, Engine>, request: crate::export::montage::Request) -> R<ClipInfo> {
+    use crate::export::montage::{window, Job};
+    use tauri::Emitter;
+    if request.paths.is_empty() {
+        return Err("Pick at least one clip".into());
+    }
+    let job = Job::start().ok_or("A montage is already being made")?;
+    let dir = engine.settings().clips_dir;
+    let out = library::unique_path(&dir, &format!("Montage {}", chrono::Local::now().format("%Y-%m-%d %H-%M-%S")), "mp4");
+    let max = request.max_secs.map(|m| m.clamp(1.0, 300.0));
+    tauri::async_runtime::spawn_blocking(move || {
+        let _job = job;
+        platform::com_init();
+        let meta = library::load_meta();
+        let pieces: Vec<(f64, f64)> = request
+            .paths
+            .iter()
+            .map(|p| {
+                let best = meta.clip(p).highlights.and_then(|m| m.into_iter().max_by(|a, b| a.score.total_cmp(&b.score))).map(|m| m.at);
+                window(library::probe_duration(p).unwrap_or(0.0), max, best)
+            })
+            .collect();
+        crate::export::montage_mf::make(&request, &pieces, &out, &mut |f| {
+            let _ = app.emit("montage-progress", f);
+        })?;
+        library::copy_thumb(&request.paths[0], &out);
+        library::info(&out)
+    })
+    .await
+    .map_err(err)?
+    .map_err(|e| format!("{e:#}"))
+}

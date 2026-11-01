@@ -289,6 +289,7 @@ pub fn run() {
             commands::hud_menu,
             commands::analyze_clips,
             commands::keystroke_presets,
+            commands::make_montage,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Rewind")

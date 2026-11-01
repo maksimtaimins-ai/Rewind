@@ -21,16 +21,16 @@ const AUDIO: u32 = MF_SOURCE_READER_FIRST_AUDIO_STREAM.0 as u32;
 const TICKS: i64 = 10_000_000;
 
 /// A decoded frame: packed top-down BGRA.
-struct Frame {
-    ts: i64,
-    px: Vec<u8>,
+pub(super) struct Frame {
+    pub(super) ts: i64,
+    pub(super) px: Vec<u8>,
 }
 
-struct Reader {
+pub(super) struct Reader {
     reader: IMFSourceReader,
-    width: u32,
-    height: u32,
-    fps: u32,
+    pub(super) width: u32,
+    pub(super) height: u32,
+    pub(super) fps: u32,
     stride: i32,
     audio: Option<IMFMediaType>,
     /// Selected streams that have reached their end.
@@ -42,7 +42,7 @@ struct Reader {
 impl Reader {
     /// Open for decoding. With `scale_to`, first try decoding and scaling on
     /// the GPU straight to that size; check `width`/`height` for what you got.
-    fn open(path: &Path, with_audio: bool, scale_to: Option<(u32, u32)>) -> Result<Self> {
+    pub(super) fn open(path: &Path, with_audio: bool, scale_to: Option<(u32, u32)>) -> Result<Self> {
         if let Some(size) = scale_to {
             match Self::open_with(path, with_audio, Some(size)) {
                 Ok(r) => return Ok(r),
@@ -114,7 +114,7 @@ impl Reader {
         }
     }
 
-    fn frame(&self, sample: &IMFSample, ts: i64) -> Result<Frame> {
+    pub(super) fn frame(&self, sample: &IMFSample, ts: i64) -> Result<Frame> {
         unsafe {
             let buf = sample.GetBufferByIndex(0)?;
             let row = self.width as usize * 4;
@@ -160,7 +160,7 @@ impl Reader {
 
     /// Next sample from any selected stream: `(is_video, timestamp, sample)`,
     /// or `None` at the end of everything.
-    fn next(&mut self) -> Result<Option<(bool, i64, Option<IMFSample>)>> {
+    pub(super) fn next(&mut self) -> Result<Option<(bool, i64, Option<IMFSample>)>> {
         unsafe {
             loop {
                 let mut index = 0u32;
@@ -327,30 +327,7 @@ fn encode_mp4(src: &Path, out: &Path, p: &Plan, src_size: (u32, u32), overlay: O
     let mut keys = overlay.map(|c| Renderer::open(src, c)).transpose()?.flatten();
     unsafe {
         let writer = MFCreateSinkWriterFromURL(&HSTRING::from(out.as_os_str()), None, None).context("create export file")?;
-        let size = ((p.width as u64) << 32) | p.height as u64;
-        let rate = ((p.fps as u64) << 32) | 1;
-
-        let vout = MFCreateMediaType()?;
-        vout.SetGUID(&MF_MT_MAJOR_TYPE, &MFMediaType_Video)?;
-        vout.SetGUID(&MF_MT_SUBTYPE, &MFVideoFormat_H264)?;
-        vout.SetUINT32(&MF_MT_AVG_BITRATE, p.video_bps)?;
-        vout.SetUINT64(&MF_MT_FRAME_SIZE, size)?;
-        vout.SetUINT64(&MF_MT_FRAME_RATE, rate)?;
-        vout.SetUINT64(&MF_MT_PIXEL_ASPECT_RATIO, (1u64 << 32) | 1)?;
-        vout.SetUINT32(&MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive.0 as u32)?;
-        vout.SetUINT32(&MF_MT_MPEG2_PROFILE, eAVEncH264VProfile_High.0 as u32)?;
-        let vstream = writer.AddStream(&vout)?;
-
-        let vin = MFCreateMediaType()?;
-        vin.SetGUID(&MF_MT_MAJOR_TYPE, &MFMediaType_Video)?;
-        vin.SetGUID(&MF_MT_SUBTYPE, &MFVideoFormat_RGB32)?;
-        vin.SetUINT64(&MF_MT_FRAME_SIZE, size)?;
-        vin.SetUINT64(&MF_MT_FRAME_RATE, rate)?;
-        vin.SetUINT64(&MF_MT_PIXEL_ASPECT_RATIO, (1u64 << 32) | 1)?;
-        vin.SetUINT32(&MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive.0 as u32)?;
-        // Positive stride: rows are top-down.
-        vin.SetUINT32(&MF_MT_DEFAULT_STRIDE, p.width * 4)?;
-        writer.SetInputMediaType(vstream, &vin, None).context("H.264 encoder rejected the frame format")?;
+        let vstream = add_h264_stream(&writer, p.width, p.height, p.fps, p.video_bps)?;
 
         let mut astream = None;
         if let Some(pcm) = &r.audio {
@@ -358,18 +335,7 @@ fn encode_mp4(src: &Path, out: &Path, p: &Plan, src_size: (u32, u32), overlay: O
             let channels = pcm.GetUINT32(&MF_MT_AUDIO_NUM_CHANNELS)?;
             // The AAC encoder takes 44.1/48 kHz, mono or stereo.
             if matches!(rate, 44_100 | 48_000) && matches!(channels, 1 | 2) {
-                let aout = MFCreateMediaType()?;
-                aout.SetGUID(&MF_MT_MAJOR_TYPE, &MFMediaType_Audio)?;
-                aout.SetGUID(&MF_MT_SUBTYPE, &MFAudioFormat_AAC)?;
-                aout.SetUINT32(&MF_MT_AUDIO_BITS_PER_SAMPLE, 16)?;
-                aout.SetUINT32(&MF_MT_AUDIO_SAMPLES_PER_SECOND, rate)?;
-                aout.SetUINT32(&MF_MT_AUDIO_NUM_CHANNELS, channels)?;
-                // Supported: 12000, 16000, 20000 or 24000 bytes per second.
-                let bytes = (p.audio_bps / 8).clamp(12_000, 24_000) / 4000 * 4000;
-                aout.SetUINT32(&MF_MT_AUDIO_AVG_BYTES_PER_SECOND, bytes)?;
-                let s = writer.AddStream(&aout)?;
-                writer.SetInputMediaType(s, pcm, None).context("AAC encoder rejected the audio format")?;
-                astream = Some(s);
+                astream = Some(add_aac_stream(&writer, pcm, rate, channels, p.audio_bps)?);
             } else {
                 tracing::warn!("export: skipping audio ({rate} Hz, {channels} ch)");
             }
@@ -412,7 +378,55 @@ fn encode_mp4(src: &Path, out: &Path, p: &Plan, src_size: (u32, u32), overlay: O
     Ok(())
 }
 
-unsafe fn bgra_sample(px: &[u8], ts: i64, duration: i64) -> Result<IMFSample> {
+/// Add an H.264 stream taking top-down RGB32 frames. Returns its index.
+pub(super) unsafe fn add_h264_stream(writer: &IMFSinkWriter, width: u32, height: u32, fps: u32, bps: u32) -> Result<u32> {
+    unsafe {
+        let size = ((width as u64) << 32) | height as u64;
+        let rate = ((fps as u64) << 32) | 1;
+        let vout = MFCreateMediaType()?;
+        vout.SetGUID(&MF_MT_MAJOR_TYPE, &MFMediaType_Video)?;
+        vout.SetGUID(&MF_MT_SUBTYPE, &MFVideoFormat_H264)?;
+        vout.SetUINT32(&MF_MT_AVG_BITRATE, bps)?;
+        vout.SetUINT64(&MF_MT_FRAME_SIZE, size)?;
+        vout.SetUINT64(&MF_MT_FRAME_RATE, rate)?;
+        vout.SetUINT64(&MF_MT_PIXEL_ASPECT_RATIO, (1u64 << 32) | 1)?;
+        vout.SetUINT32(&MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive.0 as u32)?;
+        vout.SetUINT32(&MF_MT_MPEG2_PROFILE, eAVEncH264VProfile_High.0 as u32)?;
+        let vstream = writer.AddStream(&vout)?;
+
+        let vin = MFCreateMediaType()?;
+        vin.SetGUID(&MF_MT_MAJOR_TYPE, &MFMediaType_Video)?;
+        vin.SetGUID(&MF_MT_SUBTYPE, &MFVideoFormat_RGB32)?;
+        vin.SetUINT64(&MF_MT_FRAME_SIZE, size)?;
+        vin.SetUINT64(&MF_MT_FRAME_RATE, rate)?;
+        vin.SetUINT64(&MF_MT_PIXEL_ASPECT_RATIO, (1u64 << 32) | 1)?;
+        vin.SetUINT32(&MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive.0 as u32)?;
+        // Positive stride: rows are top-down.
+        vin.SetUINT32(&MF_MT_DEFAULT_STRIDE, width * 4)?;
+        writer.SetInputMediaType(vstream, &vin, None).context("H.264 encoder rejected the frame format")?;
+        Ok(vstream)
+    }
+}
+
+/// Add an AAC stream fed with `pcm` (16-bit, 44.1/48 kHz, mono or stereo).
+pub(super) unsafe fn add_aac_stream(writer: &IMFSinkWriter, pcm: &IMFMediaType, rate: u32, channels: u32, bps: u32) -> Result<u32> {
+    unsafe {
+        let aout = MFCreateMediaType()?;
+        aout.SetGUID(&MF_MT_MAJOR_TYPE, &MFMediaType_Audio)?;
+        aout.SetGUID(&MF_MT_SUBTYPE, &MFAudioFormat_AAC)?;
+        aout.SetUINT32(&MF_MT_AUDIO_BITS_PER_SAMPLE, 16)?;
+        aout.SetUINT32(&MF_MT_AUDIO_SAMPLES_PER_SECOND, rate)?;
+        aout.SetUINT32(&MF_MT_AUDIO_NUM_CHANNELS, channels)?;
+        // Supported: 12000, 16000, 20000 or 24000 bytes per second.
+        let bytes = (bps / 8).clamp(12_000, 24_000) / 4000 * 4000;
+        aout.SetUINT32(&MF_MT_AUDIO_AVG_BYTES_PER_SECOND, bytes)?;
+        let s = writer.AddStream(&aout)?;
+        writer.SetInputMediaType(s, pcm, None).context("AAC encoder rejected the audio format")?;
+        Ok(s)
+    }
+}
+
+pub(super) unsafe fn bgra_sample(px: &[u8], ts: i64, duration: i64) -> Result<IMFSample> {
     unsafe {
         let buf = MFCreateMemoryBuffer(px.len() as u32)?;
         let mut data = std::ptr::null_mut();

@@ -178,6 +178,16 @@ export interface Keystrokes {
 	};
 }
 
+export interface MontageRequest {
+	/** In playing order. */
+	paths: string[];
+	transition: 'cut' | 'crossfade';
+	/** Longest piece per clip, seconds; null = whole clips. */
+	max_secs: number | null;
+	music: string | null;
+	clip_audio: boolean;
+}
+
 export interface KeystrokePreset {
 	id: string;
 	label: string;
@@ -438,6 +448,8 @@ export const api = {
 	/** `overlay`: draw recorded keystrokes in, when the clip has any. */
 	exportClip: (path: string, preset: ExportPreset, overlay = false) => invoke<string>('export_clip', { path, preset, overlay }),
 	keystrokePresets: () => invoke<KeystrokePreset[]>('keystroke_presets'),
+	/** Resolves with the new clip. Progress (0-1): `montage-progress` events. */
+	makeMontage: (request: MontageRequest) => invoke<Clip>('make_montage', { request }),
 	setThumbnail: (path: string, secs: number) => invoke<Clip>('set_thumbnail', { path, secs }),
 	keyframes: (path: string) => invoke<[number[], number]>('clip_keyframes', { path }),
 	exportSettings: (path: string) => invoke<void>('export_settings', { path }),

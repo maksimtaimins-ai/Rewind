@@ -19,6 +19,7 @@
 	import { defaultSessionName, groupSessions } from '#lib/sessions.ts';
 	import { postToDiscord, sendToPeer } from '#lib/share.ts';
 	import type { LanPeer } from '#lib/api.ts';
+	import { draft } from '#lib/montage.svelte.ts';
 
 	let selecting = $state(false);
 	let selected = $state<string[]>([]);
@@ -193,10 +194,14 @@
 				<button class="secondary" disabled={busy || selected.length < 2 || selected.length > 5} onclick={merge} title="Join 2–5 clips end to end">
 					Merge
 				</button>
+				<button class="secondary" disabled={busy || !selected.length} onclick={() => ((draft.paths = [...selected]), goto('/library/montage'))} title="String the selected clips into one video">
+					Make montage
+				</button>
 				<button class="secondary" disabled={busy || !selected.length} onclick={remove}>Delete</button>
 				<button class="secondary" onclick={stopSelecting}>Done</button>
 			{:else}
 				<button class="secondary" onclick={() => (selecting = true)} disabled={!app.clips.length}>Select</button>
+				<button class="secondary" onclick={() => ((draft.paths = []), goto('/library/montage'))} disabled={!app.clips.length}>Make montage</button>
 				<button class="secondary" onclick={openFolder}>Open folder</button>
 				<a class="secondary" href="/library/deleted">Recently deleted</a>
 			{/if}

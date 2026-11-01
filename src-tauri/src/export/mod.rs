@@ -9,6 +9,9 @@ use serde::{Deserialize, Serialize};
 
 #[cfg(windows)]
 pub mod mf;
+pub mod montage;
+#[cfg(windows)]
+pub mod montage_mf;
 #[cfg(windows)]
 pub mod overlay;
 
