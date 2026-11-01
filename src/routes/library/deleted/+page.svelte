@@ -71,7 +71,7 @@
 			{/each}
 		</ul>
 	{:else if loaded}
-		<p class="empty">Nothing here. Clips you delete wait here for {keepDays} days in case you change your mind.</p>
+		<p class="empty">Nothing deleted recently. Clips you delete wait here for {keepDays} days in case you change your mind.</p>
 	{/if}
 </div>
 

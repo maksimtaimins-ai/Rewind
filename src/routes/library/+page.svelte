@@ -12,6 +12,7 @@
 	import { app, inApp, refreshClips, setFavorite, setTags, toast } from '#lib/stores/app.svelte.ts';
 	import ClipTile from '#lib/components/ClipTile.svelte';
 	import Keycap from '#lib/components/Keycap.svelte';
+	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Segmented from '#lib/components/Segmented.svelte';
 	import { allTags, applyFilters, emptyFilters, isFiltering, type DateRange, type LengthRange } from '#lib/filter.ts';
 	import { defaultSessionName, groupSessions } from '#lib/sessions.ts';
@@ -212,10 +213,18 @@
 		</button>
 		{#each tags as t (t)}
 			<TagChip tag={t} active={f.tags.includes(t)} onclick={() => toggleTag(t)} />
+		{:else}
+			{#if app.clips.length}<span class="hint">Add tags to find clips faster later.</span>{/if}
 		{/each}
 	</div>
 
 	{#if shown.length}
+		{#if !favorites.length && !app.clips.some((c) => c.favorite) && !isFiltering(f)}
+			<section class="session" aria-labelledby="fav-h">
+				<div class="sess-head"><h2 id="fav-h" class="sess-title">Favorites</h2></div>
+				<EmptyState compact>Star a clip to pin it here.</EmptyState>
+			</section>
+		{/if}
 		{#if favorites.length}
 			<section class="session" aria-labelledby="fav-h">
 				<div class="sess-head">
@@ -297,20 +306,22 @@
 				{/if}
 			</section>
 		{/each}
+	{:else if f.favorites && !app.clips.some((c) => c.favorite)}
+		<EmptyState>
+			Star a clip to pin it here.
+			<button class="link" onclick={() => (f.favorites = false)}>Show all clips</button>
+		</EmptyState>
 	{:else if app.clips.length}
 		<p class="empty">
 			No clips match these filters.
 			{#if isFiltering(f)}<button class="link" onclick={() => (f = emptyFilters())}>Clear filters</button>{/if}
 		</p>
 	{:else}
-		<div class="empty">
-			<p>No clips yet.</p>
-			<p>
-				While a game is running, press
-				{#if app.settings?.hotkeys.save_clip}<Keycap keys={app.settings.hotkeys.save_clip} />{:else}your save hotkey{/if}
-				and the last {app.settings?.buffer.seconds} seconds land here.
-			</p>
-		</div>
+		<EmptyState keys={app.settings?.hotkeys.save_clip}>
+			No clips yet.
+			{#if app.settings?.hotkeys.save_clip}Press <Keycap keys={app.settings.hotkeys.save_clip} /> to save your first.{:else}Set a save hotkey in Settings to save your first.{/if}
+			It keeps the last {app.settings?.buffer.seconds} seconds of your screen.
+		</EmptyState>
 	{/if}
 </div>
 
@@ -592,7 +603,8 @@
 		color: var(--muted);
 		max-width: 56ch;
 	}
-	.empty p {
-		margin: 0 0 8px;
+	.hint {
+		color: var(--faint);
+		font-size: 13px;
 	}
 </style>

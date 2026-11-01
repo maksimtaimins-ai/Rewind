@@ -5,6 +5,7 @@
 	import Keycap from '#lib/components/Keycap.svelte';
 	import MarkerList from '#lib/components/MarkerList.svelte';
 	import Tour, { type Step } from '#lib/components/Tour.svelte';
+	import EmptyState from '#lib/components/EmptyState.svelte';
 	import { goto } from '$app/navigation';
 
 	const s = $derived(app.status);
@@ -225,7 +226,14 @@
 		{/each}
 	</div>
 
-	{#if markers.length}
+	{#if !markers.length}
+		<section class="markers" aria-label="Markers">
+			<EmptyState compact>
+				Markers let you flag moments mid-game.
+				{#if settings.hotkeys.marker}Press <Keycap keys={settings.hotkeys.marker} /> to flag one.{:else}Click Add marker to flag one.{/if}
+			</EmptyState>
+		</section>
+	{:else}
 		<section class="markers" aria-label="Markers">
 			<button class="link" aria-expanded={showMarkers} onclick={() => (showMarkers = !showMarkers)}>
 				{showMarkers ? 'Hide markers' : `Show ${markers.length} ${markers.length === 1 ? 'marker' : 'markers'}`}
@@ -257,7 +265,7 @@
 		</div>
 		<div class="stat">
 			<div class="stat-copy">
-				<span class="stat-n num">{fmtBytes(usedBytes)}</span>
+				<span class="stat-n num">{usedBytes ? fmtBytes(usedBytes) : '0 MB'}</span>
 				<span class="stat-l">{freeGb == null ? 'Used by clips' : `Used, ${freeGb.toFixed(1)} GB free`}</span>
 			</div>
 			<svg class="ring" class:low={s?.disk !== 'ok'} viewBox="0 0 24 24" aria-hidden="true">
@@ -289,7 +297,10 @@
 				{/each}
 			</ul>
 		{:else}
-			<p class="empty">Saved clips show up here.</p>
+			<EmptyState compact>
+				No clips yet.
+				{#if settings.hotkeys.save_clip}Press <Keycap keys={settings.hotkeys.save_clip} /> to save your first.{:else}Click Save clip to save your first.{/if}
+			</EmptyState>
 		{/if}
 	</section>
 
@@ -684,10 +695,6 @@
 	.clip:hover .clip-len,
 	.clip:focus-visible .clip-len {
 		opacity: 0;
-	}
-	.empty {
-		margin: 0;
-		color: var(--faint);
 	}
 
 	.statusline {
