@@ -4,15 +4,17 @@
 	import { api, fmtBytes, type Clip } from '#lib/api.ts';
 	import { app, inApp, refreshClips, toast } from '#lib/stores/app.svelte.ts';
 	import ClipTile from '#lib/components/ClipTile.svelte';
+	import Segmented from '#lib/components/Segmented.svelte';
+	import { allTags, applyFilters, emptyFilters, isFiltering, type DateRange, type LengthRange } from '#lib/filter.ts';
 
 	let selecting = $state(false);
 	let selected = $state<string[]>([]);
-	let query = $state('');
 	let busy = $state(false);
+	let f = $state(emptyFilters());
 
-	const shown = $derived(
-		query.trim() ? app.clips.filter((c) => c.name.toLowerCase().includes(query.trim().toLowerCase())) : app.clips
-	);
+	const shown = $derived(applyFilters(app.clips, f));
+	const tags = $derived(allTags(app.clips));
+	const toggleTag = (t: string) => (f.tags = f.tags.includes(t) ? f.tags.filter((x) => x !== t) : [...f.tags, t]);
 	const totalSize = $derived(app.clips.reduce((n, c) => n + c.size, 0));
 
 	function toggle(c: Clip) {
@@ -77,12 +79,58 @@
 				<button class="secondary" disabled={busy || !selected.length} onclick={remove}>Move to Recycle Bin</button>
 				<button class="secondary" onclick={stopSelecting}>Done</button>
 			{:else}
-				<input type="search" placeholder="Filter by name" bind:value={query} aria-label="Filter clips by name" />
 				<button class="secondary" onclick={() => (selecting = true)} disabled={!app.clips.length}>Select</button>
 				<button class="secondary" onclick={openFolder}>Open folder</button>
 			{/if}
 		</div>
 	</header>
+
+	<div class="filters">
+		<input type="search" placeholder="Search names and tags" bind:value={f.query} aria-label="Search clips" />
+		<div class="row">
+			<Segmented
+				label="Date"
+				value={f.date}
+				options={[
+					{ value: 'today' as DateRange, label: 'Today' },
+					{ value: 'week' as DateRange, label: 'This week' },
+					{ value: 'month' as DateRange, label: 'This month' },
+					{ value: 'all' as DateRange, label: 'All' },
+					{ value: 'custom' as DateRange, label: 'Custom' }
+				]}
+				onchange={(v) => (f.date = v)}
+			/>
+			{#if f.date === 'custom'}
+				<span class="range">
+					<input type="date" bind:value={f.from} aria-label="From date" />
+					<span class="to">to</span>
+					<input type="date" bind:value={f.to} aria-label="To date" />
+				</span>
+			{/if}
+			<Segmented
+				label="Length"
+				value={f.length}
+				options={[
+					{ value: 'any' as LengthRange, label: 'Any length' },
+					{ value: 'short' as LengthRange, label: '<10s' },
+					{ value: 'medium' as LengthRange, label: '10–30s' },
+					{ value: 'long' as LengthRange, label: '30s–1m' },
+					{ value: 'xlong' as LengthRange, label: '1m+' }
+				]}
+				onchange={(v) => (f.length = v)}
+			/>
+			<button class="chip" class:on={f.favorites} aria-pressed={f.favorites} onclick={() => (f.favorites = !f.favorites)}>
+				Favorites only
+			</button>
+		</div>
+		{#if tags.length}
+			<div class="row tags" aria-label="Filter by tag">
+				{#each tags as t (t)}
+					<button class="chip" class:on={f.tags.includes(t)} aria-pressed={f.tags.includes(t)} onclick={() => toggleTag(t)}>{t}</button>
+				{/each}
+			</div>
+		{/if}
+	</div>
 
 	{#if shown.length}
 		<div class="grid">
@@ -97,7 +145,10 @@
 			{/each}
 		</div>
 	{:else if app.clips.length}
-		<p class="empty">No clip names contain “{query}”.</p>
+		<p class="empty">
+			No clips match these filters.
+			{#if isFiltering(f)}<button class="link" onclick={() => (f = emptyFilters())}>Clear filters</button>{/if}
+		</p>
 	{:else}
 		<div class="empty">
 			<p>No clips yet.</p>
@@ -140,17 +191,68 @@
 		color: var(--muted);
 		margin-right: 8px;
 	}
-	input[type='search'] {
-		height: 32px;
-		width: 200px;
+	.filters {
+		display: grid;
+		gap: 12px;
+		margin-bottom: 24px;
+	}
+	.row {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 8px 12px;
+	}
+	input[type='search'],
+	input[type='date'] {
+		height: 36px;
 		padding: 0 12px;
 		border-radius: 4px;
 		border: 1px solid var(--line);
 		background: transparent;
 		outline: none;
+		user-select: text;
 	}
-	input[type='search']:focus {
+	input[type='search'] {
+		max-width: 480px;
+	}
+	input[type='date'] {
+		height: 30px;
+		color-scheme: inherit;
+	}
+	input:focus {
 		border-color: var(--muted);
+	}
+	.range {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+	}
+	.to {
+		color: var(--faint);
+	}
+	.chip {
+		height: 28px;
+		padding: 0 10px;
+		border: 0;
+		border-radius: 4px;
+		background: var(--sunken);
+		color: var(--muted);
+		cursor: pointer;
+	}
+	.chip:hover {
+		color: var(--text);
+	}
+	.chip.on {
+		background: var(--line-strong);
+		color: var(--text);
+	}
+	.link {
+		border: 0;
+		background: none;
+		padding: 0;
+		color: var(--text);
+		text-decoration: underline;
+		cursor: pointer;
 	}
 	.secondary {
 		height: 32px;

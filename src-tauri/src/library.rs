@@ -1,10 +1,13 @@
-//! Clip library on disk: listing, probing, thumbnails, rename, recycle.
+//! Clip library on disk: listing, probing, thumbnails, rename, recycle, and
+//! per-clip metadata (favorites, tags, session names) in `library.json`.
 
+use std::collections::BTreeMap;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
-use serde::Serialize;
+use parking_lot::Mutex;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ClipInfo {
@@ -15,6 +18,97 @@ pub struct ClipInfo {
     pub modified: i64,
     pub duration: f64,
     pub thumb: Option<PathBuf>,
+    pub favorite: bool,
+    pub tags: Vec<String>,
+}
+
+/// What Rewind knows about a clip beyond the file itself.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct ClipMeta {
+    #[serde(default)]
+    pub favorite: bool,
+    #[serde(default)]
+    pub tags: Vec<String>,
+}
+
+impl ClipMeta {
+    fn is_empty(&self) -> bool {
+        *self == ClipMeta::default()
+    }
+}
+
+/// `library.json`. Clips are keyed by file name, so moving the clips folder
+/// keeps their metadata.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Meta {
+    #[serde(default)]
+    pub clips: BTreeMap<String, ClipMeta>,
+    /// Tag name -> CSS colour, chosen the first time a tag is used.
+    #[serde(default)]
+    pub tag_colors: BTreeMap<String, String>,
+    /// Session key (first clip's Unix ms) -> user-given name.
+    #[serde(default)]
+    pub sessions: BTreeMap<String, String>,
+}
+
+impl Meta {
+    pub fn clip(&self, path: &Path) -> ClipMeta {
+        self.clips.get(&key(path)).cloned().unwrap_or_default()
+    }
+
+    pub fn set_clip(&mut self, path: &Path, m: ClipMeta) {
+        if m.is_empty() {
+            self.clips.remove(&key(path));
+        } else {
+            self.clips.insert(key(path), m);
+        }
+    }
+
+    /// Carry metadata over when a clip's file is renamed or moved.
+    pub fn rename(&mut self, from: &Path, to: &Path) {
+        if let Some(m) = self.clips.remove(&key(from)) {
+            self.clips.insert(key(to), m);
+        }
+    }
+}
+
+fn key(path: &Path) -> String {
+    path.file_name().unwrap_or_default().to_string_lossy().to_lowercase()
+}
+
+static META_LOCK: Mutex<()> = Mutex::new(());
+
+pub fn meta_path() -> PathBuf {
+    crate::settings::app_data_dir().join("library.json")
+}
+
+fn read_meta(path: &Path) -> Meta {
+    std::fs::read_to_string(path).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default()
+}
+
+pub fn load_meta() -> Meta {
+    let _g = META_LOCK.lock();
+    read_meta(&meta_path())
+}
+
+fn update_meta_at<T>(path: &Path, f: impl FnOnce(&mut Meta) -> T) -> Result<T> {
+    let _g = META_LOCK.lock();
+    let mut m = read_meta(path);
+    let out = f(&mut m);
+    crate::settings::write_atomic(path, serde_json::to_string_pretty(&m)?.as_bytes())?;
+    Ok(out)
+}
+
+/// Load, change and save `library.json` under a lock.
+pub fn update_meta<T>(f: impl FnOnce(&mut Meta) -> T) -> Result<T> {
+    update_meta_at(&meta_path(), f)
+}
+
+fn apply_meta(mut c: ClipInfo, m: &Meta) -> ClipInfo {
+    let cm = m.clip(&c.path);
+    c.favorite = cm.favorite;
+    c.tags = cm.tags;
+    c
 }
 
 pub fn thumbs_dir(clips_dir: &Path) -> PathBuf {
@@ -100,6 +194,11 @@ fn moov_duration(moov: &[u8]) -> f64 {
 }
 
 pub fn info(path: &Path) -> Result<ClipInfo> {
+    let c = info_bare(path)?;
+    Ok(apply_meta(c, &load_meta()))
+}
+
+fn info_bare(path: &Path) -> Result<ClipInfo> {
     let meta = std::fs::metadata(path)?;
     let modified = meta
         .modified()
@@ -108,23 +207,28 @@ pub fn info(path: &Path) -> Result<ClipInfo> {
         .map(|d| d.as_millis() as i64)
         .unwrap_or(0);
     let thumb = thumb_path(path);
-    Ok(ClipInfo {
+    let c = ClipInfo {
         path: path.to_path_buf(),
         name: path.file_stem().unwrap_or_default().to_string_lossy().to_string(),
         size: meta.len(),
         modified,
         duration: probe_duration(path).unwrap_or(0.0),
         thumb: thumb.exists().then_some(thumb),
-    })
+        favorite: false,
+        tags: Vec::new(),
+    };
+    Ok(c)
 }
 
 pub fn list(dir: &Path) -> Vec<ClipInfo> {
     let Ok(rd) = std::fs::read_dir(dir) else { return Vec::new() };
+    let meta = load_meta();
     let mut out: Vec<ClipInfo> = rd
         .filter_map(|e| e.ok())
         .map(|e| e.path())
         .filter(|p| p.extension().is_some_and(|e| e.eq_ignore_ascii_case("mp4")))
-        .filter_map(|p| info(&p).ok())
+        .filter_map(|p| info_bare(&p).ok())
+        .map(|c| apply_meta(c, &meta))
         .collect();
     out.sort_by(|a, b| b.modified.cmp(&a.modified));
     out
@@ -161,6 +265,7 @@ pub fn rename(path: &Path, new_name: &str) -> Result<PathBuf> {
         bail!("a clip named \"{new_name}\" already exists");
     }
     std::fs::rename(path, &target)?;
+    let _ = update_meta(|m| m.rename(path, &target));
     let old_thumb = thumb_path(path);
     if old_thumb.exists() {
         let _ = std::fs::rename(&old_thumb, thumb_path(&target));
@@ -187,5 +292,26 @@ pub fn copy_thumb(from_clip: &Path, to_clip: &Path) {
     let src = thumb_path(from_clip);
     if src.exists() {
         let _ = std::fs::copy(src, thumb_path(to_clip));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn meta_roundtrip_and_rename() {
+        let dir = std::env::temp_dir().join(format!("rewind-meta-{}", std::process::id()));
+        let path = dir.join("library.json");
+        let a = Path::new("C:/clips/A.mp4");
+        let b = Path::new("D:/elsewhere/B.mp4");
+        update_meta_at(&path, |m| m.set_clip(a, ClipMeta { favorite: true, tags: vec!["clutch".into()] })).unwrap();
+        update_meta_at(&path, |m| m.rename(a, b)).unwrap();
+        let m = read_meta(&path);
+        assert_eq!(m.clip(Path::new("C:/other/b.MP4")).tags, vec!["clutch".to_string()]);
+        assert!(m.clip(a).is_empty());
+        update_meta_at(&path, |m| m.set_clip(b, ClipMeta::default())).unwrap();
+        assert!(read_meta(&path).clips.is_empty());
+        std::fs::remove_dir_all(&dir).ok();
     }
 }

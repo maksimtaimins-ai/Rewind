@@ -93,6 +93,8 @@ export function mockClips(): Clip[] {
 		size: 40e6 + i * 13e6,
 		modified: now - i * 9e6,
 		duration: [60, 60, 35, 12, 60, 90][i],
-		thumb: null
+		thumb: null,
+		favorite: i === 1 || i === 4,
+		tags: [['ace', 'clutch'], ['clutch'], [], [], ['boss'], ['boss', 'fail']][i]
 	}));
 }

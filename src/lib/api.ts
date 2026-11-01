@@ -125,6 +125,8 @@ export interface Clip {
 	modified: number;
 	duration: number;
 	thumb: string | null;
+	favorite: boolean;
+	tags: string[];
 }
 
 export type ExportPreset = 'discord10' | 'discord25' | 'shorts' | 'twitter' | 'gif';
