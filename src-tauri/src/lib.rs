@@ -13,6 +13,7 @@ pub mod highlight;
 pub mod hotkey;
 pub mod input;
 pub mod library;
+pub mod live_keys;
 pub mod mux;
 pub mod pipeline;
 pub mod platform;
@@ -74,6 +75,8 @@ impl Events for UiEvents {
         let _ = self.0.emit("profile-changed", ());
         // A profile may restyle or turn off the recording highlight.
         highlight::on_settings(&self.0, effective, &self.0.state::<Engine>().status());
+        // Or change which keys the live keystroke overlay shows.
+        live_keys::on_settings(&self.0, effective);
     }
 
     fn notice(&self, level: Level, message: &str) {
@@ -224,6 +227,8 @@ pub fn run() {
             }));
             app.manage(engine);
             app.manage(lan);
+            // Only creates anything when the live keystroke overlay is on.
+            live_keys::on_settings(&handle, &handle.state::<Engine>().effective_settings());
             build_tray(&handle)?;
             let hidden = settings.first_run_complete && (start_hidden || settings.start_minimized);
             if settings.hud.enabled && settings.first_run_complete {

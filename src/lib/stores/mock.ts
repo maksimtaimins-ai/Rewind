@@ -72,6 +72,7 @@ export function mockSettings(): Settings {
 		smart_highlights: { enabled: true, threshold_db: -14, analyze_on_save: false },
 		keystrokes: {
 			enabled: true,
+			live: false,
 			keyboard: true,
 			clicks: true,
 			movement: false,

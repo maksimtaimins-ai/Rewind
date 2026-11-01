@@ -20,9 +20,10 @@
 		presets = inApp ? await api.keystrokePresets() : mockKeystrokePresets();
 	});
 
-	function turnOn(on: boolean) {
+	function turnOn(on: boolean, live = false) {
 		set((x) => {
-			x.enabled = on;
+			if (live) x.live = on;
+			else x.enabled = on;
 			// The keycaps start in the current theme's accent.
 			if (on && !x.style.base_color) {
 				const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
@@ -65,13 +66,21 @@
 	<strong>Keystroke recording captures what you type.</strong>
 	Do not use it with password entry visible on screen. Your privacy apps are still honored: nothing is recorded while one of them is focused.
 </div>
-<Row label="Record keystrokes" hint={k.enabled ? 'Saved with each clip. Draw them in with Export > Draw keystrokes.' : 'Off. No keyboard or mouse hook is installed.'}>
-	<Toggle checked={k.enabled} label="Record keystrokes" onchange={turnOn} />
+<Row label="Record keystrokes" hint={k.enabled ? 'Saved with each clip. Draw them in with Export > Draw keystrokes.' : 'Off. No keyboard or mouse hook is installed for clips.'}>
+	<Toggle checked={k.enabled} label="Record keystrokes" onchange={(v) => turnOn(v)} />
+</Row>
+<Row
+	label="Show on screen (live)"
+	hint={k.live
+		? 'Recent keys drawn over your screen as you press them, in the style below. Left out of clips and screenshots. Enables the global keyboard hook (~0% CPU).'
+		: 'Off. Enables the global keyboard hook (~0% CPU) when on.'}
+>
+	<Toggle checked={k.live} label="Show keystrokes on screen" onchange={(v) => turnOn(v, true)} />
 </Row>
 
-{#if k.enabled}
+{#if k.enabled || k.live}
 	<div class="group">
-		<h4>What to record</h4>
+		<h4>{k.enabled ? 'What to record' : 'What to show'}</h4>
 		<div class="presets" role="group" aria-label="Presets">
 			{#each presets as p (p.id)}
 				<button class="preset" class:on={k.preset === p.id} aria-pressed={k.preset === p.id} onclick={() => applyPreset(p)}>{p.label}</button>
@@ -124,7 +133,9 @@
 
 	<div class="group">
 		<h4>Look</h4>
-		<p class="intro">Drawn into exported copies, never on your screen while you play. Drag the preview to place it.</p>
+		<p class="intro">
+			{k.live ? 'Used on screen and in exported copies.' : 'Drawn into exported copies, never on your screen while you play.'} Drag the preview to place it.
+		</p>
 		<OverlayPreview cfg={k} onmove={(x, y) => set((s) => ((s.position.anchor = 'custom'), (s.position.x = x), (s.position.y = y)))} />
 		<Row label="Keycap">
 			<Segmented

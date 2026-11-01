@@ -16,6 +16,7 @@
 		lan_listening: boolean;
 		highlight_window: boolean;
 		hud_window: boolean;
+		live_keys_window: boolean;
 	}
 
 	const s = $derived(app.settings!);
@@ -24,7 +25,7 @@
 	async function check() {
 		d = inApp
 			? await invoke<Diagnostics>('feature_diagnostics').catch(() => null)
-			: { analysis_jobs: 0, input_hook: s.keystrokes.enabled, profile: s.profiles_enabled ? (app.status?.profile ?? null) : null, montage_jobs: 0, lan_listening: s.sharing.lan_enabled, highlight_window: false, hud_window: false };
+			: { analysis_jobs: 0, input_hook: s.keystrokes.enabled || s.keystrokes.live, profile: s.profiles_enabled ? (app.status?.profile ?? null) : null, montage_jobs: 0, lan_listening: s.sharing.lan_enabled, highlight_window: false, hud_window: false, live_keys_window: false };
 	}
 	// Only while this page is open: a cheap read of in-memory flags.
 	onMount(() => {
@@ -68,6 +69,12 @@
 				? 'Under 0.1% CPU; about 1 to 3 MB per minute of clip with pointer movement'
 				: 'Under 0.1% CPU, about 1 MB of RAM, 10 to 50 KB per clip',
 			live: d?.input_hook ? 'Keyboard/mouse hook installed' : 'No input hook installed'
+		},
+		{
+			name: 'Live keystroke overlay',
+			on: s.keystrokes.live && (s.keystrokes.keyboard || s.keystrokes.clicks),
+			cost: 'The keyboard/mouse hook (~0% CPU) plus a transparent overlay window: about 30 to 60 MB of RAM, no effect on capture',
+			live: d?.live_keys_window ? 'Overlay window open' : 'No overlay window'
 		},
 		{
 			name: 'Game profiles',

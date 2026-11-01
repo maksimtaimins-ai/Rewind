@@ -32,7 +32,9 @@ pub fn set_settings(app: tauri::AppHandle, engine: State<Engine>, lan: State<Lan
     engine.set_settings(settings.clone()).map_err(err)?;
     lan.apply(&settings);
     crate::hud::apply(&app, &settings);
-    crate::highlight::on_settings(&app, &engine.effective_settings(), &engine.status());
+    let effective = engine.effective_settings();
+    crate::highlight::on_settings(&app, &effective, &engine.status());
+    crate::live_keys::on_settings(&app, &effective);
     Ok(())
 }
 
@@ -409,6 +411,7 @@ pub struct Diagnostics {
     lan_listening: bool,
     highlight_window: bool,
     hud_window: bool,
+    live_keys_window: bool,
 }
 
 #[tauri::command]
@@ -422,5 +425,6 @@ pub fn feature_diagnostics(app: tauri::AppHandle, engine: State<Engine>, lan: St
         lan_listening: lan.listening(),
         highlight_window: app.get_webview_window(crate::highlight::LABEL).is_some(),
         hud_window: app.get_webview_window(crate::hud::LABEL).is_some(),
+        live_keys_window: app.get_webview_window(crate::live_keys::LABEL).is_some(),
     }
 }

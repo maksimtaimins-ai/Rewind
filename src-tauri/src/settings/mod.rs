@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-pub const SETTINGS_VERSION: u32 = 19;
+pub const SETTINGS_VERSION: u32 = 20;
 
 /// Allowed range for [`BufferSettings::seconds`].
 pub const MIN_BUFFER_SECS: u32 = 10;
@@ -484,7 +484,11 @@ pub struct OverlayPlacement {
 /// and nothing is recorded.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct KeystrokeSettings {
+    /// Record input with each clip for exports.
     pub enabled: bool,
+    /// Draw recent input on screen as it happens, in its own window. Shares
+    /// the style, position and filters below with exports.
+    pub live: bool,
     pub keyboard: bool,
     pub clicks: bool,
     /// Pointer position, ~60 times a second. Makes much larger files.
@@ -502,9 +506,20 @@ pub struct KeystrokeSettings {
 }
 
 impl KeystrokeSettings {
-    /// Whether the input hook should be installed at all.
+    /// Whether input is recorded for clips.
     pub fn records(&self) -> bool {
-        self.enabled && (self.keyboard || self.clicks || self.movement || self.scroll)
+        self.enabled && self.hooks()
+    }
+
+    /// Whether the input hook should be installed at all: recording, or the
+    /// live overlay, needs it.
+    pub fn hooks(&self) -> bool {
+        (self.enabled || self.live) && (self.keyboard || self.clicks || self.movement || self.scroll)
+    }
+
+    /// Whether the live on-screen overlay has anything to show.
+    pub fn shows_live(&self) -> bool {
+        self.live && (self.keyboard || self.clicks)
     }
 }
 
@@ -632,6 +647,7 @@ impl Default for Settings {
             smart_highlights: SmartHighlightSettings { enabled: false, threshold_db: -14.0, analyze_on_save: false },
             keystrokes: KeystrokeSettings {
                 enabled: false,
+                live: false,
                 keyboard: true,
                 clicks: false,
                 movement: false,
@@ -809,6 +825,7 @@ fn migrate(value: &mut toml::Table) -> Result<()> {
             h.remove("save_long_clip");
         }
     }
+    // v19 -> v20: `keystrokes.live` added (off); defaults fill it in.
     // v18 -> v19: profiles get a master switch (on for anyone who already had
     // profiles, so nothing changes for them) and the built-in game profiles.
     if version < 19 {
@@ -1098,6 +1115,7 @@ thickness = 0
     fn keystrokes_default_off_and_sanitized() {
         let s = parse("version = 17\n").unwrap();
         assert!(!s.keystrokes.enabled && !s.keystrokes.records());
+        assert!(!s.keystrokes.live && !s.keystrokes.hooks());
         assert!(s.keystrokes.pause_in_text_fields);
         let s = parse("version = 18\n[keystrokes]\nenabled = true\n[keystrokes.style]\nsize = 900\nbase_color = \"red\"\nfade_secs = 0.0\n").unwrap();
         assert!(s.keystrokes.records());

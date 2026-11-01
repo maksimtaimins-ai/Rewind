@@ -3,7 +3,9 @@
 //!
 //! Off by default. While off there is no hook, no thread and no memory: the
 //! Windows low-level keyboard/mouse hooks are installed only when the setting
-//! flips on ([`Recorder::apply`]) and removed when it flips off.
+//! flips on ([`Recorder::apply`]) and removed when it flips off. The live
+//! on-screen overlay (`crate::live_keys`) shares the same hook: it is
+//! installed while either one is on, and events also go to [`set_live_sink`].
 
 pub mod overlay;
 
@@ -258,6 +260,9 @@ pub fn trim_sidecar(src: &Path, dst: &Path, from: f64, to: f64) -> Result<()> {
 pub struct Shared {
     pub cfg: RwLock<KeystrokeSettings>,
     pub log: Mutex<Log>,
+    /// Whether events go into `log` for clips; off when only the live
+    /// overlay keeps the hook installed.
+    pub record: AtomicBool,
     /// Buffer length to keep, QPC ticks.
     pub keep_ticks: AtomicI64,
     /// Set while a privacy-listed app has focus: nothing is recorded.
@@ -270,6 +275,22 @@ static HOOKED: AtomicBool = AtomicBool::new(false);
 
 pub fn hook_installed() -> bool {
     HOOKED.load(Ordering::Relaxed)
+}
+
+/// Where the hook also sends presses and releases while the live overlay is
+/// on. `None` (the default) sends nothing.
+static LIVE: RwLock<Option<crossbeam_channel::Sender<Event>>> = RwLock::new(None);
+
+pub fn set_live_sink(tx: Option<crossbeam_channel::Sender<Event>>) {
+    *LIVE.write() = tx;
+}
+
+/// Hand an event to the live overlay, if it's on. Never blocks the hook: a
+/// full queue drops the event.
+pub(crate) fn send_live(ev: &Event) {
+    if let Some(tx) = LIVE.read().as_ref() {
+        let _ = tx.try_send(ev.clone());
+    }
 }
 
 /// Owns the hook thread, which exists only while recording is on.
@@ -296,9 +317,10 @@ impl Recorder {
     }
 
     /// Install or remove the hooks to match `cfg`. The setting is checked
-    /// first: off means stop (if running) and return.
+    /// first: off (neither recording nor the live overlay) means stop (if
+    /// running) and return.
     pub fn apply(&mut self, cfg: &KeystrokeSettings, keep_secs: u32) {
-        if !cfg.records() {
+        if !cfg.hooks() {
             self.stop();
             return;
         }
@@ -306,6 +328,11 @@ impl Recorder {
         if let Some(sh) = &self.shared {
             *sh.cfg.write() = cfg.clone();
             sh.keep_ticks.store(keep, Ordering::Relaxed);
+            sh.record.store(cfg.records(), Ordering::Relaxed);
+            if !cfg.records() {
+                // Recording off, live overlay still on: keep nothing.
+                *sh.log.lock() = Log::default();
+            }
             // A different set of input types needs a different set of hooks.
             #[cfg(windows)]
             let same = self.thread.as_ref().map(|t| (t.keyboard, t.mouse)) == Some(hook::needs(cfg));
@@ -319,6 +346,7 @@ impl Recorder {
         let sh = Arc::new(Shared {
             cfg: RwLock::new(cfg.clone()),
             log: Mutex::new(Log::default()),
+            record: AtomicBool::new(cfg.records()),
             keep_ticks: AtomicI64::new(keep),
             privacy: self.privacy.clone(),
         });
@@ -345,9 +373,11 @@ impl Recorder {
         self.shared = None;
     }
 
-    /// Input between two QPC times, ready for a sidecar. `None` when off.
+    /// Input between two QPC times, ready for a sidecar. `None` when
+    /// recording is off, even if the live overlay has the hook installed.
     pub fn between(&self, from: i64, to: i64, speed: f64) -> Option<Vec<Event>> {
-        self.shared.as_ref().map(|s| s.log.lock().between(from, to, speed))
+        let s = self.shared.as_ref().filter(|s| s.record.load(Ordering::Relaxed))?;
+        Some(s.log.lock().between(from, to, speed))
     }
 }
 
@@ -438,6 +468,15 @@ mod tests {
             r.apply(&k, 30);
             assert!(r.running() && hook_installed());
             r.apply(&s.keystrokes, 30);
+            assert!(!r.running() && !hook_installed());
+            // Live overlay alone: hook installed, but nothing kept for clips.
+            let mut live = s.keystrokes.clone();
+            live.live = true;
+            r.apply(&live, 30);
+            assert!(r.running() && hook_installed());
+            assert!(r.between(0, i64::MAX, 1.0).is_none());
+            live.live = false;
+            r.apply(&live, 30);
             assert!(!r.running() && !hook_installed());
         }
     }

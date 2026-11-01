@@ -134,6 +134,8 @@ export type OverlayAnchor = 'top_left' | 'top_right' | 'bottom_left' | 'bottom_r
 /** Keystroke overlay. Off: no input hook is installed and nothing is recorded. */
 export interface Keystrokes {
 	enabled: boolean;
+	/** Also draw input on screen as it happens. Shares style, position and filters. */
+	live: boolean;
 	keyboard: boolean;
 	clicks: boolean;
 	/** ~60 positions a second; large files. */

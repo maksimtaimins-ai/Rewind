@@ -1,5 +1,6 @@
 //! Low-level keyboard and mouse hooks on their own message-loop thread.
-//! Installed only while the keystroke overlay records; each hook is set only
+//! Installed only while the keystroke overlay records or the live overlay is
+//! on; each hook is set only
 //! for the input types turned on. Callbacks do a few comparisons and a push,
 //! so they stay far under Windows' hook timeout.
 
@@ -127,8 +128,13 @@ fn held_modifiers(except: &str) -> Vec<String> {
 }
 
 fn push(sh: &Shared, ev: Event) {
-    let keep = sh.keep_ticks.load(Ordering::Relaxed);
-    sh.log.lock().push(qpc_now(), ev, keep);
+    if ev.kind != Kind::Move {
+        super::send_live(&ev);
+    }
+    if sh.record.load(Ordering::Relaxed) {
+        let keep = sh.keep_ticks.load(Ordering::Relaxed);
+        sh.log.lock().push(qpc_now(), ev, keep);
+    }
 }
 
 fn on_key(vk: u32, pressed: bool) {
