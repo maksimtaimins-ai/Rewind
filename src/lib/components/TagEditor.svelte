@@ -93,15 +93,15 @@
 		width: 100%;
 		height: 32px;
 		padding: 0 8px;
-		border: 1px solid var(--line);
+		border: 0;
 		border-radius: 4px;
-		background: var(--ground);
+		background: var(--sunken);
 		outline: none;
 		user-select: text;
 		box-sizing: border-box;
 	}
 	input:focus {
-		border-color: var(--muted);
+		box-shadow: inset 0 0 0 1px var(--muted);
 	}
 	.ask {
 		margin: 0;
@@ -112,7 +112,7 @@
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
-		gap: 6px;
+		gap: 8px;
 	}
 	.swatches button[role='radio'] {
 		width: 22px;
@@ -141,7 +141,7 @@
 	.suggest button {
 		display: inline-flex;
 		align-items: center;
-		gap: 6px;
+		gap: 8px;
 		height: 24px;
 		padding: 0 8px;
 		border: 0;

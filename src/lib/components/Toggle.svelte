@@ -37,10 +37,10 @@
 		transition: transform 120ms ease-out;
 	}
 	.switch.on {
-		background: var(--accent);
+		background: var(--text);
 	}
 	.switch.on span {
-		background: var(--on-accent);
+		background: var(--ground);
 		transform: translateX(12px);
 	}
 </style>

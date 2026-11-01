@@ -28,7 +28,6 @@
 		height: 24px;
 		border-radius: 4px;
 		background: color-mix(in srgb, var(--tag) 16%, transparent);
-		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tag) 30%, transparent);
 		font-size: 12px;
 		max-width: 100%;
 	}
@@ -48,7 +47,7 @@
 	.label {
 		display: inline-flex;
 		align-items: center;
-		gap: 6px;
+		gap: 8px;
 		padding: 0 8px;
 		height: 100%;
 		min-width: 0;

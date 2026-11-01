@@ -65,7 +65,7 @@
 
 	function openMenu(c: Clip, e: MouseEvent) {
 		tagging = null;
-		menu = { clip: c, ...place(e.clientX, e.clientY, 200, 120) };
+		menu = { clip: c, ...place(e.clientX, e.clientY, 200, 152) };
 	}
 
 	function closeFloating(e: Event) {
@@ -97,6 +97,23 @@
 		} finally {
 			busy = false;
 		}
+	}
+
+	async function removeOne(c: Clip) {
+		if (!inApp) return;
+		try {
+			await api.deleteClips([c.path]);
+			toast('success', 'Moved 1 clip to Recently deleted');
+			await refreshClips();
+		} catch (e) {
+			toast('error', String(e));
+		}
+	}
+
+	function editTags(c: Clip, e: MouseEvent) {
+		menu = null;
+		const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+		tagging = { path: c.path, ...place(r.left, r.bottom + 4, 260, 160) };
 	}
 
 	async function merge() {
@@ -150,49 +167,43 @@
 
 	<div class="filters">
 		<input type="search" placeholder="Search names and tags" bind:value={f.query} aria-label="Search clips" />
-		<div class="row">
-			<Segmented
-				label="Date"
-				value={f.date}
-				options={[
-					{ value: 'today' as DateRange, label: 'Today' },
-					{ value: 'week' as DateRange, label: 'This week' },
-					{ value: 'month' as DateRange, label: 'This month' },
-					{ value: 'all' as DateRange, label: 'All' },
-					{ value: 'custom' as DateRange, label: 'Custom' }
-				]}
-				onchange={(v) => (f.date = v)}
-			/>
-			{#if f.date === 'custom'}
-				<span class="range">
-					<input type="date" bind:value={f.from} aria-label="From date" />
-					<span class="to">to</span>
-					<input type="date" bind:value={f.to} aria-label="To date" />
-				</span>
-			{/if}
-			<Segmented
-				label="Length"
-				value={f.length}
-				options={[
-					{ value: 'any' as LengthRange, label: 'Any length' },
-					{ value: 'short' as LengthRange, label: '<10s' },
-					{ value: 'medium' as LengthRange, label: '10–30s' },
-					{ value: 'long' as LengthRange, label: '30s–1m' },
-					{ value: 'xlong' as LengthRange, label: '1m+' }
-				]}
-				onchange={(v) => (f.length = v)}
-			/>
-			<button class="chip" class:on={f.favorites} aria-pressed={f.favorites} onclick={() => (f.favorites = !f.favorites)}>
-				Favorites only
-			</button>
-		</div>
-		{#if tags.length}
-			<div class="row tags" aria-label="Filter by tag">
-				{#each tags as t (t)}
-					<TagChip tag={t} active={f.tags.includes(t)} onclick={() => toggleTag(t)} />
-				{/each}
-			</div>
+		<Segmented
+			label="Date"
+			value={f.date}
+			options={[
+				{ value: 'today' as DateRange, label: 'Today' },
+				{ value: 'week' as DateRange, label: 'Week' },
+				{ value: 'month' as DateRange, label: 'Month' },
+				{ value: 'all' as DateRange, label: 'All' },
+				{ value: 'custom' as DateRange, label: 'Custom' }
+			]}
+			onchange={(v) => (f.date = v)}
+		/>
+		{#if f.date === 'custom'}
+			<span class="range">
+				<input type="date" bind:value={f.from} aria-label="From date" />
+				<span class="to">to</span>
+				<input type="date" bind:value={f.to} aria-label="To date" />
+			</span>
 		{/if}
+		<Segmented
+			label="Length"
+			value={f.length}
+			options={[
+				{ value: 'any' as LengthRange, label: 'Any length' },
+				{ value: 'short' as LengthRange, label: '<10s' },
+				{ value: 'medium' as LengthRange, label: '10–30s' },
+				{ value: 'long' as LengthRange, label: '30s–1m' },
+				{ value: 'xlong' as LengthRange, label: '1m+' }
+			]}
+			onchange={(v) => (f.length = v)}
+		/>
+		<button class="chip" class:on={f.favorites} aria-pressed={f.favorites} onclick={() => (f.favorites = !f.favorites)}>
+			Favorites
+		</button>
+		{#each tags as t (t)}
+			<TagChip tag={t} active={f.tags.includes(t)} onclick={() => toggleTag(t)} />
+		{/each}
 	</div>
 
 	{#if shown.length}
@@ -211,6 +222,8 @@
 							onopen={() => goto(`/trim?path=${encodeURIComponent(c.path)}`)}
 							onselect={() => toggle(c)}
 							onfavorite={(v) => setFavorite(c.path, v)}
+							ondelete={() => removeOne(c)}
+							onedittags={(e) => editTags(c, e)}
 							ontag={toggleTag}
 							activeTags={f.tags}
 							oncontextmenu={(e) => openMenu(c, e)}
@@ -260,6 +273,8 @@
 								onopen={() => goto(`/trim?path=${encodeURIComponent(c.path)}`)}
 								onselect={() => toggle(c)}
 								onfavorite={(v) => setFavorite(c.path, v)}
+								ondelete={() => removeOne(c)}
+								onedittags={(e) => editTags(c, e)}
 								ontag={toggleTag}
 								activeTags={f.tags}
 								oncontextmenu={(e) => openMenu(c, e)}
@@ -304,6 +319,7 @@
 			}}>{m.clip.favorite ? 'Remove from favorites' : 'Add to favorites'}</button
 		>
 		<button role="menuitem" onclick={() => (menu = null, goto(`/trim?path=${encodeURIComponent(m.clip.path)}`))}>Open</button>
+		<button role="menuitem" onclick={() => ((menu = null), removeOne(m.clip))}>Delete</button>
 	</div>
 {/if}
 
@@ -332,7 +348,7 @@
 		z-index: 40;
 		border-radius: 6px;
 		background: var(--raised);
-		box-shadow: inset 0 0 0 1px var(--line-strong);
+		box-shadow: 0 8px 24px var(--scrim-soft);
 	}
 	.ctx {
 		width: 200px;
@@ -341,7 +357,7 @@
 	}
 	.ctx button {
 		height: 32px;
-		padding: 0 10px;
+		padding: 0 12px;
 		border: 0;
 		border-radius: 4px;
 		background: none;
@@ -356,7 +372,7 @@
 		width: 260px;
 		padding: 12px;
 		display: grid;
-		gap: 10px;
+		gap: 12px;
 	}
 	.pop-tags {
 		display: flex;
@@ -364,7 +380,7 @@
 		gap: 4px;
 	}
 	.page {
-		padding: 16px 32px 32px;
+		padding: 32px;
 	}
 	header {
 		display: flex;
@@ -375,7 +391,7 @@
 	}
 	h1 {
 		margin: 0;
-		font-size: 32px;
+		font-size: 24px;
 		font-weight: 650;
 		letter-spacing: -0.02em;
 	}
@@ -393,47 +409,40 @@
 		margin-right: 8px;
 	}
 	.filters {
-		display: grid;
-		gap: 12px;
-		margin-bottom: 24px;
-	}
-	.row {
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
-		gap: 8px 12px;
+		gap: 8px;
+		margin-bottom: 32px;
 	}
 	input[type='search'],
 	input[type='date'] {
-		height: 36px;
+		height: 32px;
 		padding: 0 12px;
 		border-radius: 4px;
-		border: 1px solid var(--line);
-		background: transparent;
+		border: 0;
+		background: var(--sunken);
 		outline: none;
 		user-select: text;
 	}
 	input[type='search'] {
-		max-width: 480px;
+		width: 240px;
 	}
 	input[type='date'] {
-		height: 30px;
+		height: 28px;
 		color-scheme: inherit;
-	}
-	input:focus {
-		border-color: var(--muted);
 	}
 	.range {
 		display: flex;
 		align-items: center;
-		gap: 6px;
+		gap: 4px;
 	}
 	.to {
 		color: var(--faint);
 	}
 	.chip {
 		height: 28px;
-		padding: 0 10px;
+		padding: 0 12px;
 		border: 0;
 		border-radius: 4px;
 		background: var(--sunken);
@@ -477,15 +486,13 @@
 		cursor: default;
 	}
 	.session {
-		margin-bottom: 24px;
+		margin-bottom: 32px;
 	}
 	.sess-head {
 		display: flex;
 		align-items: center;
 		gap: 8px;
 		margin-bottom: 12px;
-		padding-bottom: 8px;
-		border-bottom: 1px solid var(--line);
 	}
 	.caret {
 		width: 24px;
@@ -514,25 +521,29 @@
 		border: 0;
 		background: none;
 		padding: 0;
-		font-size: 16px;
-		font-weight: 600;
+		color: var(--muted);
+		font-size: 13px;
+		font-weight: 500;
 		cursor: pointer;
+	}
+	.sess-title:hover {
+		color: var(--text);
 	}
 	.sess-name {
 		height: 28px;
 		width: 280px;
 		padding: 0 8px;
-		font-size: 16px;
-		font-weight: 600;
-		border: 1px solid var(--muted);
+		font-size: 13px;
+		font-weight: 500;
+		border: 0;
 		border-radius: 4px;
-		background: var(--ground);
+		background: var(--sunken);
 		outline: none;
 		user-select: text;
 	}
 	.count {
-		color: var(--muted);
-		font-size: 13px;
+		color: var(--faint);
+		font-size: 12px;
 	}
 	.rename {
 		margin-left: auto;
@@ -542,14 +553,19 @@
 		font-size: 13px;
 		cursor: pointer;
 	}
+	.rename {
+		opacity: 0;
+	}
 	.rename:hover,
+	.rename:focus-visible,
 	.sess-head:hover .rename {
+		opacity: 1;
 		color: var(--muted);
 	}
 	.grid {
 		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-		gap: 24px 16px;
+		grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+		gap: 24px;
 	}
 	.empty {
 		color: var(--muted);

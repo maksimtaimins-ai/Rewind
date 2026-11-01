@@ -50,14 +50,13 @@
 		animation: rise 160ms ease-out;
 	}
 	.toast.error {
-		background: var(--ground);
-		color: var(--text);
-		border: 1px solid var(--text);
+		background: var(--danger);
+		color: var(--on-danger);
 	}
 	.toast.warning {
 		background: var(--raised);
 		color: var(--text);
-		border: 1px solid var(--line-strong);
+		box-shadow: 0 8px 24px var(--scrim-soft);
 	}
 	.toast.post {
 		display: flex;

@@ -302,9 +302,9 @@
 		right: 0;
 		display: inline-flex;
 		align-items: center;
-		gap: 6px;
+		gap: 8px;
 		height: 28px;
-		padding: 0 10px;
+		padding: 0 12px;
 		border: 0;
 		border-radius: 4px;
 		background: var(--raised);
@@ -324,8 +324,8 @@
 		stroke-linejoin: round;
 	}
 	.fav.on svg {
-		fill: var(--accent);
-		stroke: var(--accent);
+		fill: var(--text);
+		stroke: var(--text);
 	}
 	.title {
 		padding-right: 160px;
@@ -335,7 +335,7 @@
 		display: flex;
 		flex-wrap: wrap;
 		align-items: flex-start;
-		gap: 6px;
+		gap: 8px;
 	}
 	.tag-add {
 		width: 220px;
@@ -392,7 +392,7 @@
 		bottom: 0;
 		width: 4px;
 		margin-left: -2px;
-		background: var(--accent);
+		background: var(--text);
 		border-radius: 2px;
 	}
 	.head {

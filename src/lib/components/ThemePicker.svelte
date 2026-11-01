@@ -45,8 +45,8 @@
 	}
 	button {
 		display: grid;
-		gap: 6px;
-		padding: 6px;
+		gap: 8px;
+		padding: 8px;
 		border: 0;
 		border-radius: 6px;
 		background: transparent;
@@ -58,7 +58,7 @@
 		box-shadow: inset 0 0 0 1px var(--line-strong);
 	}
 	button.on {
-		box-shadow: inset 0 0 0 2px var(--accent);
+		box-shadow: inset 0 0 0 2px var(--text);
 	}
 	.name {
 		font-size: 13px;

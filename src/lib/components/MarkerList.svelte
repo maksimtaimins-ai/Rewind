@@ -71,7 +71,6 @@
 		align-items: center;
 		gap: 16px;
 		padding: 8px 0;
-		border-top: 1px solid var(--line);
 	}
 	.when {
 		display: flex;
@@ -97,13 +96,13 @@
 		height: 28px;
 		padding: 0 8px;
 		text-align: right;
-		border: 1px solid var(--line);
+		border: 0;
 		border-radius: 4px;
-		background: var(--ground);
+		background: var(--sunken);
 		outline: none;
 	}
 	input:focus {
-		border-color: var(--muted);
+		box-shadow: inset 0 0 0 1px var(--muted);
 	}
 	button {
 		height: 28px;

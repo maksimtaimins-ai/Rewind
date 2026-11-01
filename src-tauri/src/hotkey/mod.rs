@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use anyhow::{bail, Result};
 use crossbeam_channel::Sender;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Action {
     SaveClip,

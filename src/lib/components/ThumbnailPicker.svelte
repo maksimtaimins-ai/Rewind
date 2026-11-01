@@ -64,7 +64,7 @@
 		width: min(640px, calc(100vw - 64px));
 		/* Preflight zeroes margins; modal dialogs centre with auto. */
 		margin: auto;
-		padding: 20px;
+		padding: 24px;
 		border: 0;
 		border-radius: 8px;
 		background: var(--raised);
@@ -103,7 +103,7 @@
 	}
 	input[type='range'] {
 		flex: 1;
-		accent-color: var(--accent);
+		accent-color: var(--text);
 	}
 	.step {
 		width: 28px;

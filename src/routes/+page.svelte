@@ -1,10 +1,9 @@
 <script lang="ts">
-	import { api, fmtDuration, type Clip } from '#lib/api.ts';
-	import { app, inApp, setFavorite, toast } from '#lib/stores/app.svelte.ts';
+	import { api, fileUrl, fmtDuration, fmtWhen, type HotkeyAction } from '#lib/api.ts';
+	import { app, inApp, toast } from '#lib/stores/app.svelte.ts';
 	import Tape from '#lib/components/Tape.svelte';
-	import StatusLine from '#lib/components/StatusLine.svelte';
-	import ClipTile from '#lib/components/ClipTile.svelte';
 	import MarkerList from '#lib/components/MarkerList.svelte';
+	import { revealItemInDir } from '@tauri-apps/plugin-opener';
 	import { goto } from '$app/navigation';
 
 	const s = $derived(app.status);
@@ -16,13 +15,28 @@
 	const extraSlots = $derived((s?.slots ?? []).slice(1));
 	// The tape spans the longest slot, since that's how far back the buffer reaches.
 	const reach = $derived(Math.max(capacity, ...extraSlots.map((x) => x.seconds)));
-	const recent = $derived(app.clips.slice(0, 3));
 	const markers = $derived(s?.markers ?? []);
 	const onTape = $derived(live ? markers.filter((m) => m.in_buffer) : []);
+	const last = $derived(app.lastSaved ?? app.clips[0] ?? null);
+	const lastThumb = $derived(last?.thumb && inApp ? `${fileUrl(last.thumb)}?v=${last.thumb_rev}` : null);
+	let details = $state(false);
 	let showMarkers = $state(false);
+
 	const clipCopy = $derived(
 		`Clip: last ${capacity}s` + (settings.post_roll.enabled ? ` + ${settings.post_roll.seconds}s after` : '')
 	);
+	const stateCopy = $derived.by(() => {
+		switch (s?.state) {
+			case 'paused':
+				return 'Paused while a private app is focused';
+			case 'error':
+				return s.error ?? 'Capture failed';
+			case 'recording':
+				return null;
+			default:
+				return 'Starting capture';
+		}
+	});
 
 	async function run(fn: () => Promise<unknown>) {
 		if (!inApp) return;
@@ -33,246 +47,318 @@
 		}
 	}
 
-	const hotkeys = $derived(
-		[
-			{ keys: settings.hotkeys.save_clip, what: `Save the last ${fmtDuration(settings.buffer.seconds)}` },
-			...settings.buffer.extra_slots
-				.filter((x) => x.enabled)
-				.map((x) => ({ keys: x.hotkey, what: `Save the last ${fmtDuration(x.seconds)}` })),
-			{ keys: settings.hotkeys.marker, what: 'Mark this moment' },
-			{ keys: settings.hotkeys.screenshot, what: 'Screenshot' },
-			{ keys: settings.hotkeys.favorite_last, what: 'Favorite the last clip' },
-			{
-				keys: settings.hotkeys.slow_mo,
-				what: `Slow-mo of the last ${settings.slow_mo.seconds}s at ${settings.slow_mo.speed}×`
-			},
-			{ keys: settings.hotkeys.extend_last, what: `Add ${settings.buffer.extend_secs}s before the last clip` }
-		].filter((h): h is { keys: string; what: string } => !!h && !!h.keys)
-	);
+	type Tool = { action: HotkeyAction; label: string; keys: string; icon: string };
+	const tools = $derived<Tool[]>([
+		{ action: 'marker', label: 'Mark this moment', keys: settings.hotkeys.marker, icon: 'marker' },
+		{ action: 'screenshot', label: 'Screenshot', keys: settings.hotkeys.screenshot, icon: 'camera' },
+		{
+			action: 'slow_mo',
+			label: `Slow-mo of the last ${settings.slow_mo.seconds}s`,
+			keys: settings.hotkeys.slow_mo,
+			icon: 'slow'
+		},
+		{ action: 'extend_last', label: `Add ${settings.buffer.extend_secs}s before the last clip`, keys: settings.hotkeys.extend_last, icon: 'extend' },
+		{ action: 'favorite_last', label: 'Favorite the last clip', keys: settings.hotkeys.favorite_last, icon: 'star' }
+	]);
 
-	const open = (c: Clip) => goto(`/trim?path=${encodeURIComponent(c.path)}`);
+	const open = (path: string) => goto(`/trim?path=${encodeURIComponent(path)}`);
 </script>
 
 <div class="page">
-	<section class="head">
-		<div class="who">
-			<StatusLine status={s} />
-			<h1>{s?.game ?? 'Desktop'}</h1>
-			<p class="lede">
-				The replay buffer runs the whole time Rewind is open. Nothing is kept until you save.
-			</p>
-		</div>
-		<div class="actions">
-			<button class="primary" onclick={() => run(() => api.saveNow())}>Save clip</button>
-		</div>
-	</section>
+	<div class="core">
+		<p class="context">{s?.game ?? 'Desktop'}</p>
 
-	<section class="buffer" aria-label="Replay buffer">
-		<div class="counter">
-			<span class="rec" aria-hidden="true"></span>
-			<span class="held num" aria-live="off">Buffer: {Math.floor(held)}s / {capacity}s</span>
-			<span class="of">{clipCopy}</span>
-			{#if markers.length}
-				<button class="markers" aria-expanded={showMarkers} onclick={() => (showMarkers = !showMarkers)}>
-					{markers.length} {markers.length === 1 ? 'marker' : 'markers'}
-				</button>
-			{/if}
-		</div>
-		<Tape
-			capacity={reach}
-			buffered={Math.min(reach, live ? (s?.buffered_secs ?? 0) : 0)}
-			markers={onTape.map((m) => m.ago)}
-			recording={s?.state === 'recording'}
-			keyframeSecs={settings.video.keyframe_secs}
-			onmarker={(i) => run(() => api.saveMarker(onTape[i].id, 30))}
-		/>
-		{#if extraSlots.length}
-			<ul class="slots">
-				{#each extraSlots as x (x.name)}
-					<li>
-						<span class="slot-name">Slot {x.name}</span>
-						<span class="meter" aria-hidden="true"><span style="width: {(x.held / x.seconds) * 100}%"></span></span>
-						<span class="num">Buffer: {Math.floor(x.held)}s / {x.seconds}s</span>
-						{#if x.hotkey}<span class="combo">{#each x.hotkey.split('+') as k, i (i)}<kbd>{k}</kbd>{/each}</span>{/if}
-					</li>
-				{/each}
-			</ul>
-		{/if}
-		{#if showMarkers && markers.length}
-			<MarkerList {markers} maxSecs={capacity} onclip={(id, secs) => run(() => api.saveMarker(id, secs))} />
-		{:else if onTape.length}
-			<p class="note">Click a marker to save 30 seconds around it.</p>
-		{/if}
-	</section>
+		<button class="save" onclick={() => run(() => api.saveNow())}>
+			<span>Save clip</span>
+			{#if settings.hotkeys.save_clip}<span class="keys num">{settings.hotkeys.save_clip}</span>{/if}
+		</button>
 
-	<section class="facts" aria-label="Capture details">
-		<dl>
-			<div>
-				<dt>Encoder</dt>
-				<dd>{s?.encoder?.replace(' Encoder MFT', '') ?? '—'}</dd>
-			</div>
-			<div>
-				<dt>Output</dt>
-				<dd class="num">{s?.resolution ? `${s.resolution[0]}×${s.resolution[1]}` : '—'}</dd>
-			</div>
-			<div>
-				<dt>Frame rate</dt>
-				<dd class="num">{live ? `${(s?.fps ?? 0).toFixed(0)} / ${settings.video.fps}` : '—'}</dd>
-			</div>
-			<div>
-				<dt>Bitrate</dt>
-				<dd class="num">{live ? `${((s?.bitrate_kbps ?? 0) / 1000).toFixed(1)} Mb/s` : '—'}</dd>
-			</div>
-			<div>
-				<dt>Memory</dt>
-				<dd class="num">{live ? `${(s?.memory_mb ?? 0).toFixed(0)} MB` : '—'}</dd>
-			</div>
-			<div>
-				<dt>Dropped</dt>
-				<dd class="num">{live ? (s?.dropped ?? 0) : '—'}</dd>
-			</div>
-		</dl>
-	</section>
-
-	<div class="lower">
-		<section class="keys" aria-labelledby="keys-h">
-			<h2 id="keys-h">Hotkeys</h2>
-			<ul>
-				{#each hotkeys as h (h.what)}
-					<li>
-						<span class="combo">
-							{#each h.keys.split('+') as k, i (i)}<kbd>{k}</kbd>{/each}
-						</span>
-						<span>{h.what}</span>
-					</li>
-				{/each}
-			</ul>
-			<a href="/settings#hotkeys" class="quiet">Change hotkeys</a>
-		</section>
-
-		<section class="recent" aria-labelledby="recent-h">
-			<div class="recent-head">
-				<h2 id="recent-h">Latest clips</h2>
-				{#if app.clips.length > 3}<a href="/library" class="quiet">All {app.clips.length} clips</a>{/if}
-			</div>
-			{#if recent.length}
-				<div class="grid">
-					{#each recent as c (c.path)}
-						<ClipTile clip={c} onopen={() => open(c)} onselect={() => open(c)} onfavorite={(v) => setFavorite(c.path, v)} />
-					{/each}
-				</div>
+		<p class="buffer" aria-live="off">
+			<span class="dot {s?.state ?? 'idle'}" aria-hidden="true"></span>
+			{#if stateCopy}
+				<span class="state">{stateCopy}</span>
 			{:else}
-				<p class="empty">
-					Clips you save show up here. Press
-					{#if settings.hotkeys.save_clip}<kbd>{settings.hotkeys.save_clip}</kbd>{/if} while playing.
-				</p>
+				<span class="num">Buffer: {Math.floor(held)}s / {capacity}s</span>
+				<span class="clip">{clipCopy}</span>
 			{/if}
-		</section>
+		</p>
+
+		<div class="tools" role="toolbar" aria-label="More actions">
+			{#each tools as t (t.action)}
+				<button class="tool" aria-label="{t.label}{t.keys ? ` (${t.keys})` : ''}" onclick={() => run(() => api.runAction(t.action))}>
+					<svg viewBox="0 0 24 24" aria-hidden="true">
+						{#if t.icon === 'marker'}
+							<path d="M6 21V4h11l-2.5 4.5L17 13H6" />
+						{:else if t.icon === 'camera'}
+							<path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" />
+						{:else if t.icon === 'slow'}
+							<circle cx="12" cy="12" r="8" /><path d="M12 7v5l3 2" />
+						{:else if t.icon === 'extend'}
+							<path d="M12 7l-5 5 5 5M19 7l-5 5 5 5" />
+						{:else}
+							<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" />
+						{/if}
+					</svg>
+					<span class="tip" role="tooltip">
+						{t.label}{#if t.keys}<span class="num">{t.keys}</span>{/if}
+					</span>
+				</button>
+			{/each}
+			<button class="more" aria-expanded={details} onclick={() => (details = !details)}>
+				{details ? 'Hide details' : 'Details'}{#if markers.length}<span class="num count">{markers.length}</span>{/if}
+			</button>
+		</div>
 	</div>
+
+	{#if details}
+		<section class="details" aria-label="Buffer details">
+			<Tape
+				capacity={reach}
+				buffered={Math.min(reach, live ? (s?.buffered_secs ?? 0) : 0)}
+				markers={onTape.map((m) => m.ago)}
+				recording={s?.state === 'recording'}
+				keyframeSecs={settings.video.keyframe_secs}
+				onmarker={(i) => run(() => api.saveMarker(onTape[i].id, 30))}
+			/>
+			{#if onTape.length && !showMarkers}
+				<p class="note">Click a marker to save 30 seconds around it.</p>
+			{/if}
+
+			{#if extraSlots.length}
+				<ul class="slots">
+					{#each extraSlots as x (x.name)}
+						<li>
+							<span>Slot {x.name}</span>
+							<span class="meter" aria-hidden="true"><span style="width: {(x.held / x.seconds) * 100}%"></span></span>
+							<span class="num">{Math.floor(x.held)}s / {x.seconds}s</span>
+							<span class="num faint">{x.hotkey}</span>
+							<button class="link" onclick={() => run(() => api.saveNow(x.seconds))}>Save</button>
+						</li>
+					{/each}
+				</ul>
+			{/if}
+
+			{#if markers.length}
+				<button class="link" aria-expanded={showMarkers} onclick={() => (showMarkers = !showMarkers)}>
+					{showMarkers ? 'Hide markers' : `Show ${markers.length} ${markers.length === 1 ? 'marker' : 'markers'}`}
+				</button>
+				{#if showMarkers}
+					<MarkerList {markers} maxSecs={capacity} onclip={(id, secs) => run(() => api.saveMarker(id, secs))} />
+				{/if}
+			{/if}
+
+			<dl>
+				<div><dt>Encoder</dt><dd>{s?.encoder?.replace(' Encoder MFT', '') ?? '—'}</dd></div>
+				<div><dt>Output</dt><dd class="num">{s?.resolution ? `${s.resolution[0]}×${s.resolution[1]}` : '—'}</dd></div>
+				<div><dt>Frame rate</dt><dd class="num">{live ? `${(s?.fps ?? 0).toFixed(0)} / ${settings.video.fps}` : '—'}</dd></div>
+				<div><dt>Bitrate</dt><dd class="num">{live ? `${((s?.bitrate_kbps ?? 0) / 1000).toFixed(1)} Mb/s` : '—'}</dd></div>
+				<div><dt>Memory</dt><dd class="num">{live ? `${(s?.memory_mb ?? 0).toFixed(0)} MB` : '—'}</dd></div>
+				<div><dt>Dropped</dt><dd class="num">{live ? (s?.dropped ?? 0) : '—'}</dd></div>
+			</dl>
+		</section>
+	{/if}
+
+	<aside class="last" aria-label="Last saved clip">
+		{#if last}
+			<button class="thumb" onclick={() => open(last.path)} aria-label="Open {last.name}">
+				{#if lastThumb}<img src={lastThumb} alt="" />{/if}
+				<span class="len num">{fmtDuration(last.duration)}</span>
+			</button>
+			<div class="last-meta">
+				<span class="last-name" title={last.name}>{last.name}</span>
+				<span class="faint">{fmtWhen(last.modified)}</span>
+				<button class="link" onclick={() => inApp && revealItemInDir(last.path)}>Open folder</button>
+			</div>
+		{:else}
+			<p class="faint">Saved clips show up here.</p>
+		{/if}
+	</aside>
 </div>
 
 <style>
 	.page {
-		padding: 16px 32px 32px;
-		display: grid;
+		position: relative;
+		min-height: 100%;
+		box-sizing: border-box;
+		padding: 32px;
+		display: flex;
+		flex-direction: column;
 		gap: 32px;
-		max-width: 1200px;
 	}
-	.head {
-		display: flex;
-		justify-content: space-between;
-		align-items: flex-start;
-		gap: 24px;
+	.core {
+		display: grid;
+		gap: 16px;
+		justify-items: start;
+		max-width: 480px;
 	}
-	h1 {
-		margin: 8px 0 0;
-		font-size: 32px;
-		line-height: 1.1;
-		font-weight: 650;
-		letter-spacing: -0.02em;
-	}
-	.lede {
-		margin: 8px 0 0;
+	.context {
+		margin: 0;
 		color: var(--muted);
-		max-width: 56ch;
-	}
-	.actions {
-		display: flex;
-		gap: 8px;
-		flex: none;
-		padding-top: 24px;
-	}
-	button.primary {
-		height: 36px;
-		padding: 0 16px;
-		border-radius: 4px;
-		border: 0;
-		font-weight: 600;
-		cursor: pointer;
-	}
-	.primary {
-		background: var(--accent);
-		color: var(--on-accent);
 	}
 
-	.counter {
+	/* The one primary element on the page. */
+	.save {
+		width: 100%;
+		height: 72px;
+		padding: 0 24px;
 		display: flex;
 		align-items: center;
-		gap: 12px;
-		margin-bottom: 12px;
-	}
-	/* Always on: the buffer never stops while the app is open. */
-	.rec {
-		flex: none;
-		width: 14px;
-		height: 14px;
-		border-radius: 50%;
-		background: var(--signal);
-	}
-	.held {
-		font-size: 40px;
-		line-height: 1;
-		font-weight: 500;
-		letter-spacing: -0.04em;
-	}
-	.of {
-		color: var(--muted);
-	}
-	.markers {
-		margin-left: auto;
-		height: 28px;
-		padding: 0 12px;
+		justify-content: space-between;
 		border: 0;
-		border-radius: 4px;
-		background: var(--raised);
-		font-weight: 500;
+		border-radius: 8px;
+		background: var(--accent);
+		color: var(--on-accent);
+		font-size: 24px;
+		font-weight: 650;
+		letter-spacing: -0.02em;
 		cursor: pointer;
 	}
-	.markers:hover,
-	.markers[aria-expanded='true'] {
-		background: var(--line);
+	.save:hover {
+		filter: brightness(1.08);
+	}
+	.save:active {
+		transform: translateY(1px);
+	}
+	.keys {
+		font-size: 12px;
+		font-weight: 500;
+		opacity: 0.6;
+	}
+
+	.buffer {
+		margin: 0;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		min-width: 0;
+	}
+	.clip,
+	.state {
+		color: var(--muted);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.clip {
+		margin-left: 8px;
+	}
+	.dot {
+		flex: none;
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		background: var(--faint);
+	}
+	.dot.recording {
+		background: var(--signal);
+	}
+	.dot.paused {
+		background: transparent;
+		box-shadow: inset 0 0 0 2px var(--muted);
+	}
+
+	.tools {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+	}
+	.tool {
+		position: relative;
+		width: 32px;
+		height: 32px;
+		display: grid;
+		place-items: center;
+		border: 0;
+		border-radius: 4px;
+		background: transparent;
+		color: var(--muted);
+		cursor: pointer;
+	}
+	.tool:hover,
+	.tool:focus-visible {
+		background: var(--raised);
+		color: var(--text);
+	}
+	.tool svg {
+		width: 18px;
+		height: 18px;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 1.6;
+		stroke-linejoin: round;
+		stroke-linecap: round;
+	}
+	.tip {
+		position: absolute;
+		left: 0;
+		top: calc(100% + 8px);
+		display: none;
+		gap: 8px;
+		padding: 4px 8px;
+		border-radius: 4px;
+		background: var(--text);
+		color: var(--ground);
+		font-size: 12px;
+		white-space: nowrap;
+		pointer-events: none;
+		z-index: 10;
+	}
+	.tool:hover .tip,
+	.tool:focus-visible .tip {
+		display: flex;
+	}
+	.tip .num {
+		opacity: 0.7;
+	}
+	.more {
+		margin-left: 8px;
+		height: 32px;
+		padding: 0 8px;
+		border: 0;
+		border-radius: 4px;
+		background: transparent;
+		color: var(--muted);
+		font-size: 13px;
+		cursor: pointer;
+	}
+	.more:hover,
+	.more[aria-expanded='true'] {
+		color: var(--text);
+	}
+	.count {
+		margin-left: 8px;
+		padding: 0 4px;
+		border-radius: 4px;
+		background: var(--raised);
+	}
+
+	.details {
+		display: grid;
+		gap: 16px;
+		max-width: 960px;
+	}
+	.note {
+		margin: 0;
+		color: var(--muted);
+		font-size: 13px;
 	}
 	.slots {
 		list-style: none;
-		margin: 12px 0 0;
+		margin: 0;
 		padding: 0;
 		display: grid;
-		gap: 6px;
+		gap: 8px;
 	}
 	.slots li {
 		display: grid;
-		grid-template-columns: 56px 160px auto 1fr;
+		grid-template-columns: 56px 160px 96px 96px auto;
 		align-items: center;
 		gap: 12px;
 		color: var(--muted);
 	}
-	.slot-name {
-		color: var(--text);
-		font-weight: 500;
-	}
 	.meter {
-		height: 6px;
-		border-radius: 3px;
+		height: 4px;
+		border-radius: 2px;
 		background: var(--sunken);
 		overflow: hidden;
 	}
@@ -281,21 +367,23 @@
 		height: 100%;
 		background: var(--line-strong);
 	}
-	.note {
-		margin: 0;
+	.link {
+		justify-self: start;
+		padding: 0;
+		border: 0;
+		background: none;
 		color: var(--muted);
 		font-size: 13px;
+		cursor: pointer;
 	}
-
+	.link:hover {
+		color: var(--text);
+	}
 	dl {
 		margin: 0;
 		display: grid;
 		grid-template-columns: repeat(6, minmax(0, 1fr));
-		border-top: 1px solid var(--line);
-	}
-	dl div {
-		padding: 12px 16px 0 0;
-		min-width: 0;
+		gap: 16px;
 	}
 	dt {
 		color: var(--faint);
@@ -307,71 +395,62 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
+	.faint {
+		color: var(--faint);
+		font-size: 12px;
+	}
 
-	.lower {
-		display: grid;
-		grid-template-columns: minmax(240px, 1fr) 2fr;
-		gap: 32px;
-	}
-	h2 {
-		margin: 0 0 12px;
-		font-size: 14px;
-		font-weight: 600;
-	}
-	.keys ul {
-		list-style: none;
-		margin: 0 0 12px;
-		padding: 0;
+	.last {
+		margin-top: auto;
+		align-self: flex-end;
+		width: 240px;
 		display: grid;
 		gap: 8px;
 	}
-	.keys li {
-		display: grid;
-		grid-template-columns: 112px 1fr;
-		gap: 12px;
-		align-items: center;
-		color: var(--muted);
-	}
-	.combo {
-		display: flex;
-		gap: 4px;
-	}
-	kbd {
-		font-family: var(--font-mono);
-		font-size: 11px;
-		padding: 2px 6px;
+	.thumb {
+		position: relative;
+		display: block;
+		width: 100%;
+		aspect-ratio: 16 / 9;
+		padding: 0;
+		border: 0;
 		border-radius: 4px;
-		background: var(--raised);
-		color: var(--text);
+		overflow: hidden;
+		background: var(--sunken);
+		cursor: pointer;
 	}
-	.quiet {
-		color: var(--muted);
-		font-size: 13px;
+	.thumb img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		display: block;
 	}
-	.quiet:hover {
-		color: var(--text);
+	.len {
+		position: absolute;
+		right: 4px;
+		bottom: 4px;
+		padding: 0 4px;
+		border-radius: 4px;
+		background: var(--scrim);
+		color: var(--on-scrim);
+		font-size: 11px;
 	}
-	.recent-head {
-		display: flex;
-		justify-content: space-between;
-		align-items: baseline;
-	}
-	.grid {
+	.last-meta {
 		display: grid;
-		grid-template-columns: repeat(3, minmax(0, 1fr));
-		gap: 16px;
+		gap: 4px;
+		min-width: 0;
 	}
-	.empty {
-		color: var(--muted);
-		margin: 0;
+	.last-name {
+		font-size: 13px;
+		font-weight: 500;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 
 	@media (max-width: 1000px) {
 		dl {
 			grid-template-columns: repeat(3, minmax(0, 1fr));
-		}
-		.lower {
-			grid-template-columns: 1fr;
 		}
 	}
 </style>

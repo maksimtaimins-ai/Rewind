@@ -83,6 +83,8 @@ export interface Settings {
 	ssd_warn_gb_per_day: number;
 }
 
+export type HotkeyAction = 'save_clip' | 'marker' | 'screenshot' | 'extend_last' | 'slow_mo' | 'favorite_last';
+
 export type EngineState = 'idle' | 'recording' | 'paused' | 'error';
 
 export interface Status {
@@ -212,6 +214,8 @@ export const api = {
 	saveNow: (secs?: number) => invoke<void>('save_clip_now', { secs: secs ?? null }),
 	saveMarker: (id: number, secs: number) => invoke<void>('save_marker', { id, secs }),
 	screenshot: () => invoke<void>('take_screenshot'),
+	/** Do what a hotkey does; errors arrive as notices. */
+	runAction: (action: HotkeyAction) => invoke<void>('run_action', { action }),
 	trim: (path: string, from: number, to: number) => invoke<Clip>('trim_clip', { path, from, to }),
 	merge: (paths: string[]) => invoke<Clip>('merge_clips', { paths }),
 	exportClip: (path: string, preset: ExportPreset) => invoke<string>('export_clip', { path, preset }),

@@ -1,4 +1,4 @@
-<!-- One setting: label + explanation on the left, control on the right. -->
+<!-- One setting: label with a one-line explanation below it on the left, control on the right. -->
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	let { label, hint, children }: { label: string; hint?: string; children: Snippet } = $props();
@@ -19,10 +19,6 @@
 		justify-content: space-between;
 		gap: 24px;
 		padding: 12px 0;
-		border-top: 1px solid var(--line);
-	}
-	.row:first-child {
-		border-top: 0;
 	}
 	.copy {
 		min-width: 0;

@@ -164,6 +164,7 @@ pub fn run() {
             commands::set_tag_color,
             commands::clips_dir,
             commands::save_clip_now,
+            commands::run_action,
             commands::save_marker,
             commands::take_screenshot,
             commands::trim_clip,

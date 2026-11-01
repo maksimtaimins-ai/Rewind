@@ -148,6 +148,12 @@ pub fn save_clip_now(engine: State<Engine>, secs: Option<u32>) -> R<()> {
     engine.save_clip(secs).map_err(err)
 }
 
+/// Run what a hotkey does, from a button. Errors arrive as notices, like hotkeys.
+#[tauri::command]
+pub fn run_action(engine: State<Engine>, action: crate::hotkey::Action) {
+    engine.handle(action);
+}
+
 #[tauri::command]
 pub fn save_marker(engine: State<Engine>, id: u64, secs: u32) -> R<()> {
     engine.save_marker(id, secs).map_err(err)

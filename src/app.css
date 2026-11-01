@@ -76,6 +76,9 @@ body {
 	overflow: hidden;
 }
 
+/* Accent is for primary actions only; --signal marks recording. Everything
+   else (toggles, selection, favorites, focus) uses --text. */
+
 /* Numbers are always mono and tabular. */
 .num {
 	font-family: var(--font-mono);
@@ -85,7 +88,7 @@ body {
 }
 
 :focus-visible {
-	outline: 2px solid var(--accent);
+	outline: 2px solid var(--text);
 	outline-offset: 2px;
 	border-radius: 4px;
 }

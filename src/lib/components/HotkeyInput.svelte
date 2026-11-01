@@ -75,14 +75,14 @@
 		justify-content: flex-end;
 		gap: 4px;
 		padding: 0 8px;
-		border: 1px solid var(--line);
+		border: 0;
 		border-radius: 4px;
-		background: transparent;
+		background: var(--sunken);
 		color: var(--text);
 		cursor: pointer;
 	}
 	.key.listening {
-		border-color: var(--text);
+		box-shadow: inset 0 0 0 1px var(--text);
 		color: var(--muted);
 	}
 	kbd {

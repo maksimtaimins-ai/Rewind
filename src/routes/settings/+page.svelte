@@ -38,15 +38,12 @@
 
 	const sections = $derived(
 		[
-			['general', 'General'],
-			['recording', 'Replay buffer'],
-			['video', 'Video'],
-			['audio', 'Audio'],
+			['capture', 'Capture'],
 			['hotkeys', 'Hotkeys'],
-			['games', 'Games'],
-			['privacy', 'Privacy'],
-			['storage', 'Storage']
-		].filter(([id]) => pro || !['games', 'storage'].includes(id))
+			['appearance', 'Appearance'],
+			['library', 'Library'],
+			['advanced', 'Advanced']
+		].filter(([id]) => pro || id !== 'advanced')
 	);
 
 	const kinds = $derived([...new Set(encoders.filter((e) => e.codec === s.video.codec).map((e) => e.kind))]);
@@ -127,33 +124,18 @@
 				<li><a href="#{id}">{label}</a></li>
 			{/each}
 		</ul>
-		<label class="pro">
-			<Toggle checked={pro} label="Show advanced settings" onchange={(v) => set((x) => (x.pro_mode = v))} />
-			<span>Advanced</span>
-		</label>
 	</aside>
 
 	<div class="body">
-		<section id="general">
-			<h2>General</h2>
-			<div class="block">
-				<div class="block-label">Theme</div>
-				<ThemePicker value={s.theme} onchange={(v) => set((x) => (x.theme = v))} />
-			</div>
-			<Row label="Launch when Windows starts" hint="Starts in the tray with the replay buffer running.">
-				<Toggle checked={s.launch_on_startup} label="Launch when Windows starts" onchange={(v) => set((x) => (x.launch_on_startup = v))} />
+		<div class="pro">
+			<Row label="Pro mode" hint="Show encoder, bitrate, codec and other advanced settings.">
+				<Toggle checked={pro} label="Pro mode" onchange={(v) => set((x) => (x.pro_mode = v))} />
 			</Row>
-			<Row label="Open minimized to the tray">
-				<Toggle checked={s.start_minimized} label="Open minimized" onchange={(v) => set((x) => (x.start_minimized = v))} />
-			</Row>
-			<Row label="Play a sound when a clip is saved">
-				<Toggle checked={s.play_sound_on_save} label="Sound on save" onchange={(v) => set((x) => (x.play_sound_on_save = v))} />
-			</Row>
-		</section>
+		</div>
 
-		<section id="recording">
-			<h2>Replay buffer</h2>
-			<Row label="Buffer length" hint="A saved clip is the last this-many seconds before you press the hotkey, 10 to 300 seconds. The buffer runs whenever Rewind is open. About {ramEstimate} MB of RAM at this bitrate.">
+		<section id="capture">
+			<h2>Capture</h2>
+			<Row label="Buffer length" hint="10 to 300 seconds. Uses about {ramEstimate} MB of RAM.">
 				<Segmented
 					label="Buffer length"
 					value={s.buffer.seconds}
@@ -169,55 +151,36 @@
 				<input class="numbox num" type="number" min="10" max="300" value={s.buffer.seconds} onchange={(e) => set((x) => (x.buffer.seconds = Math.min(300, Math.max(10, num(e)))))} aria-label="Buffer length in seconds" />
 				<span class="unit">s</span>
 			</Row>
-			<Row label="Record extra after press" hint={s.post_roll.enabled ? `A normal save keeps recording ${s.post_roll.seconds} seconds after the hotkey, then writes the clip. Markers, slow-mo and screenshots are unaffected.` : 'Off. A clip ends the moment you press the hotkey.'}>
+			<Row label="Record extra after press" hint={s.post_roll.enabled ? `Keeps recording ${s.post_roll.seconds}s after you save. Markers, slow-mo and screenshots are unaffected.` : 'Off. A clip ends the moment you press save.'}>
 				<Toggle checked={s.post_roll.enabled} label="Post-roll" onchange={(v) => set((x) => (x.post_roll.enabled = v))} />
 			</Row>
 			{#if s.post_roll.enabled}
-				<Row label="Post-roll length" hint="1 to 120 seconds. Applies to every save slot.">
+				<Row label="Post-roll length" hint="1 to 120 seconds, for every save slot.">
 					<input type="range" min="1" max="120" step="1" value={s.post_roll.seconds} onchange={(e) => set((x) => (x.post_roll.seconds = num(e)))} aria-label="Post-roll length" />
 					<span class="readout num">{s.post_roll.seconds}s</span>
 				</Row>
 			{/if}
 			{#each s.buffer.extra_slots as slot, i (i)}
-				<Row label="Slot {'BC'[i]}" hint={slot.enabled ? `Saves the last ${slot.seconds} seconds${slot.hotkey ? ` with ${slot.hotkey}` : ''}. Shares the buffer above, no extra encoding.` : 'Off. A second replay length with its own hotkey.'}>
-					{#if slot.enabled}
-						<input class="numbox num" type="number" min="10" max="300" value={slot.seconds} onchange={(e) => set((x) => (x.buffer.extra_slots[i].seconds = Math.min(300, Math.max(10, num(e)))))} aria-label="Slot {'BC'[i]} length in seconds" />
-						<span class="unit">s</span>
-						<HotkeyInput label="Slot {'BC'[i]} hotkey" value={slot.hotkey} onchange={(v) => set((x) => (x.buffer.extra_slots[i].hotkey = v))} />
-					{/if}
-					<Toggle checked={slot.enabled} label="Use slot {'BC'[i]}" onchange={(v) => set((x) => (x.buffer.extra_slots[i].enabled = v))} />
-				</Row>
+				{#if i === 0 || pro}
+					<Row label="Slot {'BC'[i]}" hint={slot.enabled ? `A second replay length${slot.hotkey ? ` on ${slot.hotkey}` : ''}. Shares the same buffer.` : 'Off. A second replay length with its own hotkey.'}>
+						{#if slot.enabled}
+							<input class="numbox num" type="number" min="10" max="300" value={slot.seconds} onchange={(e) => set((x) => (x.buffer.extra_slots[i].seconds = Math.min(300, Math.max(10, num(e)))))} aria-label="Slot {'BC'[i]} length in seconds" />
+							<span class="unit">s</span>
+							<HotkeyInput label="Slot {'BC'[i]} hotkey" value={slot.hotkey} onchange={(v) => set((x) => (x.buffer.extra_slots[i].hotkey = v))} />
+						{/if}
+						<Toggle checked={slot.enabled} label="Use slot {'BC'[i]}" onchange={(v) => set((x) => (x.buffer.extra_slots[i].enabled = v))} />
+					</Row>
+				{/if}
 			{/each}
 			{#if ramEstimate > 2048}
-				<p class="warn">The buffer needs about {(ramEstimate / 1024).toFixed(1)} GB of RAM for a {longest}-second slot at this bitrate. Shorten the longest slot or lower the bitrate.</p>
+				<p class="warn">The buffer needs about {(ramEstimate / 1024).toFixed(1)} GB of RAM for a {longest}-second slot. Shorten the longest slot or lower the bitrate.</p>
 			{/if}
-			<Row label="Extend last clip by" hint="Footage added before the start of your last clip, if the buffer still has it.">
+			<Row label="Extend last clip by" hint="Footage added before your last clip's start, if the buffer has it.">
 				<input class="numbox num" type="number" min="5" max="120" value={s.buffer.extend_secs} onchange={(e) => set((x) => (x.buffer.extend_secs = Math.min(120, Math.max(5, num(e)))))} aria-label="Extend seconds" />
 				<span class="unit">s</span>
 			</Row>
-			{#if pro}
-				<Row label="Memory limit" hint="Oldest seconds are dropped first if the buffer would exceed this.">
-					<input class="numbox num" type="number" min="128" max="16384" step="128" value={s.buffer.max_memory_mb} onchange={(e) => set((x) => (x.buffer.max_memory_mb = num(e)))} aria-label="Memory limit in MB" />
-					<span class="unit">MB</span>
-				</Row>
-			{/if}
-			<Row label="Group clips into sessions" hint="Clips saved within this many minutes of each other are shown together in the library.">
-				<input class="numbox num" type="number" min="1" max="1440" value={s.library.session_gap_mins} onchange={(e) => set((x) => (x.library.session_gap_mins = Math.min(1440, Math.max(1, num(e)))))} aria-label="Session gap in minutes" />
-				<span class="unit">min</span>
-			</Row>
-			<Row label="Keep deleted clips for" hint="Deleted clips wait in Recently deleted, in the Clips tab, before they're removed for good.">
-				<input class="numbox num" type="number" min="1" max="365" value={s.library.purge_days} onchange={(e) => set((x) => (x.library.purge_days = Math.min(365, Math.max(1, num(e)))))} aria-label="Days to keep deleted clips" />
-				<span class="unit">days</span>
-			</Row>
-			<Row label="Save clips to" hint={s.clips_dir}>
-				<button class="secondary" onclick={pickFolder}>Change</button>
-			</Row>
-		</section>
-
-		<section id="video">
-			<h2>Video</h2>
 			{#if monitors.length > 1}
-				<Row label="Screen">
+				<Row label="Screen" hint="The monitor Rewind records.">
 					<select value={s.video.monitor} onchange={(e) => set((x) => (x.video.monitor = num(e)))} aria-label="Screen">
 						{#each monitors as m (m.index)}
 							<option value={m.index}>{m.name}, {m.width}×{m.height}{m.primary ? ' (main)' : ''}</option>
@@ -246,87 +209,15 @@
 					onchange={(v) => set((x) => (x.video.fps = v))}
 				/>
 			</Row>
-			<Row label="Bitrate" hint="Higher keeps fast motion sharp and makes bigger files.">
-				<input
-					type="range"
-					min="2000"
-					max="80000"
-					step="1000"
-					value={s.video.bitrate_kbps}
-					onchange={(e) => set((x) => (x.video.bitrate_kbps = num(e)))}
-					aria-label="Bitrate"
-				/>
-				<span class="readout num">{(s.video.bitrate_kbps / 1000).toFixed(0)} Mb/s</span>
-			</Row>
-			<Row label="Encoder" hint="Hardware encoders keep the CPU free for the game.">
-				<select value={s.video.encoder} onchange={(e) => set((x) => (x.video.encoder = (e.currentTarget as HTMLSelectElement).value as Settings['video']['encoder']))} aria-label="Encoder">
-					<option value="auto">{kindLabel.auto}</option>
-					{#each kinds as k (k)}
-						<option value={k}>{kindLabel[k] ?? k}</option>
-					{/each}
-				</select>
-			</Row>
-			<Row label="Record the mouse cursor">
+			<Row label="Record the mouse cursor" hint="Draws the pointer into clips.">
 				<Toggle checked={s.video.capture_cursor} label="Record cursor" onchange={(v) => set((x) => (x.video.capture_cursor = v))} />
 			</Row>
-			{#if pro}
-				<Row label="Codec" hint="HEVC makes smaller files; some editors and Discord on older devices can't play it.">
-					<Segmented
-						label="Codec"
-						value={s.video.codec}
-						options={[
-							{ value: 'h264', label: 'H.264' },
-							{ value: 'hevc', label: 'HEVC' }
-						]}
-						onchange={(v) => set((x) => (x.video.codec = v))}
-					/>
-				</Row>
-				<Row label="Rate control">
-					<Segmented
-						label="Rate control"
-						value={s.video.rate_control}
-						options={[
-							{ value: 'vbr', label: 'Variable' },
-							{ value: 'cbr', label: 'Constant' },
-							{ value: 'quality', label: 'Quality' }
-						]}
-						onchange={(v) => set((x) => (x.video.rate_control = v))}
-					/>
-				</Row>
-				{#if s.video.rate_control === 'quality'}
-					<Row label="Quality" hint="1 to 100.">
-						<input class="numbox num" type="number" min="1" max="100" value={s.video.quality} onchange={(e) => set((x) => (x.video.quality = num(e)))} aria-label="Quality" />
-					</Row>
-				{/if}
-				<Row label="Keyframe every" hint="Clips and trims start on keyframes. Shorter is more precise, slightly larger.">
-					<Segmented
-						label="Keyframe interval"
-						value={s.video.keyframe_secs}
-						options={[0.5, 1, 2].map((v) => ({ value: v, label: `${v}s` }))}
-						onchange={(v) => set((x) => (x.video.keyframe_secs = v))}
-					/>
-				</Row>
-				<Row label="Encoder benchmark" hint="Encodes test frames on every encoder found, about 5 seconds.">
-					<button class="secondary" disabled={benching || !inApp} onclick={runBench}>{benching ? 'Running…' : 'Run'}</button>
-				</Row>
-				{#if bench}
-					<table class="bench">
-						<tbody>
-							{#each bench as b, i (i)}
-								<tr>
-									<td>{b.name}</td>
-									<td class="num">{b.ok ? `${b.fps.toFixed(0)} fps` : 'Failed'}</td>
-								</tr>
-							{/each}
-						</tbody>
-					</table>
-				{/if}
-			{/if}
-		</section>
+			<Row label="Launch when Windows starts" hint="Starts in the tray with the buffer running.">
+				<Toggle checked={s.launch_on_startup} label="Launch when Windows starts" onchange={(v) => set((x) => (x.launch_on_startup = v))} />
+			</Row>
 
-		<section id="audio">
-			<h2>Audio</h2>
-			<p class="intro">Each source is its own track in the file, so editors can mix them separately. Players play the first one.</p>
+			<h3>Audio</h3>
+			<p class="intro">Each source is its own track, so editors can mix them. Players play the first.</p>
 			{#each s.audio as t, i (i)}
 				<Row label={t.name} hint={sourceLabel(t.source)}>
 					{#if pro && t.source.kind === 'mic'}
@@ -362,50 +253,180 @@
 						Add app track
 					</button>
 					<button class="secondary" onclick={() => set((x) => x.audio.push({ name: 'Game only', enabled: true, source: { kind: 'system_excluding', exe: 'Discord.exe' }, volume: 1 }))}>
-						Add “everything except Discord”
+						Add game-only track
 					</button>
 				</div>
 			{/if}
+
+			<h3>Privacy</h3>
+			<p class="intro">No account, no cloud, no telemetry. Capture pauses while one of these apps is focused.</p>
+			<ul class="chips">
+				{#each s.privacy_apps as a, i (a)}
+					<li>
+						{a}
+						<button aria-label="Stop pausing for {a}" onclick={() => set((x) => x.privacy_apps.splice(i, 1))}>×</button>
+					</li>
+				{/each}
+			</ul>
+			<form
+				class="add"
+				onsubmit={(e) => {
+					e.preventDefault();
+					const v = newPrivacy.trim();
+					if (v && !s.privacy_apps.includes(v)) set((x) => x.privacy_apps.push(v.endsWith('.exe') ? v : `${v}.exe`));
+					newPrivacy = '';
+				}}
+			>
+				<input type="text" placeholder="App name, e.g. chrome.exe" bind:value={newPrivacy} aria-label="App to pause for" />
+				<button class="secondary" type="submit">Add</button>
+			</form>
 		</section>
 
 		<section id="hotkeys">
 			<h2>Hotkeys</h2>
-			<Row label="Save clip" hint="Saves the last {s.buffer.seconds} seconds (slot A). Slots B and C have their hotkeys under Replay buffer.">
+			<Row label="Save clip" hint="Saves the last {s.buffer.seconds} seconds (slot A).">
 				<HotkeyInput label="Save clip" value={s.hotkeys.save_clip} onchange={(v) => set((x) => (x.hotkeys.save_clip = v))} />
 			</Row>
-			<Row label="Mark this moment" hint="Decide how much to keep later, from the Live tab.">
+			<Row label="Mark this moment" hint="Pick how much to keep later, from the Live tab.">
 				<HotkeyInput label="Marker" value={s.hotkeys.marker} onchange={(v) => set((x) => (x.hotkeys.marker = v))} />
 			</Row>
-			<Row label="Screenshot" hint="Saves the current frame as a PNG in your clips folder.">
+			<Row label="Screenshot" hint="Saves the current frame as a PNG.">
 				<HotkeyInput label="Screenshot" value={s.hotkeys.screenshot} onchange={(v) => set((x) => (x.hotkeys.screenshot = v))} />
 			</Row>
-			<Row label="Favorite the last clip" hint="Stars the clip you saved most recently.">
-				<HotkeyInput label="Favorite the last clip" value={s.hotkeys.favorite_last} onchange={(v) => set((x) => (x.hotkeys.favorite_last = v))} />
+			<Row label="Favorite last clip" hint="Stars the clip you saved most recently.">
+				<HotkeyInput label="Favorite last clip" value={s.hotkeys.favorite_last} onchange={(v) => set((x) => (x.hotkeys.favorite_last = v))} />
 			</Row>
-			<Row label="Slow-mo replay" hint="Saves the last {s.slow_mo.seconds} seconds at {s.slow_mo.speed}× speed, {Math.round(s.slow_mo.seconds / s.slow_mo.speed)} seconds long. Video only.">
+			<Row label="Extend last clip" hint="Adds {s.buffer.extend_secs}s before your last clip and replaces it.">
+				<HotkeyInput label="Extend last clip" value={s.hotkeys.extend_last} onchange={(v) => set((x) => (x.hotkeys.extend_last = v))} />
+			</Row>
+			<Row label="Slow-mo replay" hint="Last {s.slow_mo.seconds}s at {s.slow_mo.speed}×, {Math.round(s.slow_mo.seconds / s.slow_mo.speed)}s long. Video only.">
 				<HotkeyInput label="Slow-mo replay" value={s.hotkeys.slow_mo} onchange={(v) => set((x) => (x.hotkeys.slow_mo = v))} />
 			</Row>
-			<Row label="Slow-mo length">
+			<Row label="Slow-mo length" hint="How much of the buffer to slow down.">
 				<Segmented
 					label="Slow-mo length"
 					value={s.slow_mo.seconds}
-					options={[2, 3, 5].map((v) => ({ value: v as 2 | 3 | 5, label: `Last ${v}s` }))}
+					options={[2, 3, 5].map((v) => ({ value: v as 2 | 3 | 5, label: `${v}s` }))}
 					onchange={(v) => set((x) => (x.slow_mo.seconds = v))}
 				/>
 			</Row>
-			<Row label="Slow-mo speed">
+			<Row label="Slow-mo speed" hint="Lower is slower.">
 				<input type="range" min="0.1" max="0.5" step="0.05" value={s.slow_mo.speed} onchange={(e) => set((x) => (x.slow_mo.speed = num(e)))} aria-label="Slow-mo speed" />
 				<span class="readout num">{s.slow_mo.speed.toFixed(2)}×</span>
 			</Row>
-			<Row label="Extend last clip" hint="Adds {s.buffer.extend_secs} seconds before the start of your last clip and replaces it.">
-				<HotkeyInput label="Extend last clip" value={s.hotkeys.extend_last} onchange={(v) => set((x) => (x.hotkeys.extend_last = v))} />
+		</section>
+
+		<section id="appearance">
+			<h2>Appearance</h2>
+			<div class="block">
+				<div class="block-label">Theme</div>
+				<div class="block-hint">Follow Windows, or pick one.</div>
+				<ThemePicker value={s.theme} onchange={(v) => set((x) => (x.theme = v))} />
+			</div>
+			<Row label="Open minimized to the tray" hint="The window stays hidden until you open it.">
+				<Toggle checked={s.start_minimized} label="Open minimized" onchange={(v) => set((x) => (x.start_minimized = v))} />
+			</Row>
+			<Row label="Play a sound on save" hint="A short click when a clip is written.">
+				<Toggle checked={s.play_sound_on_save} label="Sound on save" onchange={(v) => set((x) => (x.play_sound_on_save = v))} />
+			</Row>
+		</section>
+
+		<section id="library">
+			<h2>Library</h2>
+			<Row label="Save clips to" hint={s.clips_dir}>
+				<button class="secondary" onclick={pickFolder}>Change</button>
+			</Row>
+			<Row label="Group into sessions" hint="Clips saved this close together show as one session.">
+				<input class="numbox num" type="number" min="1" max="1440" value={s.library.session_gap_mins} onchange={(e) => set((x) => (x.library.session_gap_mins = Math.min(1440, Math.max(1, num(e)))))} aria-label="Session gap in minutes" />
+				<span class="unit">min</span>
+			</Row>
+			<Row label="Keep deleted clips for" hint="Then they're removed from Recently deleted for good.">
+				<input class="numbox num" type="number" min="1" max="365" value={s.library.purge_days} onchange={(e) => set((x) => (x.library.purge_days = Math.min(365, Math.max(1, num(e)))))} aria-label="Days to keep deleted clips" />
+				<span class="unit">days</span>
 			</Row>
 		</section>
 
 		{#if pro}
-			<section id="games">
-				<h2>Games</h2>
-				<p class="intro">Per-game overrides apply while that game is running. Empty fields use the settings above.</p>
+			<section id="advanced">
+				<h2>Advanced</h2>
+				<Row label="Encoder" hint="Hardware encoders keep the CPU free for the game.">
+					<select value={s.video.encoder} onchange={(e) => set((x) => (x.video.encoder = (e.currentTarget as HTMLSelectElement).value as Settings['video']['encoder']))} aria-label="Encoder">
+						<option value="auto">{kindLabel.auto}</option>
+						{#each kinds as k (k)}
+							<option value={k}>{kindLabel[k] ?? k}</option>
+						{/each}
+					</select>
+				</Row>
+				<Row label="Bitrate" hint="Higher keeps fast motion sharp; files get bigger.">
+					<input type="range" min="2000" max="80000" step="1000" value={s.video.bitrate_kbps} onchange={(e) => set((x) => (x.video.bitrate_kbps = num(e)))} aria-label="Bitrate" />
+					<span class="readout num">{(s.video.bitrate_kbps / 1000).toFixed(0)} Mb/s</span>
+				</Row>
+				<Row label="Codec" hint="HEVC is smaller; some editors and older devices can't play it.">
+					<Segmented
+						label="Codec"
+						value={s.video.codec}
+						options={[
+							{ value: 'h264', label: 'H.264' },
+							{ value: 'hevc', label: 'HEVC' }
+						]}
+						onchange={(v) => set((x) => (x.video.codec = v))}
+					/>
+				</Row>
+				<Row label="Rate control" hint="Variable suits most games.">
+					<Segmented
+						label="Rate control"
+						value={s.video.rate_control}
+						options={[
+							{ value: 'vbr', label: 'Variable' },
+							{ value: 'cbr', label: 'Constant' },
+							{ value: 'quality', label: 'Quality' }
+						]}
+						onchange={(v) => set((x) => (x.video.rate_control = v))}
+					/>
+				</Row>
+				{#if s.video.rate_control === 'quality'}
+					<Row label="Quality" hint="1 to 100.">
+						<input class="numbox num" type="number" min="1" max="100" value={s.video.quality} onchange={(e) => set((x) => (x.video.quality = num(e)))} aria-label="Quality" />
+					</Row>
+				{/if}
+				<Row label="Keyframe every" hint="Clips start on keyframes. Shorter is more precise, slightly larger.">
+					<Segmented
+						label="Keyframe interval"
+						value={s.video.keyframe_secs}
+						options={[0.5, 1, 2].map((v) => ({ value: v, label: `${v}s` }))}
+						onchange={(v) => set((x) => (x.video.keyframe_secs = v))}
+					/>
+				</Row>
+				<Row label="Memory limit" hint="Oldest seconds are dropped first above this.">
+					<input class="numbox num" type="number" min="128" max="16384" step="128" value={s.buffer.max_memory_mb} onchange={(e) => set((x) => (x.buffer.max_memory_mb = num(e)))} aria-label="Memory limit in MB" />
+					<span class="unit">MB</span>
+				</Row>
+				<Row label="Warn after writing" hint="Daily total, to spare your SSD. {app.status?.written_today_gb.toFixed(2) ?? 0} GB so far today.">
+					<input class="numbox num" type="number" min="0" max="2000" value={s.ssd_warn_gb_per_day} onchange={(e) => set((x) => (x.ssd_warn_gb_per_day = num(e)))} aria-label="Daily write warning in GB" />
+					<span class="unit">GB</span>
+				</Row>
+				<Row label="Encoder benchmark" hint="Tests every encoder found, about 5 seconds.">
+					<button class="secondary" disabled={benching || !inApp} onclick={runBench}>{benching ? 'Running…' : 'Run benchmark'}</button>
+				</Row>
+				{#if bench}
+					<table class="bench">
+						<tbody>
+							{#each bench as b, i (i)}
+								<tr>
+									<td>{b.name}</td>
+									<td class="num">{b.ok ? `${b.fps.toFixed(0)} fps` : 'Failed'}</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				{/if}
+				<Row label="Share settings" hint="A file a friend can import. Your clips folder isn't included.">
+					<button class="secondary" disabled={!inApp} onclick={exportProfile}>Export</button>
+					<button class="secondary" disabled={!inApp} onclick={importProfile}>Import</button>
+				</Row>
+
+				<h3>Games</h3>
+				<p class="intro">Overrides that apply while a game runs. Empty fields use the settings above.</p>
 				{#if s.profiles.length}
 					<table class="profiles">
 						<thead>
@@ -454,57 +475,15 @@
 				</div>
 			</section>
 		{/if}
-
-		<section id="privacy">
-			<h2>Privacy</h2>
-			<p class="intro">
-				Rewind has no account, no cloud and no telemetry. Clips are written only to the folder you choose. Video
-				capture pauses whenever one of these apps is focused.
-			</p>
-			<ul class="chips">
-				{#each s.privacy_apps as a, i (a)}
-					<li>
-						{a}
-						<button aria-label="Stop pausing for {a}" onclick={() => set((x) => x.privacy_apps.splice(i, 1))}>×</button>
-					</li>
-				{/each}
-			</ul>
-			<form
-				class="add"
-				onsubmit={(e) => {
-					e.preventDefault();
-					const v = newPrivacy.trim();
-					if (v && !s.privacy_apps.includes(v)) set((x) => x.privacy_apps.push(v.endsWith('.exe') ? v : `${v}.exe`));
-					newPrivacy = '';
-				}}
-			>
-				<input type="text" placeholder="App name, e.g. chrome.exe" bind:value={newPrivacy} aria-label="App to pause for" />
-				<button class="secondary" type="submit">Add</button>
-			</form>
-		</section>
-
-		{#if pro}
-			<section id="storage">
-				<h2>Storage</h2>
-				<Row label="Warn after writing" hint="Daily total of clips written, to spare your SSD. {app.status?.written_today_gb.toFixed(2) ?? 0} GB so far today.">
-					<input class="numbox num" type="number" min="0" max="2000" value={s.ssd_warn_gb_per_day} onchange={(e) => set((x) => (x.ssd_warn_gb_per_day = num(e)))} aria-label="Daily write warning in GB" />
-					<span class="unit">GB</span>
-				</Row>
-				<Row label="Share settings" hint="Export to a file a friend can import. Your clips folder isn't included.">
-					<button class="secondary" disabled={!inApp} onclick={exportProfile}>Export</button>
-					<button class="secondary" disabled={!inApp} onclick={importProfile}>Import</button>
-				</Row>
-			</section>
-		{/if}
 	</div>
 </div>
 
 <style>
 	.page {
 		display: grid;
-		grid-template-columns: 176px minmax(0, 720px);
+		grid-template-columns: 160px minmax(0, 720px);
 		gap: 32px;
-		padding: 16px 32px 32px;
+		padding: 32px;
 	}
 	.index {
 		position: sticky;
@@ -513,18 +492,20 @@
 	}
 	h1 {
 		margin: 0 0 16px;
-		font-size: 32px;
+		font-size: 24px;
 		font-weight: 650;
 		letter-spacing: -0.02em;
 	}
 	.index ul {
 		list-style: none;
-		margin: 0 0 24px;
+		margin: 0;
 		padding: 0;
 		display: grid;
 		gap: 4px;
 	}
 	.index a {
+		display: block;
+		padding: 4px 0;
 		color: var(--muted);
 		text-decoration: none;
 	}
@@ -532,32 +513,43 @@
 		color: var(--text);
 	}
 	.pro {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		color: var(--muted);
-		cursor: pointer;
+		margin-bottom: 32px;
+		padding: 4px 16px;
+		border-radius: 8px;
+		background: var(--raised);
 	}
 	section {
 		padding-bottom: 32px;
 		scroll-margin-top: 16px;
 	}
+	/* Small, quiet section headers: the controls carry the page. */
 	h2 {
 		margin: 0 0 8px;
-		font-size: 18px;
+		font-size: 13px;
 		font-weight: 600;
-		letter-spacing: -0.01em;
+		color: var(--muted);
+	}
+	h3 {
+		margin: 24px 0 4px;
+		font-size: 13px;
+		font-weight: 600;
+		color: var(--muted);
 	}
 	.block {
 		padding: 12px 0 16px;
 	}
 	.block-label {
 		font-weight: 500;
-		margin-bottom: 12px;
+	}
+	.block-hint {
+		color: var(--muted);
+		font-size: 13px;
+		margin: 4px 0 12px;
 	}
 	.intro {
 		color: var(--muted);
-		margin: 0 0 12px;
+		font-size: 13px;
+		margin: 0 0 8px;
 		max-width: 60ch;
 	}
 	select,
@@ -565,15 +557,10 @@
 	input[type='text'] {
 		height: 32px;
 		padding: 0 8px;
-		border: 1px solid var(--line);
+		border: 0;
 		border-radius: 4px;
-		background: var(--ground);
+		background: var(--sunken);
 		outline: none;
-	}
-	select:focus,
-	.numbox:focus,
-	input[type='text']:focus {
-		border-color: var(--muted);
 	}
 	.numbox {
 		width: 80px;
@@ -596,7 +583,7 @@
 	}
 	input[type='range'] {
 		width: 160px;
-		accent-color: var(--accent);
+		accent-color: var(--text);
 	}
 	.secondary {
 		height: 32px;
@@ -658,20 +645,19 @@
 		padding: 8px 8px 8px 0;
 	}
 	td {
-		padding: 8px 8px 8px 0;
-		border-top: 1px solid var(--line);
+		padding: 4px 8px 4px 0;
 	}
 	.profiles input {
 		width: 100%;
 		height: 28px;
-		border: 1px solid transparent;
+		border: 0;
 		border-radius: 4px;
 		background: transparent;
 		padding: 0 4px;
 	}
 	.profiles input:hover,
 	.profiles input:focus {
-		border-color: var(--line);
+		background: var(--sunken);
 		outline: none;
 	}
 	.profiles td:not(:first-child) {
