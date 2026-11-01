@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-pub const SETTINGS_VERSION: u32 = 18;
+pub const SETTINGS_VERSION: u32 = 19;
 
 /// Allowed range for [`BufferSettings::seconds`].
 pub const MIN_BUFFER_SECS: u32 = 10;
@@ -215,16 +215,92 @@ pub struct BufferSettings {
     pub extend_secs: u32,
 }
 
+fn yes() -> bool {
+    true
+}
+
+/// Settings that switch in while a game runs. Every `None` (or `false`)
+/// keeps the global setting.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GameProfile {
     /// Executable name, case-insensitive (`cs2.exe`).
     pub exe: String,
     pub name: String,
-    /// Fields left `None` fall back to the global settings.
+    /// Off: kept, but not applied.
+    #[serde(default = "yes")]
+    pub enabled: bool,
     pub fps: Option<u32>,
     pub height: Option<u32>,
     pub bitrate_kbps: Option<u32>,
+    #[serde(default)]
+    pub codec: Option<Codec>,
+    /// Slot A's length.
     pub buffer_seconds: Option<u32>,
+    #[serde(default)]
+    pub slot_b_seconds: Option<u32>,
+    #[serde(default)]
+    pub slot_c_seconds: Option<u32>,
+    /// Its own hotkeys instead of the global ones.
+    #[serde(default)]
+    pub hotkeys: Option<Hotkeys>,
+    /// Save into `<clips folder>/<name>/`.
+    #[serde(default)]
+    pub subfolder: bool,
+    /// A keystroke-overlay preset id (`input::presets`).
+    #[serde(default)]
+    pub keystroke_preset: Option<String>,
+    #[serde(default)]
+    pub highlight: Option<HighlightSettings>,
+}
+
+impl GameProfile {
+    pub fn new(exe: &str, name: &str) -> Self {
+        GameProfile {
+            exe: exe.into(),
+            name: name.into(),
+            enabled: true,
+            fps: None,
+            height: None,
+            bitrate_kbps: None,
+            codec: None,
+            buffer_seconds: None,
+            slot_b_seconds: None,
+            slot_c_seconds: None,
+            hotkeys: None,
+            subfolder: false,
+            keystroke_preset: None,
+            highlight: None,
+        }
+    }
+}
+
+/// Profiles Rewind ships with. Added once, then the user's to edit or delete.
+pub fn builtin_profiles() -> Vec<GameProfile> {
+    let shooter = |exe: &str, name: &str| GameProfile {
+        fps: Some(120),
+        bitrate_kbps: Some(30_000),
+        buffer_seconds: Some(30),
+        keystroke_preset: Some("gaming".into()),
+        ..GameProfile::new(exe, name)
+    };
+    let battle_royale = |exe: &str, name: &str| GameProfile {
+        fps: Some(60),
+        bitrate_kbps: Some(25_000),
+        buffer_seconds: Some(60),
+        keystroke_preset: Some("gaming".into()),
+        ..GameProfile::new(exe, name)
+    };
+    vec![
+        shooter("cs2.exe", "Counter-Strike 2"),
+        shooter("VALORANT-Win64-Shipping.exe", "VALORANT"),
+        battle_royale("FortniteClient-Win64-Shipping.exe", "Fortnite"),
+        battle_royale("r5apex.exe", "Apex Legends"),
+        battle_royale("r5apex_dx12.exe", "Apex Legends"),
+        GameProfile { fps: Some(60), buffer_seconds: Some(30), keystroke_preset: Some("wasd".into()), ..GameProfile::new("RocketLeague.exe", "Rocket League") },
+        GameProfile { fps: Some(60), buffer_seconds: Some(60), keystroke_preset: Some("wasd_clicks".into()), ..GameProfile::new("Minecraft.Windows.exe", "Minecraft") },
+        // Java Edition runs as javaw.exe, like every Java app, so it starts off.
+        GameProfile { enabled: false, fps: Some(60), buffer_seconds: Some(60), keystroke_preset: Some("wasd_clicks".into()), ..GameProfile::new("javaw.exe", "Minecraft") },
+    ]
 }
 
 /// A Discord channel webhook clips can be posted to. No bot, no token: the
@@ -452,6 +528,8 @@ pub struct Settings {
     pub library: LibrarySettings,
     pub audio: Vec<AudioTrack>,
     pub hotkeys: Hotkeys,
+    /// Switch to a game's profile while it runs. Off: profiles are never applied.
+    pub profiles_enabled: bool,
     pub profiles: Vec<GameProfile>,
     /// Never record while one of these executables has focus.
     pub privacy_apps: Vec<String>,
@@ -527,7 +605,8 @@ impl Default for Settings {
                 favorite_last: "Alt+Shift+F".into(),
                 compact_hud: "Alt+F11".into(),
             },
-            profiles: Vec::new(),
+            profiles_enabled: false,
+            profiles: builtin_profiles(),
             privacy_apps: vec!["KeePassXC.exe".into(), "1Password.exe".into(), "Bitwarden.exe".into()],
             ssd_warn_gb_per_day: 50,
             sharing: SharingSettings {
@@ -681,6 +760,13 @@ impl Settings {
         k.position.margin = k.position.margin.min(200);
         k.position.trail_ms = k.position.trail_ms.clamp(100, 2000);
         k.keys.dedup();
+        for p in &mut self.profiles {
+            p.fps = p.fps.map(|v| v.clamp(10, 240));
+            p.bitrate_kbps = p.bitrate_kbps.map(|v| v.clamp(500, 200_000));
+            for s in [&mut p.buffer_seconds, &mut p.slot_b_seconds, &mut p.slot_c_seconds] {
+                *s = s.map(|v| v.clamp(MIN_BUFFER_SECS, MAX_BUFFER_SECS));
+            }
+        }
         let t = self.smart_highlights.threshold_db;
         self.smart_highlights.threshold_db = if t.is_finite() { t.clamp(-30.0, -3.0) } else { -14.0 };
         if self.sharing.lan_port < 1024 {
@@ -722,6 +808,20 @@ fn migrate(value: &mut toml::Table) -> Result<()> {
         if let Some(toml::Value::Table(h)) = value.get_mut("hotkeys") {
             h.remove("save_long_clip");
         }
+    }
+    // v18 -> v19: profiles get a master switch (on for anyone who already had
+    // profiles, so nothing changes for them) and the built-in game profiles.
+    if version < 19 {
+        let had = value.get("profiles").and_then(|v| v.as_array()).map(|a| !a.is_empty()).unwrap_or(false);
+        value.insert("profiles_enabled".into(), toml::Value::Boolean(had));
+        let mut list = value.get("profiles").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+        for p in builtin_profiles() {
+            let present = list.iter().any(|x| x.get("exe").and_then(|e| e.as_str()).is_some_and(|e| e.eq_ignore_ascii_case(&p.exe)));
+            if !present {
+                list.push(toml::Value::try_from(p)?);
+            }
+        }
+        value.insert("profiles".into(), toml::Value::Array(list));
     }
     // v17 -> v18: `keystrokes` added (off); defaults fill it in.
     // v16 -> v17: `smart_highlights` added (off); defaults fill it in.
@@ -1003,6 +1103,28 @@ thickness = 0
         assert!(s.keystrokes.records());
         assert_eq!((s.keystrokes.style.size, s.keystrokes.style.fade_secs), (120, 0.5));
         assert!(s.keystrokes.style.base_color.is_empty());
+    }
+
+    #[test]
+    fn profiles_switch_and_builtins() {
+        // Fresh install: built-ins present, switch off.
+        let s = Settings::default();
+        assert!(!s.profiles_enabled);
+        assert!(s.profiles.iter().any(|p| p.exe == "cs2.exe" && p.enabled));
+        // Upgrade without profiles: off, built-ins added.
+        let s = parse("version = 18
+").unwrap();
+        assert!(!s.profiles_enabled && s.profiles.len() == builtin_profiles().len());
+        // Upgrade with a profile: stays on, the user's own entry wins.
+        let s = parse("version = 18
+[[profiles]]
+exe = \"CS2.exe\"
+name = \"Mine\"
+fps = 999
+").unwrap();
+        assert!(s.profiles_enabled);
+        let cs = s.profiles.iter().filter(|p| p.exe.eq_ignore_ascii_case("cs2.exe")).collect::<Vec<_>>();
+        assert_eq!((cs.len(), cs[0].name.as_str(), cs[0].fps, cs[0].enabled), (1, "Mine", Some(240), true));
     }
 
     #[test]

@@ -12,6 +12,7 @@
 	import WatchFolders from '#lib/components/WatchFolders.svelte';
 	import BenchReportView from '#lib/components/BenchReport.svelte';
 	import KeystrokeOverlay from '#lib/components/KeystrokeOverlay.svelte';
+	import GameProfiles from '#lib/components/GameProfiles.svelte';
 	import { highlightColor } from '#lib/highlight.ts';
 
 	const s = $derived(app.settings!);
@@ -20,11 +21,9 @@
 	let monitors = $state<Monitor[]>([]);
 	let encoders = $state<EncoderInfo[]>([]);
 	let mics = $state<Device[]>([]);
-	let apps = $state<string[]>([]);
 	let bench = $state<BenchResult[] | null>(null);
 	let benching = $state(false);
 	let newPrivacy = $state('');
-	let newProfile = $state('');
 	let hookName = $state('');
 	let hookUrl = $state('');
 	// Same rule as the backend: https on a Discord host, a /webhooks/ path.
@@ -50,6 +49,7 @@
 			['capture', 'Capture'],
 			['hotkeys', 'Hotkeys'],
 			['appearance', 'Appearance'],
+			['games', 'Game profiles'],
 			['library', 'Library'],
 			['storage', 'Storage'],
 			['sharing', 'Sharing'],
@@ -150,9 +150,6 @@
 		}
 	}
 
-	async function loadApps() {
-		if (inApp && !apps.length) apps = await api.runningApps();
-	}
 </script>
 
 <div class="page">
@@ -431,6 +428,11 @@
 			</Row>
 		</section>
 
+		<section id="games">
+			<h2>Game profiles</h2>
+			<GameProfiles />
+		</section>
+
 		<section id="library">
 			<h2>Library</h2>
 			<Row label="Save clips to" hint={s.clips_dir}>
@@ -631,55 +633,6 @@
 						<Toggle checked={s.smart_highlights.analyze_on_save} label="Analyze on save" onchange={(v) => set((x) => (x.smart_highlights.analyze_on_save = v))} />
 					</Row>
 				{/if}
-
-				<h3>Games</h3>
-				<p class="intro">Overrides that apply while a game runs. Empty fields use the settings above.</p>
-				{#if s.profiles.length}
-					<table class="profiles">
-						<thead>
-							<tr><th>Game</th><th>FPS</th><th>Height</th><th>Mb/s</th><th>Replay s</th><th></th></tr>
-						</thead>
-						<tbody>
-							{#each s.profiles as p, i (p.exe)}
-								<tr>
-									<td><input value={p.name} onchange={(e) => set((x) => (x.profiles[i].name = (e.currentTarget as HTMLInputElement).value))} aria-label="Name for {p.exe}" /><span class="exe">{p.exe}</span></td>
-									{#each [['fps', 1], ['height', 1], ['bitrate_kbps', 1000], ['buffer_seconds', 1]] as [key, scale] (key)}
-										{@const k = key as 'fps' | 'height' | 'bitrate_kbps' | 'buffer_seconds'}
-										<td>
-											<input
-												class="num"
-												type="number"
-												placeholder="—"
-												value={p[k] == null ? '' : p[k]! / (scale as number)}
-												onchange={(e) => {
-													const v = (e.currentTarget as HTMLInputElement).value;
-													set((x) => (x.profiles[i][k] = v === '' ? null : Math.round(Number(v) * (scale as number))));
-												}}
-												aria-label="{k} for {p.name}"
-											/>
-										</td>
-									{/each}
-									<td><button class="link" onclick={() => set((x) => x.profiles.splice(i, 1))}>Remove</button></td>
-								</tr>
-							{/each}
-						</tbody>
-					</table>
-				{/if}
-				<div class="add">
-					<select bind:value={newProfile} onfocus={loadApps} aria-label="Running app to add">
-						<option value="">Pick a running game…</option>
-						{#each apps as a (a)}<option value={a}>{a}</option>{/each}
-					</select>
-					<button
-						class="secondary"
-						disabled={!newProfile || s.profiles.some((p) => p.exe.toLowerCase() === newProfile.toLowerCase())}
-						onclick={() => {
-							const exe = newProfile;
-							set((x) => x.profiles.push({ exe, name: exe.replace(/\.exe$/i, ''), fps: null, height: null, bitrate_kbps: null, buffer_seconds: null }));
-							newProfile = '';
-						}}>Add profile</button
-					>
-				</div>
 			</section>
 		{/if}
 	</div>
@@ -864,37 +817,8 @@
 		width: 100%;
 		border-collapse: collapse;
 	}
-	th {
-		text-align: left;
-		font-weight: 500;
-		color: var(--faint);
-		font-size: 12px;
-		padding: 8px 8px 8px 0;
-	}
 	td {
 		padding: 4px 8px 4px 0;
-	}
-	.profiles input {
-		width: 100%;
-		height: 28px;
-		border: 0;
-		border-radius: 4px;
-		background: transparent;
-		padding: 0 4px;
-	}
-	.profiles input:hover,
-	.profiles input:focus {
-		background: var(--sunken);
-		outline: none;
-	}
-	.profiles td:not(:first-child) {
-		width: 72px;
-	}
-	.exe {
-		display: block;
-		color: var(--faint);
-		font-size: 12px;
-		padding-left: 4px;
 	}
 	.link {
 		border: 0;

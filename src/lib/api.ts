@@ -18,13 +18,24 @@ export interface AudioTrack {
 	volume: number;
 }
 
+/** Settings that switch in while a game runs; null keeps the global value. */
 export interface GameProfile {
 	exe: string;
 	name: string;
+	enabled: boolean;
 	fps: number | null;
 	height: number | null;
 	bitrate_kbps: number | null;
+	codec: Codec | null;
+	/** Slot A. */
 	buffer_seconds: number | null;
+	slot_b_seconds: number | null;
+	slot_c_seconds: number | null;
+	hotkeys: Hotkeys | null;
+	/** Save into `<clips folder>/<name>/`. */
+	subfolder: boolean;
+	keystroke_preset: string | null;
+	highlight: Highlight | null;
 }
 
 export interface Hotkeys {
@@ -88,6 +99,8 @@ export interface Settings {
 	library: { session_gap_mins: number; purge_days: number };
 	audio: AudioTrack[];
 	hotkeys: Hotkeys;
+	/** Off: profiles are never applied. */
+	profiles_enabled: boolean;
 	profiles: GameProfile[];
 	privacy_apps: string[];
 	ssd_warn_gb_per_day: number;
@@ -266,6 +279,8 @@ export interface Status {
 	encoder: string | null;
 	resolution: [number, number] | null;
 	game: string | null;
+	/** Game profile in effect. */
+	profile: string | null;
 	privacy: boolean;
 	/** Markers set this session, oldest first. */
 	markers: MarkerInfo[];

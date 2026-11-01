@@ -32,7 +32,7 @@ pub fn set_settings(app: tauri::AppHandle, engine: State<Engine>, lan: State<Lan
     engine.set_settings(settings.clone()).map_err(err)?;
     lan.apply(&settings);
     crate::hud::apply(&app, &settings);
-    crate::highlight::on_settings(&app, &settings, &engine.status());
+    crate::highlight::on_settings(&app, &engine.effective_settings(), &engine.status());
     Ok(())
 }
 
@@ -251,7 +251,7 @@ pub fn import_settings(app: tauri::AppHandle, engine: State<Engine>, lan: State<
     s.sharing.trusted_peers = current.sharing.trusted_peers;
     engine.set_settings(s.clone()).map_err(err)?;
     lan.apply(&s);
-    crate::highlight::on_settings(&app, &s, &engine.status());
+    crate::highlight::on_settings(&app, &engine.effective_settings(), &engine.status());
     Ok(s)
 }
 

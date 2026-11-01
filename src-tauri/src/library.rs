@@ -248,12 +248,28 @@ fn info_bare(path: &Path) -> Result<ClipInfo> {
     Ok(c)
 }
 
-pub fn list(dir: &Path) -> Vec<ClipInfo> {
+/// Files in `dir` and its subfolders one level down (game profiles can save
+/// into `<clips>/<game>/`). Hidden folders like `.thumbs` are skipped.
+pub fn files_one_deep(dir: &Path) -> Vec<PathBuf> {
     let Ok(rd) = std::fs::read_dir(dir) else { return Vec::new() };
+    let mut out = Vec::new();
+    for e in rd.flatten() {
+        let p = e.path();
+        if e.file_type().is_ok_and(|t| t.is_dir()) {
+            if !e.file_name().to_string_lossy().starts_with('.') {
+                out.extend(std::fs::read_dir(&p).into_iter().flatten().flatten().filter(|f| f.file_type().is_ok_and(|t| t.is_file())).map(|f| f.path()));
+            }
+        } else {
+            out.push(p);
+        }
+    }
+    out
+}
+
+pub fn list(dir: &Path) -> Vec<ClipInfo> {
     let meta = load_meta();
-    let mut out: Vec<ClipInfo> = rd
-        .filter_map(|e| e.ok())
-        .map(|e| e.path())
+    let mut out: Vec<ClipInfo> = files_one_deep(dir)
+        .into_iter()
         .filter(|p| p.extension().is_some_and(|e| e.eq_ignore_ascii_case("mp4")))
         .filter_map(|p| info_bare(&p).ok())
         .map(|c| apply_meta(c, &meta))
@@ -262,7 +278,7 @@ pub fn list(dir: &Path) -> Vec<ClipInfo> {
     out
 }
 
-fn sanitize(name: &str) -> String {
+pub(crate) fn sanitize(name: &str) -> String {
     let cleaned: String = name
         .chars()
         .map(|c| if matches!(c, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*') || c.is_control() { '_' } else { c })

@@ -33,7 +33,7 @@ struct UiEvents(AppHandle);
 impl Events for UiEvents {
     fn status(&self, status: &Status) {
         let _ = self.0.emit("status", status);
-        highlight::on_status(&self.0, &self.0.state::<Engine>().settings(), status);
+        highlight::on_status(&self.0, &self.0.state::<Engine>().effective_settings(), status);
         if let Some(tray) = self.0.tray_by_id("main") {
             let text = match status.state {
                 engine::State::Recording => {
@@ -67,6 +67,12 @@ impl Events for UiEvents {
                 tracing::warn!("toggle HUD: {e:#}");
             }
         });
+    }
+
+    fn profile_changed(&self, effective: &settings::Settings) {
+        let _ = self.0.emit("profile-changed", ());
+        // A profile may restyle or turn off the recording highlight.
+        highlight::on_settings(&self.0, effective, &self.0.state::<Engine>().status());
     }
 
     fn notice(&self, level: Level, message: &str) {

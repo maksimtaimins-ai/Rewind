@@ -49,6 +49,8 @@ pub struct Status {
     pub encoder: Option<String>,
     pub resolution: Option<(u32, u32)>,
     pub game: Option<String>,
+    /// Name of the game profile in effect, if any.
+    pub profile: Option<String>,
     pub privacy: bool,
     pub markers: Vec<MarkerInfo>,
     /// A save waiting for its post-roll to finish, if any.
@@ -163,6 +165,8 @@ pub trait Events: Send + Sync {
     fn library_changed(&self);
     /// The compact HUD hotkey was pressed.
     fn toggle_hud(&self) {}
+    /// A game profile switched in or out; `effective` is what's in force now.
+    fn profile_changed(&self, _effective: &Settings) {}
 }
 
 struct SaveJob {
@@ -183,7 +187,13 @@ struct LastSave {
 }
 
 struct Inner {
+    /// What the user set.
     settings: RwLock<Settings>,
+    /// `settings` with the running game's profile applied: what the engine
+    /// uses. The same as `settings` while profiles are off.
+    effective: RwLock<Settings>,
+    /// The profile in `effective`.
+    profile: Mutex<Option<settings::GameProfile>>,
     buffer: Arc<Mutex<ReplayBuffer>>,
     flags: Arc<Flags>,
     pipeline: Mutex<Option<Pipeline>>,
@@ -256,6 +266,8 @@ impl Engine {
             disk_free: AtomicU64::new(u64::MAX),
             shutdown: AtomicBool::new(false),
             buffer_secs: AtomicU32::new(settings.buffer.seconds),
+            effective: RwLock::new(settings.clone()),
+            profile: Mutex::new(None),
             settings: RwLock::new(settings),
         });
         let engine = Engine { inner };
@@ -319,10 +331,29 @@ impl Engine {
         self.inner.settings.read().clone()
     }
 
+    /// The settings in force: the user's, with a running game's profile applied.
+    pub fn effective_settings(&self) -> Settings {
+        self.inner.effective.read().clone()
+    }
+
     /// Persist new settings; restarts the pipeline if capture settings changed.
     pub fn set_settings(&self, new: Settings) -> Result<()> {
         settings::save(&new)?;
         let old = std::mem::replace(&mut *self.inner.settings.write(), new.clone());
+        let exe = self.inner.game.lock().as_ref().map(|g| g.exe.clone());
+        let profile = profiles::active(&new, exe.as_deref()).cloned();
+        *self.inner.profile.lock() = profile.clone();
+        self.switch_effective(profiles::effective(&new, profile.as_ref()));
+        if old.launch_on_startup != new.launch_on_startup {
+            platform::set_autostart(new.launch_on_startup)?;
+        }
+        Ok(())
+    }
+
+    /// Put new effective settings in force, doing only what changed requires:
+    /// rebind hotkeys, restart capture, resize the buffer, (un)hook input.
+    fn switch_effective(&self, new: Settings) {
+        let old = std::mem::replace(&mut *self.inner.effective.write(), new.clone());
         if old.hotkeys != new.hotkeys || old.buffer.extra_slots != new.buffer.extra_slots {
             if let Some(hk) = self.inner.hotkeys.lock().as_ref() {
                 for e in hk.bind(&new) {
@@ -330,7 +361,7 @@ impl Engine {
                 }
             }
         }
-        if old.video != new.video || old.buffer != new.buffer || old.audio != new.audio || old.profiles != new.profiles {
+        if old.video != new.video || old.buffer != new.buffer || old.audio != new.audio {
             self.inner.restart.store(true, Ordering::Relaxed);
         }
         if old.post_roll != new.post_roll {
@@ -341,16 +372,12 @@ impl Engine {
         if old.keystrokes != new.keystrokes || old.buffer != new.buffer || old.post_roll != new.post_roll {
             self.apply_input();
         }
-        if old.launch_on_startup != new.launch_on_startup {
-            platform::set_autostart(new.launch_on_startup)?;
-        }
-        Ok(())
     }
 
     /// Start or stop keystroke recording to match the settings. Off means
     /// no hook and no thread.
     fn apply_input(&self) {
-        let s = self.inner.settings.read().clone();
+        let s = self.inner.effective.read().clone();
         let keep = keep_secs(&s, self.inner.buffer_secs.load(Ordering::Relaxed));
         self.inner.input.lock().apply(&s.keystrokes, keep);
     }
@@ -452,7 +479,7 @@ impl Engine {
         let r = match action {
             Action::SaveClip => self.save_clip(None),
             Action::SaveSlot(i) => {
-                let slot = self.inner.settings.read().buffer.extra_slots.get(i as usize).cloned();
+                let slot = self.inner.effective.read().buffer.extra_slots.get(i as usize).cloned();
                 match slot {
                     Some(slot) if slot.enabled => self.save_clip(Some(slot.seconds)),
                     _ => Ok(()),
@@ -479,7 +506,7 @@ impl Engine {
     }
 
     fn clips_dir(&self) -> Result<PathBuf> {
-        let dir = self.inner.settings.read().clips_dir.clone();
+        let dir = self.inner.effective.read().clips_dir.clone();
         std::fs::create_dir_all(&dir)?;
         std::fs::create_dir_all(library::thumbs_dir(&dir))?;
         Ok(dir)
@@ -489,7 +516,7 @@ impl Engine {
     /// more than the longest enabled slot.
     fn clip_ticks(&self, secs: Option<u32>) -> i64 {
         let main = self.inner.buffer_secs.load(Ordering::Relaxed);
-        let max = self.inner.settings.read().longest_slot_secs().max(main);
+        let max = self.inner.effective.read().longest_slot_secs().max(main);
         secs.unwrap_or(main).clamp(1, max) as i64 * TICKS_PER_SEC
     }
 
@@ -768,7 +795,7 @@ impl Engine {
     }
 
     fn build_status(&self, fps: f64, kbps: f64) -> Status {
-        let s = self.inner.settings.read().clone();
+        let s = self.inner.effective.read().clone();
         let pipeline = self.inner.pipeline.lock();
         let buf = self.inner.buffer.lock();
         let buffered = if pipeline.is_some() { buf.buffered_ticks() as f64 / TICKS_PER_SEC as f64 } else { 0.0 };
@@ -802,6 +829,7 @@ impl Engine {
         // the struct literal and deadlock a second lock below.
         let error = self.inner.error.lock().clone();
         let game = self.inner.game.lock().as_ref().map(|g| g.name.clone());
+        let profile = self.inner.profile.lock().as_ref().map(|p| p.name.clone());
         let disk_free = Some(self.inner.disk_free.load(Ordering::Relaxed)).filter(|&b| b != u64::MAX);
         let post_roll = {
             let pending = self.inner.post_pending.lock();
@@ -832,6 +860,7 @@ impl Engine {
             encoder: pipeline.as_ref().map(|p| p.encoder_name.clone()),
             resolution: pipeline.as_ref().map(|p| p.output),
             game,
+            profile,
             privacy: self.inner.flags.privacy.load(Ordering::Relaxed),
             markers,
             post_roll,
@@ -844,9 +873,8 @@ impl Engine {
         }
     }
 
+    /// `s` is the effective settings: a game profile is already applied.
     fn start_pipeline(&self, s: &Settings) -> Result<Pipeline> {
-        let game = self.inner.game.lock().clone();
-        let profile = game.as_ref().and_then(|g| profiles::profile_for(&g.exe, &s.profiles)).cloned();
         let v = &s.video;
         let monitors = capture::monitors();
         let monitor = monitors
@@ -859,22 +887,22 @@ impl Engine {
         let encoder = encode::pick(&list, v.encoder, v.codec)
             .or_else(|| encode::pick(&list, crate::settings::EncoderChoice::Auto, v.codec))
             .ok_or_else(|| anyhow!("No video encoder available for {:?}", v.codec))?;
-        let buffer_secs = profile.as_ref().and_then(|p| p.buffer_seconds).unwrap_or(s.buffer.seconds);
+        let buffer_secs = s.buffer.seconds;
         self.inner.buffer_secs.store(buffer_secs, Ordering::Relaxed);
         *self.inner.buffer.lock() = ReplayBuffer::new(keep_secs(s, buffer_secs), s.buffer.max_memory_mb as usize * MB);
         Pipeline::start(
             PipelineConfig {
                 monitor,
                 cursor: v.capture_cursor,
-                target_height: profile.as_ref().and_then(|p| p.height).unwrap_or(v.height),
+                target_height: v.height,
                 encoder,
                 params: EncoderParams {
                     codec: v.codec,
                     width: 0,
                     height: 0,
-                    fps: profile.as_ref().and_then(|p| p.fps).unwrap_or(v.fps),
+                    fps: v.fps,
                     rate_control: v.rate_control,
-                    bitrate_kbps: profile.as_ref().and_then(|p| p.bitrate_kbps).unwrap_or(v.bitrate_kbps),
+                    bitrate_kbps: v.bitrate_kbps,
                     quality: v.quality,
                     keyframe_secs: v.keyframe_secs,
                 },
@@ -885,6 +913,24 @@ impl Engine {
         )
     }
 
+    /// Switch the running game's profile in or out when it changed.
+    fn follow_profile(&self, s: &Settings, exe: Option<&str>) {
+        let want = profiles::active(s, exe).cloned();
+        if *self.inner.profile.lock() == want {
+            return;
+        }
+        let msg = match (&want, self.inner.profile.lock().as_ref()) {
+            (Some(p), _) => format!("Using the {} profile", p.name),
+            (None, Some(p)) => format!("{} closed: back to your usual settings", p.name),
+            (None, None) => String::new(),
+        };
+        *self.inner.profile.lock() = want.clone();
+        let effective = profiles::effective(s, want.as_ref());
+        self.switch_effective(effective.clone());
+        self.inner.events.profile_changed(&effective);
+        self.inner.events.notice(Level::Info, &msg);
+    }
+
     fn control_loop(&self) {
         let mut detector = Detector::default();
         let mut last_detect = Instant::now() - Duration::from_secs(10);
@@ -892,7 +938,6 @@ impl Engine {
         let mut last_frames = 0u64;
         let mut last_bytes = 0u64;
         let mut retry_after = Instant::now();
-        let mut current_game_exe: Option<String> = None;
         let mut last_purge = Instant::now() - Duration::from_secs(3600);
         let mut last_disk = Instant::now() - Duration::from_secs(60);
         let mut disk_was = DiskLevel::Ok;
@@ -927,15 +972,11 @@ impl Engine {
                 last_detect = Instant::now();
                 let g = detector.poll(&s);
                 let exe = g.as_ref().map(|g| g.exe.clone());
-                // A different game may have its own profile: restart to apply it.
-                if exe != current_game_exe && self.inner.pipeline.lock().is_some() {
-                    let had_profile = |e: &Option<String>| e.as_ref().is_some_and(|e| profiles::profile_for(e, &s.profiles).is_some());
-                    if had_profile(&exe) || had_profile(&current_game_exe) {
-                        self.inner.restart.store(true, Ordering::Relaxed);
-                    }
-                }
-                current_game_exe = exe;
                 *self.inner.game.lock() = g;
+                // Profiles off: stop here, nothing is looked up or switched.
+                if s.profiles_enabled {
+                    self.follow_profile(&s, exe.as_deref());
+                }
             }
 
             // The buffer is always on while the app runs; saving never starts or stops it.
@@ -948,7 +989,8 @@ impl Engine {
             }
             let running = self.inner.pipeline.lock().is_some();
             if !running && Instant::now() >= retry_after {
-                match self.start_pipeline(&s) {
+                let effective = self.inner.effective.read().clone();
+                match self.start_pipeline(&effective) {
                     Ok(p) => {
                         tracing::info!("recording: {} at {}x{}", p.encoder_name, p.output.0, p.output.1);
                         *self.inner.pipeline.lock() = Some(p);

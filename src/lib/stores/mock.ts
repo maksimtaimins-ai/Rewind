@@ -3,7 +3,7 @@ import type { Clip, Settings, Status } from '#lib/api.ts';
 
 export function mockSettings(): Settings {
 	return {
-		version: 18,
+		version: 19,
 		first_run_complete: true,
 		tour_complete: false,
 		pro_mode: false,
@@ -49,7 +49,13 @@ export function mockSettings(): Settings {
 			favorite_last: 'Alt+Shift+F',
 			compact_hud: 'Alt+F11'
 		},
-		profiles: [],
+		profiles_enabled: true,
+		profiles: [
+			{ exe: 'cs2.exe', name: 'Counter-Strike 2', enabled: true, fps: 120, height: null, bitrate_kbps: 30000, codec: null, buffer_seconds: 30, slot_b_seconds: null, slot_c_seconds: null, hotkeys: null, subfolder: true, keystroke_preset: 'gaming', highlight: null },
+			{ exe: 'VALORANT-Win64-Shipping.exe', name: 'VALORANT', enabled: true, fps: 120, height: null, bitrate_kbps: 30000, codec: null, buffer_seconds: 30, slot_b_seconds: null, slot_c_seconds: null, hotkeys: null, subfolder: false, keystroke_preset: 'gaming', highlight: null },
+			{ exe: 'RocketLeague.exe', name: 'Rocket League', enabled: true, fps: 60, height: null, bitrate_kbps: null, codec: null, buffer_seconds: 30, slot_b_seconds: null, slot_c_seconds: null, hotkeys: null, subfolder: false, keystroke_preset: 'wasd', highlight: null },
+			{ exe: 'javaw.exe', name: 'Minecraft', enabled: false, fps: 60, height: null, bitrate_kbps: null, codec: null, buffer_seconds: 60, slot_b_seconds: null, slot_c_seconds: null, hotkeys: null, subfolder: false, keystroke_preset: 'wasd_clicks', highlight: null }
+		],
 		privacy_apps: ['KeePassXC.exe', '1Password.exe', 'Bitwarden.exe'],
 		ssd_warn_gb_per_day: 50,
 		sharing: {
@@ -118,6 +124,7 @@ export function mockStatus(): Status {
 		encoder: 'NVIDIA H.264 Encoder MFT',
 		resolution: [2580, 1080],
 		game: 'Counter-Strike 2',
+		profile: 'Counter-Strike 2',
 		privacy: false,
 		markers: [
 			{ id: 1, ago: 340, at_ms: Date.now() - 340e3, in_buffer: false },
