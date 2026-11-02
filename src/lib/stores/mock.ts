@@ -101,6 +101,7 @@ export function mockSettings(): Settings {
 			},
 			position: { anchor: 'bottom_left', x: 0.05, y: 0.8, margin: 40, click_position: 'cursor', click_style: 'ring', trail: false, trail_ms: 400 }
 		},
+		overlay_monitor: null,
 		watch_folders: [
 			{ enabled: true, input: 'C:\\clips\\outbox\\youtube-shorts', preset: 'shorts', output: 'C:\\clips\\exported\\youtube', delete_original: false }
 		]

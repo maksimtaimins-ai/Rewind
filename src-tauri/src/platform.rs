@@ -324,13 +324,40 @@ pub fn make_overlay(hwnd: HWND) {
     }
 }
 
-/// Show `hwnd` topmost over the given physical rect without taking focus
-/// from whatever has it (a game, usually).
-pub fn show_no_activate(hwnd: HWND, x: i32, y: i32, w: i32, h: i32) {
-    use windows::Win32::UI::WindowsAndMessaging::{SetWindowPos, HWND_TOPMOST, SWP_NOACTIVATE, SWP_SHOWWINDOW};
+/// Show `hwnd` topmost over exactly the physical rect `(x, y, w, h)` without
+/// taking focus from whatever has it (a game, usually). False, with the
+/// window left hidden, if Windows won't keep it there.
+///
+/// Moving a window onto a monitor with a different DPI makes Windows send
+/// WM_DPICHANGED, and the window rescales itself to keep its logical size:
+/// a full-screen overlay then spills onto the neighbouring monitors. So the
+/// window is moved first, sized once it's on the target monitor, and checked.
+pub fn place_overlay(hwnd: HWND, (x, y, w, h): (i32, i32, u32, u32)) -> bool {
+    use windows::Win32::Foundation::RECT;
+    use windows::Win32::UI::WindowsAndMessaging::{SetWindowPos, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW};
+    let (w, h) = (w as i32, h as i32);
+    let want = RECT { left: x, top: y, right: x + w, bottom: y + h };
+    let mut got = RECT::default();
     unsafe {
-        let _ = SetWindowPos(hwnd, Some(HWND_TOPMOST), x, y, w, h, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+        let _ = SetWindowPos(hwnd, Some(HWND_TOPMOST), x, y, 0, 0, SWP_NOACTIVATE | SWP_NOSIZE);
+        // A second pass only matters if the first one's DPI change resized it.
+        for _ in 0..2 {
+            let _ = SetWindowPos(hwnd, Some(HWND_TOPMOST), x, y, w, h, SWP_NOACTIVATE);
+            if GetWindowRect(hwnd, &mut got).is_ok() && got == want {
+                let _ = SetWindowPos(hwnd, Some(HWND_TOPMOST), 0, 0, 0, 0, SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+                return true;
+            }
+        }
     }
+    tracing::warn!(
+        "overlay: wanted {w}x{h} at ({x}, {y}), Windows kept {}x{} at ({}, {}); leaving it hidden",
+        got.right - got.left,
+        got.bottom - got.top,
+        got.left,
+        got.top
+    );
+    hide_window(hwnd);
+    false
 }
 
 pub fn hide_window(hwnd: HWND) {

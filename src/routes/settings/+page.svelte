@@ -35,7 +35,7 @@
 	onMount(async () => {
 		refreshStorage();
 		if (!inApp) {
-			monitors = [{ index: 0, name: 'DISPLAY1', width: 2560, height: 1440, primary: true }];
+			monitors = [{ index: 0, name: 'DISPLAY1', width: 2560, height: 1440, x: 0, y: 0, primary: true }];
 			encoders = [
 				{ kind: 'nvenc', name: 'NVIDIA H.264 Encoder MFT', codec: 'h264' },
 				{ kind: 'nvenc', name: 'NVIDIA HEVC Encoder MFT', codec: 'hevc' }
@@ -47,6 +47,7 @@
 
 	const set = (f: (x: Settings) => void) => updateSettings(f);
 	const num = (e: Event) => Number((e.currentTarget as HTMLInputElement).value);
+	const monitorLabel = (m: Monitor) => `${m.name}, ${m.width}×${m.height} at ${m.x}, ${m.y}${m.primary ? ' (main)' : ''}`;
 
 	const sections = $derived(
 		[
@@ -243,7 +244,7 @@
 				<Row label="Screen" hint="The monitor Rewind records.">
 					<select value={s.video.monitor} onchange={(e) => set((x) => (x.video.monitor = num(e)))} aria-label="Screen">
 						{#each monitors as m (m.index)}
-							<option value={m.index}>{m.name}, {m.width}×{m.height}{m.primary ? ' (main)' : ''}</option>
+							<option value={m.index}>{monitorLabel(m)}</option>
 						{/each}
 					</select>
 				</Row>
@@ -609,6 +610,27 @@
 						onchange={(v) => set((x) => (x.video.keyframe_secs = v))}
 					/>
 				</Row>
+				{#if monitors.length > 1}
+					<Row label="Recorded screen" hint="Pick the monitor Rewind records by hand." help="Rewind records one monitor, never a span across several. Positions are in physical pixels on your desktop; a screen left of or above the main one has negative numbers, which is normal.">
+						<select value={s.video.monitor} onchange={(e) => set((x) => (x.video.monitor = num(e)))} aria-label="Recorded screen">
+							{#each monitors as m (m.index)}
+								<option value={m.index}>{monitorLabel(m)}</option>
+							{/each}
+						</select>
+					</Row>
+					<Row label="Overlay screen" hint="Where the recording highlight, live keystrokes and the HUD's default spot appear." help="Each overlay covers exactly one monitor. Same as recorded keeps them on the screen being captured, which is usually what you want.">
+						<select
+							value={s.overlay_monitor ?? -1}
+							onchange={(e) => set((x) => (x.overlay_monitor = num(e) < 0 ? null : num(e)))}
+							aria-label="Overlay screen"
+						>
+							<option value={-1}>Same as recorded</option>
+							{#each monitors as m (m.index)}
+								<option value={m.index}>{monitorLabel(m)}</option>
+							{/each}
+						</select>
+					</Row>
+				{/if}
 				<Row label="Memory limit" hint="Oldest seconds are dropped first above this." help="The buffer lives in RAM, never on disk, until you save. If high bitrates or a long buffer would grow it past this, Rewind drops the oldest seconds so your game keeps the memory it needs.">
 					<input class="numbox num" type="number" min="128" max="16384" step="128" value={s.buffer.max_memory_mb} onchange={(e) => set((x) => (x.buffer.max_memory_mb = num(e)))} aria-label="Memory limit in MB" />
 					<span class="unit">MB</span>

@@ -71,24 +71,44 @@ fn build(app: &AppHandle, s: &Settings) -> tauri::Result<WebviewWindow> {
         .visible(false)
         .build()?;
     let saved = s.hud.x.zip(s.hud.y).map(|(x, y)| PhysicalPosition::new(x, y));
+    let monitors = crate::capture::cached();
     // A saved spot on a monitor that's gone would leave the pill unreachable.
     let on_screen = |p: &PhysicalPosition<i32>| {
-        app.available_monitors().unwrap_or_default().iter().any(|m| {
-            let (mp, ms) = (m.position(), m.size());
-            p.x >= mp.x && p.y >= mp.y && p.x < mp.x + ms.width as i32 - 40 && p.y < mp.y + ms.height as i32 - 20
+        monitors.iter().filter(|m| m.sane()).any(|m| {
+            p.x >= m.x && p.y >= m.y && p.x < m.x + m.width as i32 - 40 && p.y < m.y + m.height as i32 - 20
         })
     };
     let pos = saved.filter(on_screen).or_else(|| {
-        // Top right of the main screen.
-        let m = app.primary_monitor().ok().flatten()?;
-        let k = m.scale_factor();
-        Some(PhysicalPosition::new(m.position().x + m.size().width as i32 - ((WIDTH + 24.0) * k) as i32, m.position().y + (24.0 * k) as i32))
+        // Top right of the overlay screen (the recorded one unless picked).
+        let (x, y, width, height) = crate::capture::overlay_rect(s)?;
+        let k = monitor_scale(x, y);
+        let px = |v: f64| (v * k) as i32;
+        // Never wider than the screen it sits on.
+        Some(PhysicalPosition::new((x + width as i32 - px(WIDTH + 24.0)).max(x), y + px(24.0).min(height as i32 / 2)))
     });
+    if pos.is_none() {
+        tracing::warn!("HUD: no usable monitor for the default spot; leaving it where Windows put it");
+    }
     if let Some(p) = pos {
         w.set_position(p)?;
     }
     w.show()?;
     Ok(w)
+}
+
+/// DPI scale of the monitor at physical point (x, y); 1.0 if unknown.
+fn monitor_scale(x: i32, y: i32) -> f64 {
+    use windows::Win32::Foundation::POINT;
+    use windows::Win32::Graphics::Gdi::{MonitorFromPoint, MONITOR_DEFAULTTONEAREST};
+    use windows::Win32::UI::HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI};
+    let (mut dx, mut dy) = (96u32, 96u32);
+    unsafe {
+        let m = MonitorFromPoint(POINT { x, y }, MONITOR_DEFAULTTONEAREST);
+        if GetDpiForMonitor(m, MDT_EFFECTIVE_DPI, &mut dx, &mut dy).is_err() {
+            return 1.0;
+        }
+    }
+    dx as f64 / 96.0
 }
 
 /// Turn the HUD on or off and save that.

@@ -35,7 +35,9 @@ struct UiEvents(AppHandle);
 impl Events for UiEvents {
     fn status(&self, status: &Status) {
         let _ = self.0.emit("status", status);
-        highlight::on_status(&self.0, &self.0.state::<Engine>().effective_settings(), status);
+        let effective = self.0.state::<Engine>().effective_settings();
+        highlight::on_status(&self.0, &effective, status);
+        live_keys::on_status(&self.0, &effective);
         if let Some(tray) = self.0.tray_by_id("main") {
             let text = match status.state {
                 engine::State::Recording => {

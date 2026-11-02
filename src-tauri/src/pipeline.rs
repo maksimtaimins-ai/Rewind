@@ -48,6 +48,8 @@ pub struct Pipeline {
     pub output: (u32, u32),
     /// The captured monitor on the virtual desktop: x, y, width, height.
     pub screen: (i32, i32, u32, u32),
+    /// Its HMONITOR.
+    pub monitor: isize,
     pub encoder_name: String,
     /// Frame-rate cap in effect.
     pub fps: u32,
@@ -137,7 +139,12 @@ impl Pipeline {
             }
         });
 
-        let (capture, _) = wgc::start(&gpu, cfg.monitor.handle, cfg.cursor, on_frame).context("start screen capture")?;
+        let (capture, size) = wgc::start(&gpu, cfg.monitor.handle, cfg.cursor, on_frame).context("start screen capture")?;
+        // WGC sizes the item from the one monitor; a mismatch means the display
+        // changed between enumeration and capture.
+        if size != native {
+            tracing::warn!("capture item is {}x{} but {} reported {}x{}", size.0, size.1, cfg.monitor.name, native.0, native.1);
+        }
 
         let mut audio = Vec::new();
         for track in cfg.audio.iter().filter(|t| t.enabled) {
@@ -153,7 +160,8 @@ impl Pipeline {
             audio,
             stats,
             output: out,
-            screen: (cfg.monitor.x, cfg.monitor.y, cfg.monitor.width, cfg.monitor.height),
+            screen: cfg.monitor.rect(),
+            monitor: cfg.monitor.handle,
             encoder_name: cfg.encoder.name.clone(),
             fps: cfg.params.fps,
             grab,

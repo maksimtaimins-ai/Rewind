@@ -123,6 +123,8 @@ export interface Settings {
 	highlight: Highlight;
 	smart_highlights: SmartHighlights;
 	keystrokes: Keystrokes;
+	/** Monitor index the on-screen overlays go on; null = the recorded monitor. */
+	overlay_monitor: number | null;
 }
 
 export type KeyFilterMode = 'all' | 'allow' | 'block';
@@ -386,6 +388,9 @@ export interface Monitor {
 	name: string;
 	width: number;
 	height: number;
+	/** Top-left on the virtual desktop, physical pixels. */
+	x: number;
+	y: number;
 	primary: boolean;
 }
 

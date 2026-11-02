@@ -557,6 +557,9 @@ pub struct Settings {
     pub highlight: HighlightSettings,
     pub smart_highlights: SmartHighlightSettings,
     pub keystrokes: KeystrokeSettings,
+    /// Monitor index (as in `video.monitor`) the on-screen overlays go on;
+    /// None = the recorded monitor.
+    pub overlay_monitor: Option<u32>,
 }
 
 impl Default for Settings {
@@ -685,6 +688,7 @@ impl Default for Settings {
                     trail_ms: 400,
                 },
             },
+            overlay_monitor: None,
         }
     }
 }

@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
@@ -396,7 +396,7 @@ impl Engine {
     }
 
     pub fn benchmark(&self, secs: f64) -> Vec<BenchResult> {
-        let monitors = capture::monitors();
+        let monitors = capture::cached();
         let m = monitors.first();
         let (w, h) = crate::gpu::output_size(
             m.map(|m| (m.width, m.height)).unwrap_or((1920, 1080)),
@@ -876,13 +876,12 @@ impl Engine {
     /// `s` is the effective settings: a game profile is already applied.
     fn start_pipeline(&self, s: &Settings) -> Result<Pipeline> {
         let v = &s.video;
-        let monitors = capture::monitors();
-        let monitor = monitors
-            .iter()
-            .find(|m| m.index == v.monitor)
-            .or_else(|| monitors.first())
-            .cloned()
-            .ok_or_else(|| anyhow!("No monitor found"))?;
+        let monitors = capture::cached();
+        let monitor = capture::capture_monitor(s).ok_or_else(|| anyhow!("No monitor found"))?;
+        capture::log_monitors(&monitors, &monitor);
+        if !monitor.sane() {
+            bail!("Screen {} reports {}x{} at {},{}; waiting for the display to settle", monitor.name, monitor.width, monitor.height, monitor.x, monitor.y);
+        }
         let list = self.encoders();
         let encoder = encode::pick(&list, v.encoder, v.codec)
             .or_else(|| encode::pick(&list, crate::settings::EncoderChoice::Auto, v.codec))
@@ -980,6 +979,14 @@ impl Engine {
             }
 
             // The buffer is always on while the app runs; saving never starts or stops it.
+            // Its screen was unplugged: start over on whatever is there now. Only
+            // a gone handle counts; a mode change on the same screen is handled
+            // in place and must not throw the buffer away.
+            let gone = self.inner.pipeline.lock().as_ref().map(|p| p.monitor).filter(|h| !capture::cached().iter().any(|m| m.handle == *h));
+            if let Some(h) = gone {
+                tracing::warn!("recorded monitor {h:#x} is gone; restarting capture");
+                self.inner.restart.store(true, Ordering::Relaxed);
+            }
             let running = self.inner.pipeline.lock().is_some();
             if self.inner.restart.swap(false, Ordering::Relaxed) && running {
                 if let Some(mut p) = self.inner.pipeline.lock().take() {
