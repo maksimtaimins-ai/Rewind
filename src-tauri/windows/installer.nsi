@@ -712,7 +712,9 @@ Section Install
     !insertmacro NSIS_HOOK_PREINSTALL
   !endif
 
+  ${RewindLog} "step: restart manager check"
   !insertmacro CheckIfAppIsRunning "$INSTDIR\${MAINBINARYNAME}.exe" "${PRODUCTNAME}"
+  ${RewindLog} "step: copying files"
 
   ; Copy main executable
   File "${MAINBINARYSRCPATH}"
@@ -843,17 +845,35 @@ Function un.onInit
   ${EndIf}
 FunctionEnd
 
+; Abort in the uninstall section (the Restart Manager check, mostly) ends up here.
+Function un.onUninstFailed
+  ${RewindLog} "uninstall ABORTED (last step above is where)"
+FunctionEnd
+
+Function .onInstFailed
+  ${RewindLog} "install ABORTED (last step above is where)"
+FunctionEnd
+
 Section Uninstall
 
   !ifmacrodef NSIS_HOOK_PREUNINSTALL
     !insertmacro NSIS_HOOK_PREUNINSTALL
   !endif
 
+  ; Aborts the uninstall if Restart Manager can't stop the app; the hook
+  ; above makes sure it's gone by now. Logged so a report shows which.
+  ${RewindLog} "step: restart manager check"
   !insertmacro CheckIfAppIsRunning "$INSTDIR\${MAINBINARYNAME}.exe" "${PRODUCTNAME}"
+  ${RewindLog} "step: deleting files"
 
   ; Delete the app directory and its content from disk
   ; Copy main executable
   Delete "$INSTDIR\${MAINBINARYNAME}.exe"
+  ${If} ${FileExists} "$INSTDIR\${MAINBINARYNAME}.exe"
+    ; Still locked by something: remove it on the next restart instead.
+    ${RewindLog} "${MAINBINARYNAME}.exe is locked, deleting on reboot"
+    Delete /REBOOTOK "$INSTDIR\${MAINBINARYNAME}.exe"
+  ${EndIf}
 
   ; Delete resources
   {{#each resources}}
@@ -918,6 +938,7 @@ Section Uninstall
     ${EndIf}
   ${EndIf}
 
+  ${RewindLog} "step: registry"
   ; Remove registry information for add/remove programs
   !if "${INSTALLMODE}" == "both"
     DeleteRegKey SHCTX "${UNINSTKEY}"
