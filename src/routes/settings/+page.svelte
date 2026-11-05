@@ -1,9 +1,10 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { open, save } from '@tauri-apps/plugin-dialog';
 	import { check } from '@tauri-apps/plugin-updater';
 	import { api, type BenchReport, type BenchResult, type Device, type EncoderInfo, type Monitor, type Settings, type AudioSource } from '#lib/api.ts';
+	import { reducedMotion } from '#lib/motion.ts';
 	import { app, inApp, refreshStorage, toast, updateSettings } from '#lib/stores/app.svelte.ts';
 	import StorageBar from '#lib/components/StorageBar.svelte';
 	import Row from '#lib/components/Row.svelte';
@@ -67,13 +68,21 @@
 	// Advanced is folded away until asked for. A link or search result that
 	// points inside it opens it first.
 	let advancedOpen = $state(false);
-	const inAdvanced = ['advanced', 'tuning', 'monitors', 'benchmarks', 'performance', 'smart-highlights'];
-	function openForHash() {
-		const id = location.hash.slice(1);
-		if (inAdvanced.includes(id) && pro) {
+	async function openForHash() {
+		const id = decodeURIComponent(location.hash.slice(1));
+		if (!id) return;
+		let el = document.getElementById(id);
+		if (el?.closest('details') && !advancedOpen) {
 			advancedOpen = true;
-			requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ block: 'start' }));
+			await tick();
+			el = document.getElementById(id);
 		}
+		if (!el) return;
+		el.scrollIntoView({ block: 'center', behavior: reducedMotion() ? 'auto' : 'smooth' });
+		el.classList.remove('flash');
+		void el.offsetWidth;
+		el.classList.add('flash');
+		el.addEventListener('animationend', () => el.classList.remove('flash'), { once: true });
 	}
 
 	async function replayTour() {
@@ -285,7 +294,7 @@
 				<div class="block-hint">Follow Windows, or pick one.</div>
 				<ThemePicker value={s.theme} onchange={(v) => set((x) => (x.theme = v))} />
 			</div>
-			<Row label="Compact HUD" hint="Swap this window for a small always-on-top pill with the buffer and a Save button.{s.hotkeys.compact_hud ? ` ${s.hotkeys.compact_hud} switches back and forth.` : ''}">
+			<Row id="s-compact-hud-toggle" label="Compact HUD" hint="Swap this window for a small always-on-top pill with the buffer and a Save button.{s.hotkeys.compact_hud ? ` ${s.hotkeys.compact_hud} switches back and forth.` : ''}">
 				<Toggle checked={s.hud.enabled} label="Compact HUD" onchange={(v) => set((x) => (x.hud.enabled = v))} />
 			</Row>
 			<Row label="Open minimized to the tray" hint="The window stays hidden until you open it.">

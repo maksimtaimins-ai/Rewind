@@ -1,13 +1,21 @@
 <script lang="ts">
 	import { getCurrentWindow } from '@tauri-apps/api/window';
 	import { inApp } from '#lib/stores/app.svelte.ts';
+	import { openSearch } from '#lib/stores/search.svelte.ts';
 
-	let { title = 'Rewind' }: { title?: string } = $props();
+	let { title = 'Rewind', search = true }: { title?: string; search?: boolean } = $props();
 	const win = inApp ? getCurrentWindow() : null;
 </script>
 
 <header class="bar" data-tauri-drag-region>
 	<span class="title" data-tauri-drag-region>{title}</span>
+	{#if search}
+		<button class="find" onclick={openSearch} aria-label="Search clips, settings and help" aria-keyshortcuts="Control+K">
+			<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5" /><path d="M10.5 10.5L14 14" /></svg>
+			<span>Search</span>
+			<kbd>Ctrl K</kbd>
+		</button>
+	{/if}
 	<div class="controls">
 		<button aria-label="Minimize" onclick={() => win?.minimize()}>
 			<svg viewBox="0 0 10 10"><path d="M1 5h8" /></svg>
@@ -40,6 +48,48 @@
 		height: 100%;
 	}
 	button {
+		border: 0;
+		cursor: pointer;
+	}
+	.find {
+		position: absolute;
+		left: 50%;
+		translate: -50% 0;
+		width: min(320px, 40vw);
+		height: 24px;
+		top: 4px;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 0 8px;
+		border-radius: 6px;
+		background: var(--sunken);
+		color: var(--faint);
+		font-size: 12px;
+		transition: color 180ms ease-out, background-color 180ms ease-out;
+	}
+	.find span {
+		flex: 1;
+		text-align: left;
+	}
+	.find:hover {
+		background: var(--raised);
+		color: var(--text);
+	}
+	.find svg {
+		width: 12px;
+		height: 12px;
+		stroke-width: 1.5;
+		stroke-linecap: round;
+	}
+	kbd {
+		font: 500 10px var(--font-sans);
+		color: var(--faint);
+	}
+	.bar {
+		position: relative;
+	}
+	.controls button {
 		width: 44px;
 		height: 100%;
 		display: grid;

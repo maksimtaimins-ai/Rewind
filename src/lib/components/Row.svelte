@@ -4,7 +4,9 @@
 -->
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	let { label, hint, help, children }: { label: string; hint?: string; help?: string; children: Snippet } = $props();
+	import { slug } from '#lib/search.ts';
+	// `id` is the anchor search results jump to; it defaults to one made from the label.
+	let { label, hint, help, id, children }: { label: string; hint?: string; help?: string; id?: string; children: Snippet } = $props();
 
 	let open = $state(false);
 	let wrap = $state<HTMLElement>();
@@ -22,7 +24,7 @@
 	});
 </script>
 
-<div class="row">
+<div class="row" id={id ?? slug(label)}>
 	<div class="copy">
 		<div class="label">
 			{label}

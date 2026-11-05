@@ -179,3 +179,18 @@ dialog[open]::backdrop {
 		transform: none;
 	}
 }
+
+/* A setting reached from search pulses once so the eye finds it. */
+.row.flash {
+	animation: row-flash 1400ms ease-out;
+	border-radius: 6px;
+}
+@keyframes row-flash {
+	0%,
+	35% {
+		background: color-mix(in srgb, var(--accent) 14%, transparent);
+	}
+	100% {
+		background: transparent;
+	}
+}

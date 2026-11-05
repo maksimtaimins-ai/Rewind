@@ -6,6 +6,8 @@
 	import { app, init } from '#lib/stores/app.svelte.ts';
 	import TitleBar from '#lib/components/TitleBar.svelte';
 	import Rail from '#lib/components/Rail.svelte';
+	import SearchPalette from '#lib/components/SearchPalette.svelte';
+	import { closeSearch, searchUi } from '#lib/stores/search.svelte.ts';
 	import Toasts from '#lib/components/Toasts.svelte';
 	import { apply as applyTheme, resolve as resolveTheme, SYSTEM, type Palette } from '#lib/themes.ts';
 	import { fly } from 'svelte/transition';
@@ -51,6 +53,15 @@
 	const bare = $derived(page.url.pathname.startsWith('/wizard'));
 </script>
 
+<svelte:window
+	onkeydown={(e) => {
+		if (hud || bare || !(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'k') return;
+		e.preventDefault();
+		if (searchUi.open) closeSearch();
+		else searchUi.open = true;
+	}}
+/>
+
 {#if hud}
 	{#if app.ready}{@render children()}{/if}
 {:else}
@@ -59,7 +70,7 @@
 			<Rail />
 		{/if}
 		<div class="main">
-			<TitleBar title={bare ? 'Rewind setup' : ''} />
+			<TitleBar title={bare ? 'Rewind setup' : ''} search={!bare} />
 			<main>
 				{#if app.ready}
 					{#key page.url.pathname}
@@ -71,6 +82,7 @@
 			</main>
 		</div>
 	</div>
+	{#if !bare}<SearchPalette />{/if}
 	<Toasts />
 {/if}
 
