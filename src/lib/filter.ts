@@ -81,3 +81,19 @@ export function allTags(clips: Clip[]): string[] {
 	for (const c of clips) for (const t of c.tags) n.set(t, (n.get(t) ?? 0) + 1);
 	return [...n].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([t]) => t);
 }
+
+/** Library sub-tabs. */
+export type LibraryTab = 'all' | 'highlights' | 'games' | 'screenshots' | 'montages' | 'deleted';
+
+/** Smart-highlight moments found, or starred by hand. */
+export const isHighlight = (c: Clip) => c.favorite || !!c.highlights?.length;
+
+/** Montage and merge outputs: made by Rewind's own names, or tagged by hand. */
+export const isMontage = (c: Clip) =>
+	/^Montage\b/i.test(c.name) || / merged$/i.test(c.name) || c.tags.some((t) => /^(montage|merge|merged)$/i.test(t));
+
+/** The game a clip came from: its name minus the trailing timestamp ("Valorant 2026-10-28 20-11-03"). */
+export function gameOf(c: Clip): string {
+	const g = c.name.replace(/\s+\d{4}-\d{2}-\d{2}[ _]\d{2}-\d{2}-\d{2}.*$/, '').trim();
+	return g && g !== c.name ? g : 'Other';
+}

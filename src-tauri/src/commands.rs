@@ -80,6 +80,11 @@ pub fn list_clips(engine: State<Engine>) -> Vec<ClipInfo> {
 }
 
 #[tauri::command]
+pub fn list_screenshots(engine: State<Engine>) -> Vec<library::ShotInfo> {
+    library::list_screenshots(&engine.clips_dir_path())
+}
+
+#[tauri::command]
 pub fn rename_clip(path: PathBuf, name: String) -> R<ClipInfo> {
     let p = library::rename(&path, &name).map_err(err)?;
     library::info(&p).map_err(err)

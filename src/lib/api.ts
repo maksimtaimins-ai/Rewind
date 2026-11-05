@@ -348,6 +348,14 @@ export interface Clip {
 	has_input: boolean;
 }
 
+/** A PNG saved by the screenshot hotkey. */
+export interface Screenshot {
+	path: string;
+	name: string;
+	size: number;
+	modified: number;
+}
+
 export type ExportPreset = 'discord10' | 'discord25' | 'shorts' | 'twitter' | 'gif';
 
 export interface RecycledClip {
@@ -429,6 +437,7 @@ export const api = {
 	microphones: () => invoke<Device[]>('list_microphones'),
 	benchmark: (secs: number) => invoke<BenchResult[]>('run_benchmark', { secs }),
 	clips: () => invoke<Clip[]>('list_clips'),
+	screenshots: () => invoke<Screenshot[]>('list_screenshots'),
 	renameClip: (path: string, name: string) => invoke<Clip>('rename_clip', { path, name }),
 	deleteClips: (paths: string[]) => invoke<number>('delete_clips', { paths }),
 	recycled: () => invoke<RecycledClip[]>('list_recycled'),

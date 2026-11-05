@@ -262,6 +262,7 @@ pub fn run() {
             commands::list_microphones,
             commands::run_benchmark,
             commands::list_clips,
+            commands::list_screenshots,
             commands::rename_clip,
             commands::delete_clips,
             commands::list_recycled,

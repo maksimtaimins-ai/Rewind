@@ -9,13 +9,14 @@
 	import TagChip from '#lib/components/TagChip.svelte';
 	import TagEditor from '#lib/components/TagEditor.svelte';
 	import { openPath } from '@tauri-apps/plugin-opener';
-	import { api, fmtBytes, type Clip } from '#lib/api.ts';
+	import { api, fileUrl, fmtBytes, type Clip, type Screenshot } from '#lib/api.ts';
 	import { app, inApp, refreshClips, setFavorite, setTags, toast } from '#lib/stores/app.svelte.ts';
 	import ClipTile from '#lib/components/ClipTile.svelte';
 	import Keycap from '#lib/components/Keycap.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Segmented from '#lib/components/Segmented.svelte';
-	import { allTags, applyFilters, emptyFilters, isFiltering, type DateRange, type LengthRange } from '#lib/filter.ts';
+	import { allTags, applyFilters, emptyFilters, gameOf, isFiltering, isHighlight, isMontage, type DateRange, type LengthRange, type LibraryTab } from '#lib/filter.ts';
+	import RecentlyDeleted from '#lib/components/RecentlyDeleted.svelte';
 	import { defaultSessionName, groupSessions } from '#lib/sessions.ts';
 	import { postToDiscord, sendToPeer } from '#lib/share.ts';
 	import type { LanPeer } from '#lib/api.ts';
@@ -26,16 +27,53 @@
 	let busy = $state(false);
 	let f = $state(emptyFilters());
 
-	const shown = $derived(applyFilters(app.clips, f));
+	// Sub-tabs. The filters above them are page state, so they carry over.
+	const tabs: { id: LibraryTab; label: string }[] = [
+		{ id: 'all', label: 'All' },
+		{ id: 'highlights', label: 'Highlights' },
+		{ id: 'games', label: 'By game' },
+		{ id: 'screenshots', label: 'Screenshots' },
+		{ id: 'montages', label: 'Montages' },
+		{ id: 'deleted', label: 'Recently deleted' }
+	];
+	const tab = $derived.by<LibraryTab>(() => {
+		const t = page.url.searchParams.get('tab');
+		return tabs.some((x) => x.id === t) ? (t as LibraryTab) : 'all';
+	});
+	const setTab = (t: LibraryTab) => goto(t === 'all' ? '/library' : `/library?tab=${t}`, { replaceState: true });
+	const isClipTab = $derived(tab !== 'screenshots' && tab !== 'deleted');
+
+	const base = $derived(tab === 'highlights' ? app.clips.filter(isHighlight) : tab === 'montages' ? app.clips.filter(isMontage) : app.clips);
+	const shown = $derived(applyFilters(base, f));
 	const tags = $derived(allTags(app.clips));
-	// Favorites are pinned above the sessions instead of inside them.
-	const favorites = $derived(shown.filter((c) => c.favorite));
+	// On All, favorites are pinned above the sessions instead of inside them.
+	const pin = $derived(tab === 'all');
+	const favorites = $derived(pin ? shown.filter((c) => c.favorite) : []);
 	// Sessions come from every clip so their keys (and names) don't shift while filtering.
 	const sessions = $derived(
 		groupSessions(app.clips, app.settings?.library.session_gap_mins ?? 30)
-			.map((s) => ({ ...s, shown: s.clips.filter((c) => !c.favorite && shown.includes(c)) }))
+			.map((s) => ({ ...s, shown: s.clips.filter((c) => (!pin || !c.favorite) && shown.includes(c)) }))
 			.filter((s) => s.shown.length)
 	);
+	const games = $derived.by(() => {
+		const m = new Map<string, Clip[]>();
+		for (const c of shown) m.set(gameOf(c), [...(m.get(gameOf(c)) ?? []), c]);
+		return [...m].sort((a, b) => (a[0] === 'Other' ? 1 : b[0] === 'Other' ? -1 : b[1].length - a[1].length || a[0].localeCompare(b[0])));
+	});
+
+	// Screenshots are PNGs, loaded when that tab opens. Search and date still apply.
+	let shots = $state<Screenshot[]>([]);
+	$effect(() => {
+		if (tab !== 'screenshots') return;
+		if (inApp) api.screenshots().then((r) => (shots = r));
+		else shots = [{ path: 'mock', name: 'Screenshot 2026-10-31 21-14-02', size: 1.4e6, modified: Date.now() - 3_600_000 }];
+	});
+	const shownShots = $derived.by(() => {
+		const asClips = shots.map((x) => ({ ...x, duration: 0, thumb: null, thumb_rev: 0, favorite: false, tags: [], highlights: null, has_input: false }));
+		const keep = new Set(applyFilters(asClips, { ...f, favorites: false, highlights: false, tags: [], length: 'any' }).map((c) => c.path));
+		return shots.filter((x) => keep.has(x.path));
+	});
+	const counts: Record<string, number> = $derived({ all: app.clips.length, highlights: app.clips.filter(isHighlight).length, montages: app.clips.filter(isMontage).length });
 	let collapsed = $state<Record<string, boolean>>({});
 	let editing = $state<string | null>(null);
 	const sessionName = (key: string, start: number) => app.meta.sessions[key] ?? defaultSessionName(start);
@@ -189,7 +227,9 @@
 			<p class="sub"><span class="num">{app.clips.length}</span> clips, <span class="num">{fmtBytes(totalSize)}</span> on disk</p>
 		</div>
 		<div class="tools">
-			{#if selecting}
+			{#if !isClipTab}
+				<button class="secondary" onclick={openFolder}>Open folder</button>
+			{:else if selecting}
 				<span class="picked"><span class="num">{selected.length}</span> selected</span>
 				<button class="secondary" disabled={busy || selected.length < 2 || selected.length > 5} onclick={merge} title="Join 2–5 clips end to end">
 					Merge
@@ -203,11 +243,19 @@
 				<button class="secondary" onclick={() => (selecting = true)} disabled={!app.clips.length}>Select</button>
 				<button class="secondary" onclick={() => ((draft.paths = []), goto('/library/montage'))} disabled={!app.clips.length}>Make montage</button>
 				<button class="secondary" onclick={openFolder}>Open folder</button>
-				<a class="secondary" href="/library/deleted">Recently deleted</a>
 			{/if}
 		</div>
 	</header>
 
+	<div class="subtabs" role="tablist" aria-label="Library views">
+		{#each tabs as t (t.id)}
+			<button role="tab" class="subtab" class:on={tab === t.id} aria-selected={tab === t.id} onclick={() => setTab(t.id)}>
+				{t.label}{#if t.id in counts}<span class="n num">{counts[t.id]}</span>{/if}
+			</button>
+		{/each}
+	</div>
+
+	{#if tab !== 'deleted'}
 	<div class="filters">
 		<input type="search" placeholder="Search names and tags" bind:value={f.query} aria-label="Search clips" />
 		<Segmented
@@ -255,9 +303,61 @@
 			{#if app.clips.length}<span class="hint">Add tags to find clips faster later.</span>{/if}
 		{/each}
 	</div>
+	{/if}
 
-	{#if shown.length}
-		{#if !favorites.length && !app.clips.some((c) => c.favorite) && !isFiltering(f)}
+	{#snippet tiles(list: Clip[])}
+		<div class="grid">
+			{#each list as c, i (c.path)}
+				<div class="cell" in:fly|global={{ y: 6, duration: ms(220), delay: ms(Math.min(i, 16) * 30), easing: enter }} out:scale={{ start: 0.92, duration: ms(160), easing: exit }} animate:flip={{ duration: ms(220), easing: standard }}>
+					<ClipTile
+						clip={c}
+						{selecting}
+						selected={selected.includes(c.path)}
+						onopen={() => goto(`/trim?path=${encodeURIComponent(c.path)}`)}
+						onselect={() => toggle(c)}
+						onfavorite={(v) => setFavorite(c.path, v)}
+						ondelete={() => removeOne(c)}
+						onedittags={(e) => editTags(c, e)}
+						ontag={toggleTag}
+						activeTags={f.tags}
+						oncontextmenu={(e) => openMenu(c, e)}
+					/>
+				</div>
+			{/each}
+		</div>
+	{/snippet}
+
+	{#if tab === 'deleted'}
+		<RecentlyDeleted />
+	{:else if tab === 'screenshots'}
+		{#if shownShots.length}
+			<div class="grid shots">
+				{#each shownShots as x, i (x.path)}
+					<button class="shot" style:animation-delay="{Math.min(i, 16) * 30}ms" onclick={() => inApp && openPath(x.path)} title="Open {x.name}">
+						{#if inApp}<img src={fileUrl(x.path)} alt={x.name} loading="lazy" />{/if}
+						<span class="shot-name">{x.name}</span>
+					</button>
+				{/each}
+			</div>
+		{:else}
+			<EmptyState keys={app.settings?.hotkeys.screenshot}>
+				{shots.length ? 'No screenshots match these filters.' : 'No screenshots yet.'}
+				{#if !shots.length && app.settings?.hotkeys.screenshot}Press <Keycap keys={app.settings.hotkeys.screenshot} /> to grab the current frame.{/if}
+			</EmptyState>
+		{/if}
+	{:else if tab === 'games' && shown.length}
+		{#each games as [game, list] (game)}
+			<section class="session" aria-label={game}>
+				<div class="sess-head">
+					<h2 class="sess-title">{game}</h2>
+					<span class="count"><span class="num">{list.length}</span> {list.length === 1 ? 'clip' : 'clips'}</span>
+				</div>
+				{@render tiles(list)}
+			</section>
+		{/each}
+	{:else if shown.length}
+
+		{#if pin && !favorites.length && !app.clips.some((c) => c.favorite) && !isFiltering(f)}
 			<section class="session" aria-labelledby="fav-h">
 				<div class="sess-head"><h2 id="fav-h" class="sess-title">Favorites</h2></div>
 				<EmptyState compact>Star a clip to pin it here.</EmptyState>
@@ -269,25 +369,7 @@
 					<h2 id="fav-h" class="sess-title">Favorites</h2>
 					<span class="count"><span class="num">{favorites.length}</span> {favorites.length === 1 ? 'clip' : 'clips'}</span>
 				</div>
-				<div class="grid">
-					{#each favorites as c, i (c.path)}
-						<div class="cell" in:fly|global={{ y: 6, duration: ms(220), delay: ms(Math.min(i, 16) * 30), easing: enter }} out:scale={{ start: 0.92, duration: ms(160), easing: exit }} animate:flip={{ duration: ms(220), easing: standard }}>
-							<ClipTile
-								clip={c}
-								{selecting}
-								selected={selected.includes(c.path)}
-								onopen={() => goto(`/trim?path=${encodeURIComponent(c.path)}`)}
-								onselect={() => toggle(c)}
-								onfavorite={(v) => setFavorite(c.path, v)}
-								ondelete={() => removeOne(c)}
-								onedittags={(e) => editTags(c, e)}
-								ontag={toggleTag}
-								activeTags={f.tags}
-								oncontextmenu={(e) => openMenu(c, e)}
-							/>
-						</div>
-					{/each}
-				</div>
+				{@render tiles(favorites)}
 			</section>
 		{/if}
 		{#each sessions as sess (sess.key)}
@@ -332,25 +414,7 @@
 					{/if}
 				</div>
 				{#if open}
-					<div class="grid">
-						{#each sess.shown as c, i (c.path)}
-							<div class="cell" in:fly|global={{ y: 6, duration: ms(220), delay: ms(Math.min(i, 16) * 30), easing: enter }} out:scale={{ start: 0.92, duration: ms(160), easing: exit }} animate:flip={{ duration: ms(220), easing: standard }}>
-								<ClipTile
-									clip={c}
-									{selecting}
-									selected={selected.includes(c.path)}
-									onopen={() => goto(`/trim?path=${encodeURIComponent(c.path)}`)}
-									onselect={() => toggle(c)}
-									onfavorite={(v) => setFavorite(c.path, v)}
-									ondelete={() => removeOne(c)}
-									onedittags={(e) => editTags(c, e)}
-									ontag={toggleTag}
-									activeTags={f.tags}
-									oncontextmenu={(e) => openMenu(c, e)}
-								/>
-							</div>
-						{/each}
-					</div>
+					{@render tiles(sess.shown)}
 				{/if}
 			</section>
 		{/each}
@@ -544,11 +608,6 @@
 		text-decoration: underline;
 		cursor: pointer;
 	}
-	a.secondary {
-		display: inline-flex;
-		align-items: center;
-		text-decoration: none;
-	}
 	.secondary {
 		height: 32px;
 		padding: 0 12px;
@@ -564,6 +623,96 @@
 	.secondary:disabled {
 		color: var(--faint);
 		cursor: default;
+	}
+	.subtabs {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 4px;
+		margin: -8px 0 20px;
+		border-bottom: 1px solid var(--line);
+	}
+	.subtab {
+		position: relative;
+		height: 32px;
+		padding: 0 12px;
+		border: 0;
+		border-radius: 16px 16px 0 0;
+		background: none;
+		color: var(--muted);
+		font-weight: 500;
+		cursor: pointer;
+		transition: color 180ms ease-out;
+	}
+	.subtab::after {
+		content: '';
+		position: absolute;
+		left: 12px;
+		right: 12px;
+		bottom: -1px;
+		height: 2px;
+		border-radius: 2px;
+		background: var(--accent);
+		transform: scaleX(0);
+		transition: transform 180ms ease-out;
+	}
+	.subtab:hover,
+	.subtab.on {
+		color: var(--text);
+	}
+	.subtab.on::after {
+		transform: scaleX(1);
+	}
+	.subtab:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: -2px;
+	}
+	.n {
+		margin-left: 6px;
+		color: var(--faint);
+		font-size: 12px;
+	}
+	.grid.shots {
+		grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+		gap: 16px;
+	}
+	.shot {
+		display: grid;
+		gap: 6px;
+		padding: 0;
+		border: 0;
+		background: none;
+		text-align: left;
+		cursor: pointer;
+		animation: shot-in 220ms ease-out backwards;
+	}
+	.shot img {
+		width: 100%;
+		aspect-ratio: 16 / 9;
+		object-fit: cover;
+		border-radius: 6px;
+		background: var(--sunken);
+	}
+	.shot-name {
+		color: var(--muted);
+		font-size: 12px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	@keyframes shot-in {
+		from {
+			opacity: 0;
+			transform: translateY(6px);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.shot {
+			animation: none;
+		}
+		.subtab,
+		.subtab::after {
+			transition: none;
+		}
 	}
 	.session {
 		margin-bottom: 32px;

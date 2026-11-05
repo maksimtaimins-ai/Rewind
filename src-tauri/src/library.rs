@@ -278,6 +278,32 @@ pub fn list(dir: &Path) -> Vec<ClipInfo> {
     out
 }
 
+/// A screenshot in the clips folder.
+#[derive(Debug, Clone, Serialize)]
+pub struct ShotInfo {
+    pub path: PathBuf,
+    pub name: String,
+    pub size: u64,
+    /// Unix milliseconds.
+    pub modified: i64,
+}
+
+/// PNGs in the clips folder (and one level down), newest first.
+pub fn list_screenshots(dir: &Path) -> Vec<ShotInfo> {
+    let mut out: Vec<ShotInfo> = files_one_deep(dir)
+        .into_iter()
+        .filter(|p| p.extension().is_some_and(|e| e.eq_ignore_ascii_case("png")))
+        .filter_map(|p| {
+            let md = std::fs::metadata(&p).ok()?;
+            let modified = md.modified().ok()?.duration_since(std::time::UNIX_EPOCH).ok()?.as_millis() as i64;
+            let name = p.file_stem()?.to_string_lossy().into_owned();
+            Some(ShotInfo { path: p, name, size: md.len(), modified })
+        })
+        .collect();
+    out.sort_by_key(|s| std::cmp::Reverse(s.modified));
+    out
+}
+
 pub(crate) fn sanitize(name: &str) -> String {
     let cleaned: String = name
         .chars()
