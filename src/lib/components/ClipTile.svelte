@@ -114,6 +114,28 @@
 	.tile {
 		position: relative;
 		min-width: 0;
+		transition: transform 180ms var(--ease);
+	}
+	.tile:hover,
+	.tile:focus-within {
+		transform: scale(1.02);
+		z-index: 1;
+	}
+	/* The glow sits on the frame so it follows its rounded corners. */
+	.frame {
+		transition: box-shadow 180ms var(--ease);
+	}
+	.tile:hover .frame,
+	.tile:focus-within .frame {
+		box-shadow:
+			0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent),
+			0 6px 22px color-mix(in srgb, var(--accent) 16%, transparent);
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.tile:hover,
+		.tile:focus-within {
+			transform: none;
+		}
 	}
 	.frame {
 		position: relative;

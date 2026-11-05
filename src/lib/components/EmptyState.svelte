@@ -17,6 +17,12 @@
 				<span class="cap" style="animation-delay: {i * 60}ms">{k}</span>
 			{/each}
 		</div>
+	{:else if !compact}
+		<div class="beacon" aria-hidden="true">
+			<span class="ring r1"></span>
+			<span class="ring r2"></span>
+			<span class="dot"></span>
+		</div>
 	{/if}
 	<p>{@render children()}</p>
 </div>
@@ -51,6 +57,40 @@
 	}
 	.plus {
 		color: var(--faint);
+	}
+	/* No key to show: a buffer dot that keeps recording, with rings spreading from it. */
+	.beacon {
+		position: relative;
+		width: 44px;
+		height: 44px;
+		display: grid;
+		place-items: center;
+	}
+	.dot {
+		width: 10px;
+		height: 10px;
+		border-radius: 50%;
+		background: var(--faint);
+	}
+	.ring {
+		position: absolute;
+		inset: 8px;
+		border-radius: 50%;
+		box-shadow: inset 0 0 0 1.5px var(--line-strong);
+		animation: spread 2.8s var(--ease) infinite;
+	}
+	.r2 {
+		animation-delay: 1.4s;
+	}
+	@keyframes spread {
+		from {
+			transform: scale(0.4);
+			opacity: 1;
+		}
+		to {
+			transform: scale(1.6);
+			opacity: 0;
+		}
 	}
 	/* A key that gets pressed every couple of seconds. */
 	.cap {

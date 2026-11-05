@@ -129,7 +129,20 @@ select {
 
 /* Every button gives a little under the pointer. */
 button {
-	transition: transform 100ms var(--ease);
+	transition:
+		transform 100ms var(--ease),
+		color 180ms var(--ease),
+		background-color 180ms var(--ease),
+		box-shadow 180ms var(--ease),
+		opacity 180ms var(--ease);
+}
+a,
+select,
+input {
+	transition:
+		color 180ms var(--ease),
+		background-color 180ms var(--ease),
+		box-shadow 180ms var(--ease);
 }
 button:active:not(:disabled) {
 	transform: scale(0.97);

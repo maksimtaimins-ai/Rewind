@@ -8,6 +8,14 @@
 		{ href: '/library', label: 'Clips', tour: 'nav-clips' },
 		{ href: '/settings', label: 'Settings', tour: 'nav-settings' }
 	];
+	let els = $state<HTMLElement[]>([]);
+	// The accent bar rides to whichever link is current.
+	let bar = $state({ y: 0, h: 0, show: false });
+	$effect(() => {
+		const i = links.findIndex((l) => active(l.href));
+		const el = els[i];
+		bar = el ? { y: el.offsetTop, h: el.offsetHeight, show: true } : { ...bar, show: false };
+	});
 	const active = (href: string) =>
 		href === '/' ? page.url.pathname === '/' : page.url.pathname.startsWith(href) || (href === '/library' && page.url.pathname.startsWith('/trim'));
 </script>
@@ -20,9 +28,10 @@
 		<span>Rewind</span>
 	</a>
 	<ul>
-		{#each links as l (l.href)}
+		<span class="bar" class:show={bar.show} style:transform="translateY({bar.y}px)" style:height="{bar.h}px" aria-hidden="true"></span>
+		{#each links as l, i (l.href)}
 			<li>
-				<a href={l.href} class:on={active(l.href)} aria-current={active(l.href) ? 'page' : undefined} data-tour={l.tour}>
+				<a bind:this={els[i]} href={l.href} class:on={active(l.href)} aria-current={active(l.href) ? 'page' : undefined} data-tour={l.tour}>
 					{l.label}
 					{#if l.href === '/library' && app.clips.length}
 						<span class="count num">{app.clips.length}</span>
@@ -69,6 +78,7 @@
 		fill: currentColor;
 	}
 	ul {
+		position: relative;
 		list-style: none;
 		margin: 0;
 		padding: 0;
@@ -87,6 +97,22 @@
 	}
 	ul a:hover {
 		color: var(--text);
+	}
+	.bar {
+		position: absolute;
+		left: 0;
+		top: 0;
+		width: 3px;
+		border-radius: 0 3px 3px 0;
+		background: var(--accent);
+		opacity: 0;
+		transition:
+			transform 220ms var(--ease),
+			height 220ms var(--ease),
+			opacity 180ms var(--ease);
+	}
+	.bar.show {
+		opacity: 1;
 	}
 	ul a.on {
 		color: var(--text);

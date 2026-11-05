@@ -29,12 +29,14 @@
 			{#if post.queued}<span class="queued">{post.queued} queued</span>{/if}
 		</div>
 	{/if}
-	{#each app.toasts as t (t.id)}
+	{#each app.toasts as t, i (t.id)}
 		<div
 			class="toast {t.level}"
+			class:older={i < app.toasts.length - 1}
+			class:oldest={i === 0 && app.toasts.length > 2}
 			role={t.level === 'error' ? 'alert' : 'status'}
 			in:fly={{ y: 16, duration: ms(200), easing: enter }}
-			out:fly={{ y: 16, duration: ms(150), easing: exit }}
+			out:fly={{ y: -14, duration: ms(180), easing: exit }}
 			animate:flip={{ duration: ms(200), easing: standard }}
 		>
 			{t.message}
@@ -58,6 +60,16 @@
 		background: var(--text);
 		color: var(--ground);
 		font-weight: 500;
+	}
+	/* Older toasts recede so the newest reads first; they climb as it arrives. */
+	.toast.older {
+		opacity: 0.82;
+	}
+	.toast.oldest {
+		opacity: 0.6;
+	}
+	.toast {
+		transition: opacity 180ms var(--ease);
 	}
 	.toast.error {
 		background: var(--danger);

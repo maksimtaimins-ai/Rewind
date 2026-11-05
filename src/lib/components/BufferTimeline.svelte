@@ -170,6 +170,20 @@
 				ctx.fillRect(x0, 0, w - x0, h);
 				ctx.fillStyle = `rgba(${rgb},${0.8 * a})`;
 				ctx.fillRect(x0, 0, 1.5, h);
+				// One soft band sweeps the saved stretch left to right.
+				const sweep = Math.min(1, (now - flashAt) / 900);
+				if (sweep < 1 && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+					const e = 1 - (1 - sweep) ** 3;
+					const bw = Math.max(40, (w - x0) * 0.22);
+					const cx = x0 - bw / 2 + (w - x0 + bw) * e;
+					const g = ctx.createLinearGradient(cx - bw / 2, 0, cx + bw / 2, 0);
+					const peak = 0.38 * Math.sin(Math.PI * sweep);
+					g.addColorStop(0, `rgba(${rgb},0)`);
+					g.addColorStop(0.5, `rgba(${rgb},${peak})`);
+					g.addColorStop(1, `rgba(${rgb},0)`);
+					ctx.fillStyle = g;
+					ctx.fillRect(Math.max(x0, cx - bw / 2), 0, Math.min(bw, w - Math.max(x0, cx - bw / 2)), h);
+				}
 			}
 		};
 

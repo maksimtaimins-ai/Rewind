@@ -38,7 +38,8 @@
 		height: 16px;
 		border-radius: 50%;
 		background: var(--ground);
-		transition: transform 180ms var(--ease);
+		/* A small overshoot so the switch settles instead of stopping dead. */
+		transition: transform 240ms cubic-bezier(0.34, 1.6, 0.64, 1);
 	}
 	.switch.on {
 		background: var(--text);

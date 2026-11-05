@@ -3,9 +3,9 @@
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 	import { listen } from '@tauri-apps/api/event';
-	import { fly, scale } from 'svelte/transition';
+	import { fade, fly } from 'svelte/transition';
 	import { flip } from 'svelte/animate';
-	import { enter, exit, ms, standard } from '#lib/motion.ts';
+	import { collapse, enter, ms, standard } from '#lib/motion.ts';
 	import TagChip from '#lib/components/TagChip.svelte';
 	import TagEditor from '#lib/components/TagEditor.svelte';
 	import { openPath } from '@tauri-apps/plugin-opener';
@@ -39,6 +39,13 @@
 	const tab = $derived.by<LibraryTab>(() => {
 		const t = page.url.searchParams.get('tab');
 		return tabs.some((x) => x.id === t) ? (t as LibraryTab) : 'all';
+	});
+	// Which way the new tab slides in from.
+	let dir = $state(1);
+	let prevTab: LibraryTab = 'all';
+	$effect.pre(() => {
+		dir = tabs.findIndex((x) => x.id === tab) >= tabs.findIndex((x) => x.id === prevTab) ? 1 : -1;
+		prevTab = tab;
 	});
 	const setTab = (t: LibraryTab) => goto(t === 'all' ? '/library' : `/library?tab=${t}`, { replaceState: true });
 	const isClipTab = $derived(tab !== 'screenshots' && tab !== 'deleted');
@@ -308,7 +315,7 @@
 	{#snippet tiles(list: Clip[])}
 		<div class="grid">
 			{#each list as c, i (c.path)}
-				<div class="cell" in:fly|global={{ y: 6, duration: ms(220), delay: ms(Math.min(i, 16) * 30), easing: enter }} out:scale={{ start: 0.92, duration: ms(160), easing: exit }} animate:flip={{ duration: ms(220), easing: standard }}>
+				<div class="cell" in:fly|global={{ y: 6, duration: ms(220), delay: ms(Math.min(i, 16) * 30), easing: enter }} out:collapse animate:flip={{ duration: ms(260), easing: standard }}>
 					<ClipTile
 						clip={c}
 						{selecting}
@@ -327,6 +334,10 @@
 		</div>
 	{/snippet}
 
+	<!-- Old and new tab content share one grid cell, so they crossfade while the new one slides in. -->
+	<div class="stack">
+	{#key tab}
+	<div class="pane" in:fly={{ x: dir * 18, duration: ms(180), easing: enter }} out:fade={{ duration: ms(90) }}>
 	{#if tab === 'deleted'}
 		<RecentlyDeleted />
 	{:else if tab === 'screenshots'}
@@ -435,6 +446,9 @@
 			It keeps the last {app.settings?.buffer.seconds} seconds of your screen.
 		</EmptyState>
 	{/if}
+	</div>
+	{/key}
+	</div>
 </div>
 
 {#if menu}
@@ -623,6 +637,13 @@
 	.secondary:disabled {
 		color: var(--faint);
 		cursor: default;
+	}
+	.stack {
+		display: grid;
+	}
+	.pane {
+		grid-area: 1 / 1;
+		min-width: 0;
 	}
 	.subtabs {
 		display: flex;

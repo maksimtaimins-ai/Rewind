@@ -26,3 +26,12 @@ export function standard(t: number): number {
 /** Things entering ease out; things leaving ease in. */
 export const enter = cubicOut;
 export const exit = cubicIn;
+
+/** A deleted tile shrinks toward its centre as it fades; the grid then glides into the gap (`animate:flip`). */
+export function collapse(_node: Element, { duration = 260 }: { duration?: number } = {}) {
+	return {
+		duration: ms(duration),
+		easing: cubicIn,
+		css: (t: number) => `transform: scale(${0.7 + 0.3 * t}); opacity: ${t * t}; filter: blur(${(1 - t) * 2}px)`
+	};
+}
