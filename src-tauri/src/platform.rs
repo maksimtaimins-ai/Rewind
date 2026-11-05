@@ -231,14 +231,14 @@ pub fn write_image(path: &Path, w: u32, h: u32, bgra: &[u8], format: ImageFormat
         let (container, mut pixel, data, stride): (GUID, GUID, Vec<u8>, u32) = match format {
             ImageFormat::Jpeg => {
                 let mut bgr = Vec::with_capacity((w * h * 3) as usize);
-                for p in bgra.chunks_exact(4) {
+                for p in bgra.as_chunks::<4>().0 {
                     bgr.extend_from_slice(&p[..3]);
                 }
                 (GUID_ContainerFormatJpeg, GUID_WICPixelFormat24bppBGR, bgr, w * 3)
             }
             ImageFormat::Png => {
                 let mut v = bgra.to_vec();
-                for p in v.chunks_exact_mut(4) {
+                for p in v.as_chunks_mut::<4>().0 {
                     p[3] = 255;
                 }
                 (GUID_ContainerFormatPng, GUID_WICPixelFormat32bppBGRA, v, w * 4)

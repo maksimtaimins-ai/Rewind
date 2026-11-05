@@ -182,7 +182,7 @@ pub fn list_in(bin: &Path) -> Vec<RecycledClip> {
             })
         })
         .collect();
-    v.sort_by(|a, b| b.deleted_ms.cmp(&a.deleted_ms));
+    v.sort_by_key(|d| std::cmp::Reverse(d.deleted_ms));
     v
 }
 
@@ -237,7 +237,7 @@ mod tests {
         std::fs::write(library::custom_thumb_path(&a), b"custom").unwrap();
 
         let meta = ClipMeta { favorite: true, tags: vec!["x".into()], highlights: None };
-        let n = delete_into(&bin, &[a.clone()], 1_000, &mut |_| meta.clone()).unwrap();
+        let n = delete_into(&bin, std::slice::from_ref(&a), 1_000, &mut |_| meta.clone()).unwrap();
         assert_eq!(n, 1);
         assert!(!a.exists() && !library::thumb_path(&a).exists());
         let listed = list_in(&bin);
@@ -251,7 +251,7 @@ mod tests {
         assert_eq!(std::fs::read(library::custom_thumb_path(&a)).unwrap(), b"custom");
         assert!(list_in(&bin).is_empty());
 
-        delete_into(&bin, &[a.clone()], 1_000, &mut |_| ClipMeta::default()).unwrap();
+        delete_into(&bin, std::slice::from_ref(&a), 1_000, &mut |_| ClipMeta::default()).unwrap();
         // A stray file nothing in the index owns, written "now".
         let stray = bin.join("orphan.mp4");
         std::fs::write(&stray, b"x").unwrap();

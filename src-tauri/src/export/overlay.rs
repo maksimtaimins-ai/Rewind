@@ -137,7 +137,7 @@ impl Renderer {
             let src_row = &self.buf[row * bw as usize * 4..(row + 1) * bw as usize * 4];
             let d = ((y0 as usize + row) * w as usize + x0 as usize) * 4;
             let dst_row = &mut px[d..d + bw as usize * 4];
-            for (s, o) in src_row.chunks_exact(4).zip(dst_row.chunks_exact_mut(4)) {
+            for (s, o) in src_row.as_chunks::<4>().0.iter().zip(dst_row.as_chunks_mut::<4>().0) {
                 let a = s[3] as u32;
                 if a == 0 {
                     continue;

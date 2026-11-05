@@ -160,8 +160,8 @@ unsafe fn encode(paths: &[std::path::PathBuf], segs: &[Segment], out: &Path, siz
             let showing = weights_at(segs, t);
             open.retain(|i, _| showing.iter().any(|(j, _)| j == i));
             for &(i, _) in &showing {
-                if !open.contains_key(&i) {
-                    open.insert(i, SegVideo::open(&paths[segs[i].clip], size).with_context(|| format!("open {}", paths[segs[i].clip].display()))?);
+                if let std::collections::btree_map::Entry::Vacant(e) = open.entry(i) {
+                    e.insert(SegVideo::open(&paths[segs[i].clip], size).with_context(|| format!("open {}", paths[segs[i].clip].display()))?);
                 }
             }
             let local = |i: usize| ((t - segs[i].out_start + segs[i].src_start) * TICKS as f64) as i64;

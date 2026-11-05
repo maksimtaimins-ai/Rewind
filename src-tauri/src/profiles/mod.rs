@@ -196,8 +196,7 @@ mod tests {
 
     #[test]
     fn applies_overrides_when_on() {
-        let mut s = Settings::default();
-        s.profiles_enabled = true;
+        let s = Settings { profiles_enabled: true, ..Settings::default() };
         let p = active(&s, Some("CS2.EXE")).cloned().unwrap();
         let e = effective(&s, Some(&p));
         assert_eq!((e.video.fps, e.video.bitrate_kbps, e.buffer.seconds), (120, 30_000, 30));

@@ -151,7 +151,7 @@ impl Reader {
                 }
             }
             // RGB32's fourth byte is padding, not alpha.
-            for p in px.chunks_exact_mut(4) {
+            for p in px.as_chunks_mut::<4>().0 {
                 p[3] = 255;
             }
             Ok(Frame { ts, px })
@@ -179,7 +179,7 @@ impl Reader {
                     // One stream ended; carry on until all selected ones have.
                     let _ = self.reader.SetStreamSelection(index, false);
                     self.ended += 1;
-                    if self.ended >= 1 + self.audio.is_some() as usize {
+                    if self.ended > self.audio.is_some() as usize {
                         return Ok(None);
                     }
                     continue;
@@ -225,6 +225,7 @@ pub fn frame_at(src: &Path, secs: f64, max_w: u32) -> Result<(u32, u32, Vec<u8>)
 /// Decode every audio track of `src` to 16-bit PCM, calling
 /// `f(stream, sample rate, channels, samples)` per decoded chunk. Video is
 /// never decoded.
+#[allow(clippy::type_complexity)]
 pub fn decode_audio(src: &Path, f: &mut dyn FnMut(u32, u32, u32, &[i16])) -> Result<()> {
     unsafe {
         let reader = MFCreateSourceReaderFromURL(&HSTRING::from(src.as_os_str()), None).context("open clip for analysis")?;

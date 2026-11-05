@@ -301,7 +301,7 @@ mod tests {
         b.set_video_config(cfg());
         fill(&mut b, 20);
         let held = b.buffered_ticks();
-        assert!(held >= 5 * TICKS_PER_SEC && held < 6 * TICKS_PER_SEC, "{held}");
+        assert!((5 * TICKS_PER_SEC..6 * TICKS_PER_SEC).contains(&held), "{held}");
         assert!(b.video.packets.front().unwrap().keyframe);
     }
 

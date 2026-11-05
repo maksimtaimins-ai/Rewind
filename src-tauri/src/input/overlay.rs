@@ -155,6 +155,7 @@ impl Timeline {
         scene
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn history_layout(&self, t: f64, cfg: &KeystrokeSettings, u: f32, fade: f64, pressed: f32, scene: &mut Scene, mouse_caps: bool) {
         let st = &cfg.style;
         let visible: Vec<&Press> = self
@@ -240,7 +241,7 @@ impl Timeline {
         let min_x = spots.iter().map(|s| s.1).fold(f32::MAX, f32::min);
         let min_y = spots.iter().map(|s| s.2).fold(f32::MAX, f32::min);
         for (key, x, y, w) in spots {
-            let last = self.presses.iter().filter(|p| p.key == key && p.down <= t).last();
+            let last = self.presses.iter().rfind(|p| p.key == key && p.down <= t);
             let (opacity, scale, flash, held) = match last {
                 Some(p) if t < p.up => {
                     let (s, f) = animate(st.animation, t - p.down, true);

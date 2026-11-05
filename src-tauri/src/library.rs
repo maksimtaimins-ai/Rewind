@@ -274,7 +274,7 @@ pub fn list(dir: &Path) -> Vec<ClipInfo> {
         .filter_map(|p| info_bare(&p).ok())
         .map(|c| apply_meta(c, &meta))
         .collect();
-    out.sort_by(|a, b| b.modified.cmp(&a.modified));
+    out.sort_by_key(|c| std::cmp::Reverse(c.modified));
     out
 }
 

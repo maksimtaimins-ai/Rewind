@@ -322,7 +322,7 @@ mod tests {
         let p = plan(Preset::Discord10, 1920, 1080, 60, 30.0).unwrap();
         let bytes = (p.video_bps + p.audio_bps) as f64 / 8.0 * p.secs;
         assert!(bytes <= (10 * MB) as f64 * 0.95, "{bytes}");
-        assert!(p.height <= 720 && p.width % 2 == 0 && p.height % 2 == 0);
+        assert!(p.height <= 720 && p.width.is_multiple_of(2) && p.height.is_multiple_of(2));
         // A long clip is cut rather than starved of bitrate.
         let long = plan(Preset::Discord10, 1920, 1080, 60, 300.0).unwrap();
         assert!(long.secs < 300.0 && long.video_bps >= 500_000);
