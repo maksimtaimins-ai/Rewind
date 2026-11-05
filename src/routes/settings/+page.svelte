@@ -32,6 +32,7 @@
 	const hookOk = $derived(/^https:\/\/(canary\.|ptb\.)?discord(app)?\.com\/.*webhooks\/\S+$/i.test(hookUrl.trim()));
 
 	onMount(async () => {
+		openForHash();
 		refreshStorage();
 		if (!inApp) {
 			monitors = [{ index: 0, name: 'DISPLAY1', width: 2560, height: 1440, x: 0, y: 0, primary: true }];
@@ -50,19 +51,30 @@
 
 	const sections = $derived(
 		[
-			['capture', 'Capture'],
+			['essentials', 'Essentials'],
 			['hotkeys', 'Hotkeys'],
 			['appearance', 'Appearance'],
-			['games', 'Game profiles'],
+			['capture', 'Capture'],
 			['library', 'Library'],
 			['storage', 'Storage'],
 			['sharing', 'Sharing'],
-			['watch', 'Watch folders'],
+			['games', 'Game profiles'],
 			['help', 'Help'],
-			['advanced', 'Advanced'],
-			['performance', 'Performance']
-		].filter(([id]) => pro || (id !== 'advanced' && id !== 'performance'))
+			['advanced', 'Advanced']
+		].filter(([id]) => pro || id !== 'advanced')
 	);
+
+	// Advanced is folded away until asked for. A link or search result that
+	// points inside it opens it first.
+	let advancedOpen = $state(false);
+	const inAdvanced = ['advanced', 'tuning', 'monitors', 'benchmarks', 'performance', 'smart-highlights'];
+	function openForHash() {
+		const id = location.hash.slice(1);
+		if (inAdvanced.includes(id) && pro) {
+			advancedOpen = true;
+			requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ block: 'start' }));
+		}
+	}
 
 	async function replayTour() {
 		await updateSettings((x) => (x.tour_complete = false));
@@ -176,6 +188,8 @@
 
 </script>
 
+<svelte:window onhashchange={openForHash} />
+
 <div class="page">
 	<aside class="index">
 		<h1>Settings</h1>
@@ -193,8 +207,8 @@
 			</Row>
 		</div>
 
-		<section id="capture">
-			<h2>Capture</h2>
+		<section id="essentials">
+			<h2>Essentials</h2>
 			<Row label="Buffer length" hint="Keeps the last {s.buffer.seconds >= 60 && s.buffer.seconds % 60 === 0 ? `${s.buffer.seconds / 60} ${s.buffer.seconds === 60 ? 'minute' : 'minutes'}` : `${s.buffer.seconds} seconds`} of your screen in memory, about {ramEstimate} MB of RAM.">
 				<Segmented
 					label="Buffer length"
@@ -211,6 +225,79 @@
 				<input class="numbox num" type="number" min="10" max="300" value={s.buffer.seconds} onchange={(e) => set((x) => (x.buffer.seconds = Math.min(300, Math.max(10, num(e)))))} aria-label="Buffer length in seconds" />
 				<span class="unit">s</span>
 			</Row>
+			<Row label="Save hotkey" hint="Saves the last {s.buffer.seconds} seconds (slot A).">
+				<HotkeyInput label="Save hotkey" value={s.hotkeys.save_clip} onchange={(v) => set((x) => (x.hotkeys.save_clip = v))} />
+			</Row>
+			<Row label="Save folder" hint={s.clips_dir}>
+				<button class="secondary" onclick={pickFolder}>Change</button>
+			</Row>
+			<Row label="Encoder" hint="What compresses the video. Hardware keeps the CPU free for the game." help="Your graphics card (NVIDIA, AMD or Intel) has a chip just for compressing video, so recording costs almost no frames. Software uses the processor instead: it works anywhere, but can slow the game down. Auto picks the graphics card when there is one.">
+				<select value={s.video.encoder} onchange={(e) => set((x) => (x.video.encoder = (e.currentTarget as HTMLSelectElement).value as Settings['video']['encoder']))} aria-label="Encoder">
+					<option value="auto">{kindLabel.auto}</option>
+					{#each kinds as k (k)}
+						<option value={k}>{kindLabel[k] ?? k}</option>
+					{/each}
+				</select>
+			</Row>
+		</section>
+
+		<section id="hotkeys">
+			<h2>Hotkeys</h2>
+			<Row label="Save clip" hint="Saves the last {s.buffer.seconds} seconds (slot A).">
+				<HotkeyInput label="Save clip" value={s.hotkeys.save_clip} onchange={(v) => set((x) => (x.hotkeys.save_clip = v))} />
+			</Row>
+			<Row label="Mark this moment" hint="Pick how much to keep later, from the Live tab.">
+				<HotkeyInput label="Marker" value={s.hotkeys.marker} onchange={(v) => set((x) => (x.hotkeys.marker = v))} />
+			</Row>
+			<Row label="Screenshot" hint="Saves the current frame as a PNG.">
+				<HotkeyInput label="Screenshot" value={s.hotkeys.screenshot} onchange={(v) => set((x) => (x.hotkeys.screenshot = v))} />
+			</Row>
+			<Row label="Favorite last clip" hint="Stars the clip you saved most recently.">
+				<HotkeyInput label="Favorite last clip" value={s.hotkeys.favorite_last} onchange={(v) => set((x) => (x.hotkeys.favorite_last = v))} />
+			</Row>
+			<Row label="Extend last clip" hint="Adds {s.buffer.extend_secs}s before your last clip and replaces it.">
+				<HotkeyInput label="Extend last clip" value={s.hotkeys.extend_last} onchange={(v) => set((x) => (x.hotkeys.extend_last = v))} />
+			</Row>
+			<Row label="Slow-mo replay" hint="Last {s.slow_mo.seconds}s at {s.slow_mo.speed}×, {Math.round(s.slow_mo.seconds / s.slow_mo.speed)}s long. Video only.">
+				<HotkeyInput label="Slow-mo replay" value={s.hotkeys.slow_mo} onchange={(v) => set((x) => (x.hotkeys.slow_mo = v))} />
+			</Row>
+			<Row label="Compact HUD" hint="Switches between the floating pill and this window.">
+				<HotkeyInput label="Compact HUD" value={s.hotkeys.compact_hud} onchange={(v) => set((x) => (x.hotkeys.compact_hud = v))} />
+			</Row>
+			<Row label="Slow-mo length" hint="How much of the buffer to slow down.">
+				<Segmented
+					label="Slow-mo length"
+					value={s.slow_mo.seconds}
+					options={[2, 3, 5].map((v) => ({ value: v as 2 | 3 | 5, label: `${v}s` }))}
+					onchange={(v) => set((x) => (x.slow_mo.seconds = v))}
+				/>
+			</Row>
+			<Row label="Slow-mo speed" hint="Lower is slower.">
+				<input type="range" min="0.1" max="0.5" step="0.05" value={s.slow_mo.speed} onchange={(e) => set((x) => (x.slow_mo.speed = num(e)))} aria-label="Slow-mo speed" />
+				<span class="readout num">{s.slow_mo.speed.toFixed(2)}×</span>
+			</Row>
+		</section>
+
+		<section id="appearance">
+			<h2>Appearance</h2>
+			<div class="block">
+				<div class="block-label">Theme</div>
+				<div class="block-hint">Follow Windows, or pick one.</div>
+				<ThemePicker value={s.theme} onchange={(v) => set((x) => (x.theme = v))} />
+			</div>
+			<Row label="Compact HUD" hint="Swap this window for a small always-on-top pill with the buffer and a Save button.{s.hotkeys.compact_hud ? ` ${s.hotkeys.compact_hud} switches back and forth.` : ''}">
+				<Toggle checked={s.hud.enabled} label="Compact HUD" onchange={(v) => set((x) => (x.hud.enabled = v))} />
+			</Row>
+			<Row label="Open minimized to the tray" hint="The window stays hidden until you open it.">
+				<Toggle checked={s.start_minimized} label="Open minimized" onchange={(v) => set((x) => (x.start_minimized = v))} />
+			</Row>
+			<Row label="Play a sound on save" hint="A short click when a clip is written.">
+				<Toggle checked={s.play_sound_on_save} label="Sound on save" onchange={(v) => set((x) => (x.play_sound_on_save = v))} />
+			</Row>
+		</section>
+
+		<section id="capture">
+			<h2>Capture</h2>
 			<Row label="Record extra after press" hint={s.post_roll.enabled ? `Keeps recording ${s.post_roll.seconds}s after you save. Markers, slow-mo and screenshots are unaffected.` : 'Off. A clip ends the moment you press save.'}>
 				<Toggle checked={s.post_roll.enabled} label="Post-roll" onchange={(v) => set((x) => (x.post_roll.enabled = v))} />
 			</Row>
@@ -275,6 +362,13 @@
 			<Row label="Launch when Windows starts" hint="Starts in the tray with the buffer running.">
 				<Toggle checked={s.launch_on_startup} label="Launch when Windows starts" onchange={(v) => set((x) => (x.launch_on_startup = v))} />
 			</Row>
+			{#if pro}
+			<Row label="Bitrate" hint="Higher keeps fast motion sharp; files get bigger." help="How much data each second of video gets. Fast scenes like grass, smoke and quick turns need more to stay sharp. Around 20 Mb/s at 1080p and 60 fps looks good for most games; double it for 1440p or very busy games.">
+				<input type="range" min="2000" max="80000" step="1000" value={s.video.bitrate_kbps} onchange={(e) => set((x) => (x.video.bitrate_kbps = num(e)))} aria-label="Bitrate" />
+				<span class="readout num">{(s.video.bitrate_kbps / 1000).toFixed(0)} Mb/s</span>
+			</Row>
+			{/if}
+
 
 			<h3>Audio</h3>
 			<p class="intro">Each source is its own track, so editors can mix them. Players play the first.</p>
@@ -344,71 +438,8 @@
 			<KeystrokeOverlay />
 		</section>
 
-		<section id="hotkeys">
-			<h2>Hotkeys</h2>
-			<Row label="Save clip" hint="Saves the last {s.buffer.seconds} seconds (slot A).">
-				<HotkeyInput label="Save clip" value={s.hotkeys.save_clip} onchange={(v) => set((x) => (x.hotkeys.save_clip = v))} />
-			</Row>
-			<Row label="Mark this moment" hint="Pick how much to keep later, from the Live tab.">
-				<HotkeyInput label="Marker" value={s.hotkeys.marker} onchange={(v) => set((x) => (x.hotkeys.marker = v))} />
-			</Row>
-			<Row label="Screenshot" hint="Saves the current frame as a PNG.">
-				<HotkeyInput label="Screenshot" value={s.hotkeys.screenshot} onchange={(v) => set((x) => (x.hotkeys.screenshot = v))} />
-			</Row>
-			<Row label="Favorite last clip" hint="Stars the clip you saved most recently.">
-				<HotkeyInput label="Favorite last clip" value={s.hotkeys.favorite_last} onchange={(v) => set((x) => (x.hotkeys.favorite_last = v))} />
-			</Row>
-			<Row label="Extend last clip" hint="Adds {s.buffer.extend_secs}s before your last clip and replaces it.">
-				<HotkeyInput label="Extend last clip" value={s.hotkeys.extend_last} onchange={(v) => set((x) => (x.hotkeys.extend_last = v))} />
-			</Row>
-			<Row label="Slow-mo replay" hint="Last {s.slow_mo.seconds}s at {s.slow_mo.speed}×, {Math.round(s.slow_mo.seconds / s.slow_mo.speed)}s long. Video only.">
-				<HotkeyInput label="Slow-mo replay" value={s.hotkeys.slow_mo} onchange={(v) => set((x) => (x.hotkeys.slow_mo = v))} />
-			</Row>
-			<Row label="Compact HUD" hint="Switches between the floating pill and this window.">
-				<HotkeyInput label="Compact HUD" value={s.hotkeys.compact_hud} onchange={(v) => set((x) => (x.hotkeys.compact_hud = v))} />
-			</Row>
-			<Row label="Slow-mo length" hint="How much of the buffer to slow down.">
-				<Segmented
-					label="Slow-mo length"
-					value={s.slow_mo.seconds}
-					options={[2, 3, 5].map((v) => ({ value: v as 2 | 3 | 5, label: `${v}s` }))}
-					onchange={(v) => set((x) => (x.slow_mo.seconds = v))}
-				/>
-			</Row>
-			<Row label="Slow-mo speed" hint="Lower is slower.">
-				<input type="range" min="0.1" max="0.5" step="0.05" value={s.slow_mo.speed} onchange={(e) => set((x) => (x.slow_mo.speed = num(e)))} aria-label="Slow-mo speed" />
-				<span class="readout num">{s.slow_mo.speed.toFixed(2)}×</span>
-			</Row>
-		</section>
-
-		<section id="appearance">
-			<h2>Appearance</h2>
-			<div class="block">
-				<div class="block-label">Theme</div>
-				<div class="block-hint">Follow Windows, or pick one.</div>
-				<ThemePicker value={s.theme} onchange={(v) => set((x) => (x.theme = v))} />
-			</div>
-			<Row label="Compact HUD" hint="Swap this window for a small always-on-top pill with the buffer and a Save button.{s.hotkeys.compact_hud ? ` ${s.hotkeys.compact_hud} switches back and forth.` : ''}">
-				<Toggle checked={s.hud.enabled} label="Compact HUD" onchange={(v) => set((x) => (x.hud.enabled = v))} />
-			</Row>
-			<Row label="Open minimized to the tray" hint="The window stays hidden until you open it.">
-				<Toggle checked={s.start_minimized} label="Open minimized" onchange={(v) => set((x) => (x.start_minimized = v))} />
-			</Row>
-			<Row label="Play a sound on save" hint="A short click when a clip is written.">
-				<Toggle checked={s.play_sound_on_save} label="Sound on save" onchange={(v) => set((x) => (x.play_sound_on_save = v))} />
-			</Row>
-		</section>
-
-		<section id="games">
-			<h2>Game profiles</h2>
-			<GameProfiles />
-		</section>
-
 		<section id="library">
 			<h2>Library</h2>
-			<Row label="Save clips to" hint={s.clips_dir}>
-				<button class="secondary" onclick={pickFolder}>Change</button>
-			</Row>
 			<Row label="Group into sessions" hint="Clips saved this close together show as one session.">
 				<input class="numbox num" type="number" min="1" max="1440" value={s.library.session_gap_mins} onchange={(e) => set((x) => (x.library.session_gap_mins = Math.min(1440, Math.max(1, num(e)))))} aria-label="Session gap in minutes" />
 				<span class="unit">min</span>
@@ -486,11 +517,14 @@
 					</Row>
 				{/each}
 			{/if}
+
+			<h3 id="watch">Watch folders</h3>
+			<WatchFolders />
 		</section>
 
-		<section id="watch">
-			<h2>Watch folders</h2>
-			<WatchFolders />
+		<section id="games">
+			<h2>Game profiles</h2>
+			<GameProfiles />
 		</section>
 
 		<section id="help">
@@ -507,19 +541,9 @@
 
 		{#if pro}
 			<section id="advanced">
-				<h2>Advanced</h2>
-				<Row label="Encoder" hint="What compresses the video. Hardware keeps the CPU free for the game." help="Your graphics card (NVIDIA, AMD or Intel) has a chip just for compressing video, so recording costs almost no frames. Software uses the processor instead: it works anywhere, but can slow the game down. Auto picks the graphics card when there is one.">
-					<select value={s.video.encoder} onchange={(e) => set((x) => (x.video.encoder = (e.currentTarget as HTMLSelectElement).value as Settings['video']['encoder']))} aria-label="Encoder">
-						<option value="auto">{kindLabel.auto}</option>
-						{#each kinds as k (k)}
-							<option value={k}>{kindLabel[k] ?? k}</option>
-						{/each}
-					</select>
-				</Row>
-				<Row label="Bitrate" hint="Higher keeps fast motion sharp; files get bigger." help="How much data each second of video gets. Fast scenes like grass, smoke and quick turns need more to stay sharp. Around 20 Mb/s at 1080p and 60 fps looks good for most games; double it for 1440p or very busy games.">
-					<input type="range" min="2000" max="80000" step="1000" value={s.video.bitrate_kbps} onchange={(e) => set((x) => (x.video.bitrate_kbps = num(e)))} aria-label="Bitrate" />
-					<span class="readout num">{(s.video.bitrate_kbps / 1000).toFixed(0)} Mb/s</span>
-				</Row>
+				<details bind:open={advancedOpen}>
+					<summary><h2>Advanced</h2><span>Encoder tuning, monitors, benchmarks and diagnostics</span></summary>
+					<h3 id="tuning">Encoder tuning</h3>
 				<Row label="Codec" hint="HEVC is smaller; some editors and older devices can't play it." help="The video format. H.264 plays everywhere: Discord, phones, every editor. HEVC (H.265) looks the same at about half the size, but some browsers, older phones and editors can't open it. Pick H.264 if you share clips a lot.">
 					<Segmented
 						label="Codec"
@@ -556,6 +580,24 @@
 						onchange={(v) => set((x) => (x.video.keyframe_secs = v))}
 					/>
 				</Row>
+				<Row label="Memory limit" hint="Oldest seconds are dropped first above this." help="The buffer lives in RAM, never on disk, until you save. If high bitrates or a long buffer would grow it past this, Rewind drops the oldest seconds so your game keeps the memory it needs.">
+					<input class="numbox num" type="number" min="128" max="16384" step="128" value={s.buffer.max_memory_mb} onchange={(e) => set((x) => (x.buffer.max_memory_mb = num(e)))} aria-label="Memory limit in MB" />
+					<span class="unit">MB</span>
+				</Row>
+				<Row label="Warn after writing" hint="Daily total, to spare your SSD. {app.status?.written_today_gb.toFixed(2) ?? 0} GB so far today.">
+					<input class="numbox num" type="number" min="0" max="2000" value={s.ssd_warn_gb_per_day} onchange={(e) => set((x) => (x.ssd_warn_gb_per_day = num(e)))} aria-label="Daily write warning in GB" />
+					<span class="unit">GB</span>
+				</Row>
+				<Row label="Low disk warning" hint="Show a warning on the Live tab below this much free space.">
+					<input class="numbox num" type="number" min="1" max="2000" value={s.disk.warn_gb} onchange={(e) => set((x) => (x.disk.warn_gb = Math.min(2000, Math.max(1, num(e)))))} aria-label="Warn below GB free" />
+					<span class="unit">GB</span>
+				</Row>
+				<Row label="Stop saving below" hint="New clips are refused under this; screenshots still save. 0 turns it off.">
+					<input class="numbox num" type="number" min="0" max={s.disk.warn_gb} value={s.disk.block_gb} onchange={(e) => set((x) => (x.disk.block_gb = Math.min(x.disk.warn_gb, Math.max(0, num(e)))))} aria-label="Stop saving below GB free" />
+					<span class="unit">GB</span>
+				</Row>
+
+					<h3 id="monitors">Monitors</h3>
 				{#if monitors.length > 1}
 					<Row label="Recorded screen" hint="Pick the monitor Rewind records by hand." help="Rewind records one monitor, never a span across several. Positions are in physical pixels on your desktop; a screen left of or above the main one has negative numbers, which is normal.">
 						<select value={s.video.monitor} onchange={(e) => set((x) => (x.video.monitor = num(e)))} aria-label="Recorded screen">
@@ -577,22 +619,8 @@
 						</select>
 					</Row>
 				{/if}
-				<Row label="Memory limit" hint="Oldest seconds are dropped first above this." help="The buffer lives in RAM, never on disk, until you save. If high bitrates or a long buffer would grow it past this, Rewind drops the oldest seconds so your game keeps the memory it needs.">
-					<input class="numbox num" type="number" min="128" max="16384" step="128" value={s.buffer.max_memory_mb} onchange={(e) => set((x) => (x.buffer.max_memory_mb = num(e)))} aria-label="Memory limit in MB" />
-					<span class="unit">MB</span>
-				</Row>
-				<Row label="Warn after writing" hint="Daily total, to spare your SSD. {app.status?.written_today_gb.toFixed(2) ?? 0} GB so far today.">
-					<input class="numbox num" type="number" min="0" max="2000" value={s.ssd_warn_gb_per_day} onchange={(e) => set((x) => (x.ssd_warn_gb_per_day = num(e)))} aria-label="Daily write warning in GB" />
-					<span class="unit">GB</span>
-				</Row>
-				<Row label="Low disk warning" hint="Show a warning on the Live tab below this much free space.">
-					<input class="numbox num" type="number" min="1" max="2000" value={s.disk.warn_gb} onchange={(e) => set((x) => (x.disk.warn_gb = Math.min(2000, Math.max(1, num(e)))))} aria-label="Warn below GB free" />
-					<span class="unit">GB</span>
-				</Row>
-				<Row label="Stop saving below" hint="New clips are refused under this; screenshots still save. 0 turns it off.">
-					<input class="numbox num" type="number" min="0" max={s.disk.warn_gb} value={s.disk.block_gb} onchange={(e) => set((x) => (x.disk.block_gb = Math.min(x.disk.warn_gb, Math.max(0, num(e)))))} aria-label="Stop saving below GB free" />
-					<span class="unit">GB</span>
-				</Row>
+
+					<h3 id="benchmarks">Benchmarks</h3>
 				<Row label="Test current settings" hint="Watches 10 seconds of real capture at these settings and says whether they hold up. Best run while a game is moving.">
 					<button class="secondary" disabled={liveRunning} onclick={runLiveBench}>{liveRunning ? 'Measuring… 10s' : 'Run benchmark'}</button>
 				</Row>
@@ -619,7 +647,8 @@
 					<button class="secondary" disabled={!inApp} onclick={importProfile}>Import</button>
 				</Row>
 
-				<h3>Smart highlights</h3>
+
+				<h3 id="smart-highlights">Smart highlights (experimental)</h3>
 				<p class="intro">Listens to a clip's audio for loud spikes, excited voices and long loud stretches, and marks them on the trim timeline. Runs on this PC only. Off, it never runs.</p>
 				<Row label="Smart highlights" hint={s.smart_highlights.enabled ? 'Analyze clips from the library, one session at a time.' : 'Off. Nothing is analyzed.'}>
 					<Toggle checked={s.smart_highlights.enabled} label="Smart highlights" onchange={(v) => set((x) => (x.smart_highlights.enabled = v))} />
@@ -634,8 +663,10 @@
 					</Row>
 				{/if}
 
+
 				<h3 id="performance">Performance</h3>
 				<PerformanceList />
+				</details>
 			</section>
 		{/if}
 	</div>
@@ -680,6 +711,46 @@
 		padding: 4px 16px;
 		border-radius: 8px;
 		background: var(--raised);
+	}
+	summary {
+		list-style: none;
+		cursor: pointer;
+		display: flex;
+		align-items: baseline;
+		gap: 12px;
+		padding: 8px 0;
+	}
+	summary::-webkit-details-marker {
+		display: none;
+	}
+	summary::before {
+		content: '';
+		width: 6px;
+		height: 6px;
+		border-right: 1.5px solid var(--muted);
+		border-bottom: 1.5px solid var(--muted);
+		transform: translateY(-2px) rotate(-45deg);
+		transition: transform 180ms ease-out;
+		flex: none;
+	}
+	details[open] > summary::before {
+		transform: translateY(-3px) rotate(45deg);
+	}
+	summary h2 {
+		margin: 0;
+	}
+	summary span {
+		color: var(--muted);
+		font-size: 13px;
+	}
+	summary:focus-visible {
+		outline: 2px solid var(--accent, currentColor);
+		outline-offset: 2px;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		summary::before {
+			transition: none;
+		}
 	}
 	section {
 		padding-bottom: 32px;
