@@ -51,10 +51,10 @@ export function mockSettings(): Settings {
 		},
 		profiles_enabled: true,
 		profiles: [
-			{ exe: 'cs2.exe', name: 'Counter-Strike 2', enabled: true, fps: 120, height: null, bitrate_kbps: 30000, codec: null, buffer_seconds: 30, slot_b_seconds: null, slot_c_seconds: null, hotkeys: null, subfolder: true, keystroke_preset: 'gaming', highlight: null },
-			{ exe: 'VALORANT-Win64-Shipping.exe', name: 'VALORANT', enabled: true, fps: 120, height: null, bitrate_kbps: 30000, codec: null, buffer_seconds: 30, slot_b_seconds: null, slot_c_seconds: null, hotkeys: null, subfolder: false, keystroke_preset: 'gaming', highlight: null },
-			{ exe: 'RocketLeague.exe', name: 'Rocket League', enabled: true, fps: 60, height: null, bitrate_kbps: null, codec: null, buffer_seconds: 30, slot_b_seconds: null, slot_c_seconds: null, hotkeys: null, subfolder: false, keystroke_preset: 'wasd', highlight: null },
-			{ exe: 'javaw.exe', name: 'Minecraft', enabled: false, fps: 60, height: null, bitrate_kbps: null, codec: null, buffer_seconds: 60, slot_b_seconds: null, slot_c_seconds: null, hotkeys: null, subfolder: false, keystroke_preset: 'wasd_clicks', highlight: null }
+			{ exe: 'cs2.exe', name: 'Counter-Strike 2', enabled: true, fps: 120, height: null, bitrate_kbps: 30000, codec: null, buffer_seconds: 30, slot_b_seconds: null, slot_c_seconds: null, hotkeys: null, subfolder: true, keystroke_preset: 'gaming' },
+			{ exe: 'VALORANT-Win64-Shipping.exe', name: 'VALORANT', enabled: true, fps: 120, height: null, bitrate_kbps: 30000, codec: null, buffer_seconds: 30, slot_b_seconds: null, slot_c_seconds: null, hotkeys: null, subfolder: false, keystroke_preset: 'gaming' },
+			{ exe: 'RocketLeague.exe', name: 'Rocket League', enabled: true, fps: 60, height: null, bitrate_kbps: null, codec: null, buffer_seconds: 30, slot_b_seconds: null, slot_c_seconds: null, hotkeys: null, subfolder: false, keystroke_preset: 'wasd' },
+			{ exe: 'javaw.exe', name: 'Minecraft', enabled: false, fps: 60, height: null, bitrate_kbps: null, codec: null, buffer_seconds: 60, slot_b_seconds: null, slot_c_seconds: null, hotkeys: null, subfolder: false, keystroke_preset: 'wasd_clicks' }
 		],
 		privacy_apps: ['KeePassXC.exe', '1Password.exe', 'Bitwarden.exe'],
 		ssd_warn_gb_per_day: 50,
@@ -68,7 +68,6 @@ export function mockSettings(): Settings {
 		},
 		hud: { enabled: false, x: null, y: null },
 		disk: { warn_gb: 10, block_gb: 2 },
-		highlight: { color: 'off', custom_color: '#ffc53d', thickness: 2, opacity: 60, position: 'border', only_in_game: false },
 		smart_highlights: { enabled: true, threshold_db: -14, analyze_on_save: false },
 		keystrokes: {
 			enabled: true,

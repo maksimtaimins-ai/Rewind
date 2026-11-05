@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-pub const SETTINGS_VERSION: u32 = 20;
+pub const SETTINGS_VERSION: u32 = 21;
 
 /// Allowed range for [`BufferSettings::seconds`].
 pub const MIN_BUFFER_SECS: u32 = 10;
@@ -96,48 +96,6 @@ pub struct DiskSettings {
     pub warn_gb: u32,
     /// Refuse new clip saves (not screenshots) below this.
     pub block_gb: u32,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum HighlightColor {
-    Off,
-    Blue,
-    Green,
-    Red,
-    /// [`HighlightSettings::custom_color`].
-    Custom,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum HighlightPosition {
-    /// A glowing line around the whole screen edge.
-    Border,
-    TopLeft,
-    TopRight,
-    BottomRight,
-}
-
-/// On-screen sign that the buffer is recording, drawn over the primary display.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct HighlightSettings {
-    pub color: HighlightColor,
-    /// `#rrggbb`.
-    pub custom_color: String,
-    /// Pixels, 0-10. 0 hides it like `Off`.
-    pub thickness: u32,
-    /// Percent, 10-100.
-    pub opacity: u32,
-    pub position: HighlightPosition,
-    /// Only while a game is detected (see `profiles::Detector`).
-    pub only_in_game: bool,
-}
-
-impl HighlightSettings {
-    pub fn enabled(&self) -> bool {
-        self.color != HighlightColor::Off && self.thickness > 0
-    }
 }
 
 /// Compact HUD: a small always-on-top pill instead of the main window.
@@ -249,8 +207,6 @@ pub struct GameProfile {
     /// A keystroke-overlay preset id (`input::presets`).
     #[serde(default)]
     pub keystroke_preset: Option<String>,
-    #[serde(default)]
-    pub highlight: Option<HighlightSettings>,
 }
 
 impl GameProfile {
@@ -269,7 +225,6 @@ impl GameProfile {
             hotkeys: None,
             subfolder: false,
             keystroke_preset: None,
-            highlight: None,
         }
     }
 }
@@ -554,7 +509,6 @@ pub struct Settings {
     pub watch_folders: Vec<WatchFolder>,
     pub hud: HudSettings,
     pub disk: DiskSettings,
-    pub highlight: HighlightSettings,
     pub smart_highlights: SmartHighlightSettings,
     pub keystrokes: KeystrokeSettings,
     /// Monitor index (as in `video.monitor`) the on-screen overlays go on;
@@ -639,14 +593,6 @@ impl Default for Settings {
             hud: HudSettings { enabled: false, x: None, y: None },
             disk: DiskSettings { warn_gb: 10, block_gb: 2 },
             // Off until asked for: no glowing border out of nowhere.
-            highlight: HighlightSettings {
-                color: HighlightColor::Off,
-                custom_color: "#ffc53d".into(),
-                thickness: 2,
-                opacity: 60,
-                position: HighlightPosition::Border,
-                only_in_game: false,
-            },
             smart_highlights: SmartHighlightSettings { enabled: false, threshold_db: -14.0, analyze_on_save: false },
             keystrokes: KeystrokeSettings {
                 enabled: false,
@@ -754,11 +700,6 @@ impl Settings {
         }
         self.disk.warn_gb = self.disk.warn_gb.clamp(1, 2000);
         self.disk.block_gb = self.disk.block_gb.min(self.disk.warn_gb);
-        self.highlight.thickness = self.highlight.thickness.min(10);
-        self.highlight.opacity = self.highlight.opacity.clamp(10, 100);
-        if !is_hex_color(&self.highlight.custom_color) {
-            self.highlight.custom_color = "#ffc53d".into();
-        }
         let k = &mut self.keystrokes;
         k.style.size = k.style.size.clamp(16, 120);
         k.style.radius = k.style.radius.min(40);
@@ -829,6 +770,18 @@ fn migrate(value: &mut toml::Table) -> Result<()> {
             h.remove("save_long_clip");
         }
     }
+    // v20 -> v21: the recording highlight overlay is gone; drop its settings
+    // (top level and per game profile).
+    if version < 21 {
+        value.remove("highlight");
+        if let Some(toml::Value::Array(list)) = value.get_mut("profiles") {
+            for p in list.iter_mut() {
+                if let toml::Value::Table(t) = p {
+                    t.remove("highlight");
+                }
+            }
+        }
+    }
     // v19 -> v20: `keystrokes.live` added (off); defaults fill it in.
     // v18 -> v19: profiles get a master switch (on for anyone who already had
     // profiles, so nothing changes for them) and the built-in game profiles.
@@ -847,7 +800,7 @@ fn migrate(value: &mut toml::Table) -> Result<()> {
     // v17 -> v18: `keystrokes` added (off); defaults fill it in.
     // v16 -> v17: `smart_highlights` added (off); defaults fill it in.
     // v15 -> v16: `tour_complete` added (false: existing installs see the tour once).
-    // v14 -> v15: `highlight` added (off); defaults fill it in.
+    // v14 -> v15: `highlight` added (off); removed again in v21.
     // v13 -> v14: `disk` free-space limits added; defaults fill them in.
     // v12 -> v13: `hud` and `hotkeys.compact_hud` (Alt+F11) added; defaults
     // fill them in. The v1 `hotkeys.toggle_pause` that also used Alt+F11 is
@@ -1081,30 +1034,19 @@ limit_mb = 50
     }
 
     #[test]
-    fn highlight_defaults_off_and_sanitized() {
-        let s = parse("version = 14
-").unwrap();
-        assert_eq!(s.highlight.color, HighlightColor::Off);
-        assert!(!s.highlight.enabled());
-        assert_eq!((s.highlight.thickness, s.highlight.opacity), (2, 60));
-        let s = parse("version = 15
-[highlight]
-color = \"custom\"
-custom_color = \"red\"
-thickness = 40
-opacity = 0
-position = \"top_right\"
-").unwrap();
-        assert_eq!(s.highlight.custom_color, "#ffc53d");
-        assert_eq!((s.highlight.thickness, s.highlight.opacity), (10, 10));
-        assert_eq!(s.highlight.position, HighlightPosition::TopRight);
-        assert!(s.highlight.enabled());
-        let s = parse("version = 15
+    fn recording_highlight_fields_are_dropped_on_migration() {
+        let s = parse("version = 20
 [highlight]
 color = \"blue\"
-thickness = 0
+[[profiles]]
+exe = \"a.exe\"
+name = \"A\"
+enabled = true
+[profiles.highlight]
+color = \"red\"
 ").unwrap();
-        assert!(!s.highlight.enabled());
+        assert_eq!(s.version, SETTINGS_VERSION);
+        assert!(s.profiles.iter().any(|p| p.exe == "a.exe"));
     }
 
     #[test]

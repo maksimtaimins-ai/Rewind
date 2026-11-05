@@ -14,7 +14,6 @@
 		profile: string | null;
 		montage_jobs: number;
 		lan_listening: boolean;
-		highlight_window: boolean;
 		hud_window: boolean;
 		live_keys_window: boolean;
 	}
@@ -25,7 +24,7 @@
 	async function check() {
 		d = inApp
 			? await invoke<Diagnostics>('feature_diagnostics').catch(() => null)
-			: { analysis_jobs: 0, input_hook: s.keystrokes.enabled || s.keystrokes.live, profile: s.profiles_enabled ? (app.status?.profile ?? null) : null, montage_jobs: 0, lan_listening: s.sharing.lan_enabled, highlight_window: false, hud_window: false, live_keys_window: false };
+			: { analysis_jobs: 0, input_hook: s.keystrokes.enabled || s.keystrokes.live, profile: s.profiles_enabled ? (app.status?.profile ?? null) : null, montage_jobs: 0, lan_listening: s.sharing.lan_enabled, hud_window: false, live_keys_window: false };
 	}
 	// Only while this page is open: a cheap read of in-memory flags.
 	onMount(() => {
@@ -108,12 +107,6 @@
 			cost: 'Lists each folder every 3 s and exports new clips as they appear',
 			live: `${s.watch_folders.filter((w) => w.enabled).length} of ${s.watch_folders.length} folders watched`,
 			offNote: 'Near zero: a background check still wakes every 3 s and finds nothing to do'
-		},
-		{
-			name: 'Recording highlight',
-			on: s.highlight.color !== 'off' && s.highlight.thickness > 0,
-			cost: 'A transparent overlay window: about 30 to 60 MB of RAM, no effect on capture',
-			live: d?.highlight_window ? 'Overlay window open' : 'No overlay window'
 		},
 		{
 			name: 'Compact HUD',

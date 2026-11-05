@@ -139,7 +139,7 @@ pub fn capture_monitor(s: &Settings) -> Option<MonitorInfo> {
     pick(&cached(), s.video.monitor).cloned()
 }
 
-/// The monitor on-screen overlays (recording highlight, live keystrokes,
+/// The monitor on-screen overlays (live keystrokes,
 /// the HUD's default spot) go on: `settings.overlay_monitor` if set, else
 /// the recorded one. None when that display looks broken: better no overlay
 /// than a full-screen window on a display mid-change. Cheap enough for the

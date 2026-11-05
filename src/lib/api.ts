@@ -35,7 +35,6 @@ export interface GameProfile {
 	/** Save into `<clips folder>/<name>/`. */
 	subfolder: boolean;
 	keystroke_preset: string | null;
-	highlight: Highlight | null;
 }
 
 export interface Hotkeys {
@@ -120,7 +119,6 @@ export interface Settings {
 	hud: { enabled: boolean; x: number | null; y: number | null };
 	/** Clips-drive free space limits, GB: warn below one, refuse saves below the other. */
 	disk: { warn_gb: number; block_gb: number };
-	highlight: Highlight;
 	smart_highlights: SmartHighlights;
 	keystrokes: Keystrokes;
 	/** Monitor index the on-screen overlays go on; null = the recorded monitor. */
@@ -228,20 +226,6 @@ export interface Moment {
 	/** 0-1. */
 	score: number;
 	reason: 'spike' | 'voice' | 'sustained';
-}
-
-/** On-screen sign that the buffer is recording. */
-export interface Highlight {
-	color: 'off' | 'blue' | 'green' | 'red' | 'custom';
-	/** `#rrggbb`, used when `color` is `custom`. */
-	custom_color: string;
-	/** Pixels, 0-10; 0 hides it. */
-	thickness: number;
-	/** Percent, 10-100. */
-	opacity: number;
-	position: 'border' | 'top_left' | 'top_right' | 'bottom_right';
-	/** Only while a game is detected. */
-	only_in_game: boolean;
 }
 
 /** New .mp4 files in `input` are exported with `preset` into `output`. */

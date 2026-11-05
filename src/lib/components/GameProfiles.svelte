@@ -38,7 +38,7 @@
 		set((x) =>
 			x.profiles.push({
 				exe, name, enabled: true, fps: null, height: null, bitrate_kbps: null, codec: null, buffer_seconds: null,
-				slot_b_seconds: null, slot_c_seconds: null, hotkeys: null, subfolder: false, keystroke_preset: null, highlight: null
+				slot_b_seconds: null, slot_c_seconds: null, hotkeys: null, subfolder: false, keystroke_preset: null
 			})
 		);
 		newExe = '';
@@ -56,7 +56,6 @@
 		if (p.hotkeys) parts.push('own hotkeys');
 		if (p.subfolder) parts.push('own folder');
 		if (p.keystroke_preset) parts.push(`${presets.find((x) => x.id === p.keystroke_preset)?.label ?? p.keystroke_preset} keys`);
-		if (p.highlight) parts.push(p.highlight.color === 'off' ? 'no highlight' : `${p.highlight.color} highlight`);
 		return parts.length ? parts.join(', ') : 'Uses your usual settings';
 	}
 </script>
@@ -132,19 +131,6 @@
 						<select value={p.keystroke_preset ?? ''} onchange={(e) => edit(i, (x) => (x.keystroke_preset = val(e) || null))} aria-label="Keystroke preset">
 							<option value="">Usual</option>
 							{#each presets as pr (pr.id)}<option value={pr.id}>{pr.label}</option>{/each}
-						</select>
-					</Row>
-					<Row label="Recording highlight">
-						<select
-							value={p.highlight?.color ?? ''}
-							onchange={(e) => edit(i, (x) => (x.highlight = val(e) ? { ...$state.snapshot(s.highlight), color: val(e) as 'off' } : null))}
-							aria-label="Recording highlight"
-						>
-							<option value="">Usual</option>
-							<option value="off">Off</option>
-							<option value="blue">Blue</option>
-							<option value="green">Green</option>
-							<option value="red">Red</option>
 						</select>
 					</Row>
 					<Row label="Own hotkeys" hint={p.hotkeys ? 'These replace your usual hotkeys while the game runs.' : 'Off: your usual hotkeys.'}>

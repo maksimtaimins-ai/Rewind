@@ -33,7 +33,6 @@ pub fn set_settings(app: tauri::AppHandle, engine: State<Engine>, lan: State<Lan
     lan.apply(&settings);
     crate::hud::apply(&app, &settings);
     let effective = engine.effective_settings();
-    crate::highlight::on_settings(&app, &effective, &engine.status());
     crate::live_keys::on_settings(&app, &effective);
     Ok(())
 }
@@ -242,7 +241,7 @@ pub fn export_settings(engine: State<Engine>, path: PathBuf) -> R<()> {
 
 /// Import a shared settings file. Machine-specific paths are kept.
 #[tauri::command]
-pub fn import_settings(app: tauri::AppHandle, engine: State<Engine>, lan: State<Lan>, path: PathBuf) -> R<Settings> {
+pub fn import_settings(engine: State<Engine>, lan: State<Lan>, path: PathBuf) -> R<Settings> {
     let text = std::fs::read_to_string(path).map_err(err)?;
     let mut s = settings::parse(&text).map_err(err)?;
     let current = engine.settings();
@@ -253,7 +252,6 @@ pub fn import_settings(app: tauri::AppHandle, engine: State<Engine>, lan: State<
     s.sharing.trusted_peers = current.sharing.trusted_peers;
     engine.set_settings(s.clone()).map_err(err)?;
     lan.apply(&s);
-    crate::highlight::on_settings(&app, &engine.effective_settings(), &engine.status());
     Ok(s)
 }
 
@@ -409,7 +407,6 @@ pub struct Diagnostics {
     profile: Option<String>,
     montage_jobs: usize,
     lan_listening: bool,
-    highlight_window: bool,
     hud_window: bool,
     live_keys_window: bool,
 }
@@ -423,7 +420,6 @@ pub fn feature_diagnostics(app: tauri::AppHandle, engine: State<Engine>, lan: St
         profile: engine.status().profile,
         montage_jobs: crate::export::montage::active_jobs(),
         lan_listening: lan.listening(),
-        highlight_window: app.get_webview_window(crate::highlight::LABEL).is_some(),
         hud_window: app.get_webview_window(crate::hud::LABEL).is_some(),
         live_keys_window: app.get_webview_window(crate::live_keys::LABEL).is_some(),
     }

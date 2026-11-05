@@ -107,7 +107,7 @@ Optional, all off until turned on (Settings > Advanced > Performance lists each 
 
 - **Smart highlights:** local audio analysis (loud spikes, excited voices, sustained loud stretches) per clip, stored in `library.json`; amber ticks on the trim scrubber, "Has highlights" filter, analyze per session or on save.
 - **Keystroke overlay:** low-level keyboard/mouse hooks, installed only while on, record input to `<clip>-input.json`; exports can draw it in (Direct2D/DirectWrite), with keycap style, colours, animation, fade, combos, position and click markers all configurable. Privacy apps and text boxes pause recording.
-- **Game profiles:** per-game frame rate, resolution, bitrate, codec, replay lengths, hotkeys, save subfolder, keystroke preset and recording highlight, switched in by the existing game detection. Ships with CS2, VALORANT, Fortnite, Apex, Rocket League and Minecraft.
+- **Game profiles:** per-game frame rate, resolution, bitrate, codec, replay lengths, hotkeys, save subfolder, keystroke preset, switched in by the existing game detection. Ships with CS2, VALORANT, Fortnite, Apex, Rocket League and Minecraft.
 - **Montage builder:** Library > Make montage; hard cuts or 0.5 s crossfades, per-clip length (centred on the best highlight), music, one MP4 through the export pipeline.
 - **Storage:** a segmented bar of Rewind's disk use (clips, exports, screenshots, Recently deleted, thumbnails, app data) in Settings > Storage, with a mini one on the Live tab; measured on request only.
 

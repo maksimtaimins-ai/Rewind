@@ -9,7 +9,6 @@ pub mod engine;
 pub mod hud;
 pub mod export;
 pub mod gpu;
-pub mod highlight;
 pub mod hotkey;
 pub mod input;
 pub mod library;
@@ -36,7 +35,6 @@ impl Events for UiEvents {
     fn status(&self, status: &Status) {
         let _ = self.0.emit("status", status);
         let effective = self.0.state::<Engine>().effective_settings();
-        highlight::on_status(&self.0, &effective, status);
         live_keys::on_status(&self.0, &effective);
         if let Some(tray) = self.0.tray_by_id("main") {
             let text = match status.state {
@@ -75,9 +73,7 @@ impl Events for UiEvents {
 
     fn profile_changed(&self, effective: &settings::Settings) {
         let _ = self.0.emit("profile-changed", ());
-        // A profile may restyle or turn off the recording highlight.
-        highlight::on_settings(&self.0, effective, &self.0.state::<Engine>().status());
-        // Or change which keys the live keystroke overlay shows.
+        // A profile may change which keys the live keystroke overlay shows.
         live_keys::on_settings(&self.0, effective);
     }
 

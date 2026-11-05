@@ -122,9 +122,6 @@ pub fn effective(s: &Settings, p: Option<&GameProfile>) -> Settings {
     if let Some(id) = &p.keystroke_preset {
         crate::input::apply_preset(&mut e.keystrokes, id);
     }
-    if let Some(h) = &p.highlight {
-        e.highlight = h.clone();
-    }
     e
 }
 
