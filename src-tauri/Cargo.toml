@@ -1,6 +1,6 @@
 [package]
 name = "rewind"
-version = "0.1.2"
+version = "0.2.0"
 description = "Local-only instant replay and clipping"
 authors = ["Rewind"]
 edition = "2021"
