@@ -116,7 +116,7 @@
 		display: flex;
 		gap: 1px;
 		height: 10px;
-		border-radius: 5px;
+		border-radius: 4px;
 		/* The gaps between segments show the page through as 1px dividers. */
 		background: var(--ground);
 		box-shadow: 0 0 0 1px var(--line);
@@ -136,13 +136,13 @@
 		transition: opacity 140ms var(--ease);
 	}
 	.seg:first-of-type {
-		border-radius: 5px 0 0 5px;
+		border-radius: 4px 0 0 5px;
 	}
 	.seg:last-of-type {
 		border-radius: 0 5px 5px 0;
 	}
 	.seg:only-of-type {
-		border-radius: 5px;
+		border-radius: 4px;
 	}
 	.mini .seg {
 		min-width: 2px;
@@ -164,7 +164,7 @@
 		display: grid;
 		gap: 1px;
 		padding: 8px 10px;
-		border-radius: 6px;
+		border-radius: 8px;
 		background: var(--raised);
 		box-shadow:
 			inset 0 0 0 1px var(--line-strong),

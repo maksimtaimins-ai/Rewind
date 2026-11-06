@@ -23,7 +23,7 @@
 		height: 20px;
 		padding: 2px;
 		border: 0;
-		border-radius: 10px;
+		border-radius: 12px;
 		background: var(--line-strong);
 		cursor: pointer;
 		flex: none;

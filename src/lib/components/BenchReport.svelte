@@ -43,7 +43,7 @@
 	.report {
 		margin: 4px 0 16px;
 		padding: 12px 16px;
-		border-radius: 6px;
+		border-radius: 8px;
 		background: var(--raised);
 		box-shadow: inset 3px 0 0 var(--text);
 	}

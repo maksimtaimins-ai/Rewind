@@ -214,7 +214,7 @@ dialog[open]::backdrop {
 /* A setting reached from search pulses once so the eye finds it. */
 .row.flash {
 	animation: row-flash 1400ms ease-out;
-	border-radius: 6px;
+	border-radius: 8px;
 }
 @keyframes row-flash {
 	0%,

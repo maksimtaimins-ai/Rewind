@@ -215,7 +215,7 @@
 	}
 	.badge {
 		padding: 2px 8px;
-		border-radius: 10px;
+		border-radius: 12px;
 		font-size: 11px;
 		font-weight: 600;
 		white-space: nowrap;

@@ -193,7 +193,7 @@
 	}
 	.live {
 		padding: 1px 6px;
-		border-radius: 3px;
+		border-radius: 4px;
 		background: var(--text);
 		color: var(--ground);
 		font-size: 11px;

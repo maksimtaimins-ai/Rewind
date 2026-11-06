@@ -84,7 +84,7 @@
 		position: relative;
 		width: 100%;
 		overflow: hidden;
-		border-radius: 6px;
+		border-radius: 8px;
 		/* A stand-in game frame: dusk sky over a dark floor. Media colours, not theme. */
 		background:
 			linear-gradient(180deg, rgb(255 255 255 / 0) 58%, rgb(0 0 0 / 0.35) 58.2%),

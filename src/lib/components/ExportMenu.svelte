@@ -80,7 +80,7 @@
 		width: 280px;
 		padding: 4px;
 		display: grid;
-		border-radius: 6px;
+		border-radius: 8px;
 		background: var(--raised);
 		box-shadow: inset 0 0 0 1px var(--line-strong);
 	}

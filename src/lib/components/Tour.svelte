@@ -121,7 +121,7 @@
 		position: absolute;
 		box-sizing: border-box;
 		padding: 16px;
-		border-radius: 10px;
+		border-radius: 12px;
 		background: var(--raised);
 		box-shadow:
 			inset 0 0 0 1px var(--line-strong),

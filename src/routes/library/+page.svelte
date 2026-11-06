@@ -515,7 +515,7 @@
 	.pop {
 		position: fixed;
 		z-index: 40;
-		border-radius: 6px;
+		border-radius: 8px;
 		transform-origin: top left;
 		animation: pop-in 140ms ease-out;
 		background: var(--raised);
@@ -670,7 +670,7 @@
 		height: 32px;
 		padding: 0 12px;
 		border: 0;
-		border-radius: 16px 16px 0 0;
+		border-radius: 12px 16px 0 0;
 		background: none;
 		color: var(--muted);
 		font-weight: 500;
@@ -723,7 +723,7 @@
 		width: 100%;
 		aspect-ratio: 16 / 9;
 		object-fit: cover;
-		border-radius: 6px;
+		border-radius: 8px;
 		background: var(--sunken);
 	}
 	.shot-name {

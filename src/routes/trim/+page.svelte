@@ -507,7 +507,7 @@
 		align-items: center;
 		gap: 6px;
 		border: 0;
-		border-radius: 6px;
+		border-radius: 8px;
 		background: var(--raised);
 		color: var(--text);
 		cursor: pointer;

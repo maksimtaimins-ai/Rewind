@@ -48,7 +48,7 @@
 		gap: 8px;
 		padding: 8px;
 		border: 0;
-		border-radius: 6px;
+		border-radius: 8px;
 		background: transparent;
 		box-shadow: inset 0 0 0 1px var(--line);
 		text-align: left;
@@ -86,7 +86,7 @@
 	.win {
 		display: flex;
 		aspect-ratio: 16 / 9;
-		border-radius: 3px;
+		border-radius: 4px;
 		overflow: hidden;
 		background: var(--g);
 		box-shadow: inset 0 0 0 1px var(--l);

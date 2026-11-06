@@ -339,7 +339,7 @@
 		height: 28px;
 		padding: 0 12px;
 		border: 0;
-		border-radius: 14px;
+		border-radius: 12px;
 		background: var(--sunken);
 		color: var(--muted);
 		cursor: pointer;

@@ -77,7 +77,7 @@
 		height: 32px;
 		padding: 0 10px;
 		border: 0;
-		border-radius: 16px;
+		border-radius: 12px;
 		background: var(--accent);
 		color: var(--on-accent);
 		font-weight: 600;
@@ -93,7 +93,7 @@
 		display: grid;
 		place-items: center;
 		border: 0;
-		border-radius: 16px;
+		border-radius: 12px;
 		background: transparent;
 		color: var(--muted);
 		cursor: pointer;

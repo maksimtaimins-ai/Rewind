@@ -250,7 +250,7 @@
 	/* The filmstrip: the montage as it will play, to scale. */
 	.strip {
 		padding: 14px 14px 10px;
-		border-radius: 6px;
+		border-radius: 8px;
 		background: var(--sunken);
 	}
 	.film {
@@ -262,7 +262,7 @@
 		top: 0;
 		bottom: 0;
 		overflow: hidden;
-		border-radius: 3px;
+		border-radius: 4px;
 		background: var(--media);
 		cursor: grab;
 		/* A crossfade shows as the piece fading in over the one before it. */
@@ -293,7 +293,7 @@
 		left: 6px;
 		bottom: 5px;
 		padding: 1px 5px;
-		border-radius: 3px;
+		border-radius: 4px;
 		background: var(--scrim);
 		color: var(--on-scrim);
 		font-size: 10.5px;
@@ -372,7 +372,7 @@
 		right: 6px;
 		bottom: 6px;
 		padding: 1px 5px;
-		border-radius: 3px;
+		border-radius: 4px;
 		background: var(--scrim);
 		color: var(--on-scrim);
 		font-size: 10.5px;

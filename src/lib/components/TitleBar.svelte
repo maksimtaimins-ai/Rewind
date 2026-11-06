@@ -79,7 +79,7 @@
 		align-items: center;
 		gap: 8px;
 		padding: 0 8px;
-		border-radius: 6px;
+		border-radius: 8px;
 		background: var(--sunken);
 		color: var(--faint);
 		font-size: 12px;
