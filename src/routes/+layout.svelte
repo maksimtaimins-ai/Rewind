@@ -9,7 +9,8 @@
 	import SearchPalette from '#lib/components/SearchPalette.svelte';
 	import { closeSearch, searchUi } from '#lib/stores/search.svelte.ts';
 	import Toasts from '#lib/components/Toasts.svelte';
-	import { apply as applyTheme, resolve as resolveTheme, SYSTEM, type Palette } from '#lib/themes.ts';
+	import { apply as applyTheme, resolve as resolveTheme, withAccent, SYSTEM, type Palette } from '#lib/themes.ts';
+	import { applyFont, applyScale } from '#lib/appearance.ts';
 	import { fly } from 'svelte/transition';
 	import { enter, ms, reducedMotion } from '#lib/motion.ts';
 
@@ -35,13 +36,25 @@
 
 	// Crossfade the whole window when the theme actually changes (not on every settings save).
 	let palette: Palette | null = null;
+	let accentUsed: string | undefined;
 	$effect(() => {
 		const next = resolveTheme(app.settings?.theme ?? SYSTEM, prefersLight);
-		if (next === palette) return;
+		const accent = app.settings?.appearance.accent ?? '';
+		if (next === palette && accent === accentUsed) return;
 		const first = !palette;
+		const themeChanged = next !== palette;
 		palette = next;
-		if (first || reducedMotion() || !document.startViewTransition) applyTheme(next);
-		else document.startViewTransition(() => applyTheme(next));
+		accentUsed = accent;
+		const eff = withAccent(next, accent);
+		// An accent change alone is applied at once; only a new theme crossfades.
+		if (first || !themeChanged || reducedMotion() || !document.startViewTransition) applyTheme(eff);
+		else document.startViewTransition(() => applyTheme(eff));
+	});
+
+	// Typeface and UI scale. The HUD pill and live overlays keep their own size.
+	$effect(() => applyFont(app.settings?.appearance.font ?? 'theme'));
+	$effect(() => {
+		if (!hud) applyScale(app.settings?.appearance.ui_scale ?? 100);
 	});
 
 	$effect(() => {

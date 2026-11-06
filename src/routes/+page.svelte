@@ -231,6 +231,14 @@
 	{/if}
 
 	<div class="topbar">
+		{#if settings.appearance.status_pills && !editing}
+			<ul class="pills num" aria-label="Capture status">
+				<li><span class="k">Encoder</span> {encoderName ?? '—'}</li>
+				<li><span class="k">FPS</span> {live ? Math.round(s?.fps ?? 0) : `${settings.video.fps} target`}</li>
+				<li><span class="k">Game</span> {s?.game ?? 'Desktop'}</li>
+				<li><span class="k">Buffer</span> {s && s.buffer_secs ? Math.min(100, Math.round((s.buffered_secs / s.buffer_secs) * 100)) : 0}%</li>
+			</ul>
+		{/if}
 		{#if editing}<p class="edit-hint">Drag widgets to reorder, or use the arrows. Switch off the ones you don't want.</p>{/if}
 		<button class="customize" aria-pressed={editing} onclick={() => (editing = !editing)}>{editing ? 'Done' : 'Customize'}</button>
 	</div>
@@ -459,6 +467,30 @@
 		margin-right: auto;
 		color: var(--muted);
 		font-size: 13px;
+	}
+	.pills {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
+		margin-right: auto;
+	}
+	.pills li {
+		display: inline-flex;
+		gap: 6px;
+		align-items: center;
+		height: 24px;
+		padding: 0 10px;
+		border-radius: 12px;
+		background: var(--raised);
+		box-shadow: inset 0 0 0 1px var(--border);
+		font-size: 11px;
+		white-space: nowrap;
+	}
+	.pills .k {
+		color: var(--faint);
 	}
 	.customize {
 		height: 28px;

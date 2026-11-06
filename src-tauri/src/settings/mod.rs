@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-pub const SETTINGS_VERSION: u32 = 26;
+pub const SETTINGS_VERSION: u32 = 27;
 
 /// Allowed range for [`BufferSettings::seconds`].
 pub const MIN_BUFFER_SECS: u32 = 10;
@@ -176,6 +176,31 @@ pub struct LibrarySettings {
 pub struct PlaybackSettings {
     /// Open clips fullscreen instead of in the page.
     pub fullscreen_on_open: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiFont {
+    /// Whatever the theme ships with.
+    Theme,
+    Inter,
+    Mono,
+    System,
+}
+
+/// Allowed UI scales, percent.
+pub const UI_SCALES: [u32; 6] = [80, 90, 100, 110, 125, 150];
+
+/// Look and feel that sits on top of the theme. Frontend-only.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AppearanceSettings {
+    /// `#rrggbb` replacing the theme's accent; empty = the theme's own.
+    pub accent: String,
+    pub font: UiFont,
+    /// One of [`UI_SCALES`].
+    pub ui_scale: u32,
+    /// Encoder / FPS / game / buffer pills above the dashboard widgets.
+    pub status_pills: bool,
 }
 
 /// How saved clips are named. See `naming`.
@@ -600,6 +625,7 @@ pub struct Settings {
     pub slow_mo: SlowMoSettings,
     pub playback: PlaybackSettings,
     pub naming: NamingSettings,
+    pub appearance: AppearanceSettings,
     pub library: LibrarySettings,
     pub audio: Vec<AudioTrack>,
     pub hotkeys: Hotkeys,
@@ -661,6 +687,7 @@ impl Default for Settings {
             post_roll: PostRollSettings { enabled: false, seconds: 10 },
             slow_mo: SlowMoSettings { seconds: 3, speed: 0.25 },
             playback: PlaybackSettings { fullscreen_on_open: false },
+            appearance: AppearanceSettings { accent: String::new(), font: UiFont::Theme, ui_scale: 100, status_pills: false },
             naming: NamingSettings {
                 clip_template: crate::naming::DEFAULT_CLIP_TEMPLATE.into(),
                 folder_mode: crate::naming::FolderMode::Flat,
@@ -861,6 +888,12 @@ impl Settings {
             self.sharing.lan_port = 7777;
         }
         self.sanitize_dashboard();
+        if !self.appearance.accent.is_empty() && !is_hex_color(&self.appearance.accent) {
+            self.appearance.accent.clear();
+        }
+        if !UI_SCALES.contains(&self.appearance.ui_scale) {
+            self.appearance.ui_scale = 100;
+        }
         self.naming.folder_template = self.naming.folder_template.trim().chars().take(crate::naming::MAX_TEMPLATE_LEN).collect();
         let t = self.naming.clip_template.trim();
         self.naming.clip_template = if t.is_empty() { crate::naming::DEFAULT_CLIP_TEMPLATE.into() } else { t.chars().take(crate::naming::MAX_TEMPLATE_LEN).collect() };
@@ -930,6 +963,7 @@ fn migrate(value: &mut toml::Table) -> Result<()> {
             }
         }
     }
+    // v26 -> v27: `appearance` added (theme accent, theme font, 100%, no pills).
     // v25 -> v26: `library` gains view preferences (the old look); defaults fill them in.
     // v24 -> v25: `naming.folder_mode` and `folder_template` added (flat, as before).
     // v23 -> v24: `naming` added (the old "{game} {date} {time}" names).
@@ -1280,6 +1314,15 @@ enabled = true
         let s = parse("version = 26\n[library]\ntile_size = 9999\nsort = \"size\"\ndensity = \"compact\"\n").unwrap();
         assert_eq!((s.library.tile_size, s.library.sort, s.library.density), (MAX_TILE_PX, LibrarySort::Size, Density::Compact));
         assert_eq!(parse("version = 26\n[library]\ntile_size = 3\n").unwrap().library.tile_size, MIN_TILE_PX);
+    }
+
+    #[test]
+    fn appearance_defaults_and_sanitized() {
+        let s = parse("version = 26\n").unwrap();
+        assert_eq!(s.appearance, AppearanceSettings { accent: String::new(), font: UiFont::Theme, ui_scale: 100, status_pills: false });
+        let s = parse("version = 27\n[appearance]\naccent = \"red\"\nui_scale = 133\nfont = \"mono\"\n").unwrap();
+        assert_eq!((s.appearance.accent.as_str(), s.appearance.ui_scale, s.appearance.font), ("", 100, UiFont::Mono));
+        assert_eq!(parse("version = 27\n[appearance]\naccent = \"#ff8800\"\nui_scale = 125\n").unwrap().appearance.accent, "#ff8800");
     }
 
     #[test]

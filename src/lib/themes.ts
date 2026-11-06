@@ -333,3 +333,19 @@ export function apply(p: Palette) {
 	root.style.colorScheme = p.scheme;
 	root.dataset.scheme = p.scheme;
 }
+
+/** Black or white, whichever reads better on `hex`. */
+export function onColor(hex: string): string {
+	const n = parseInt(hex.slice(1), 16);
+	const lin = (c: number) => {
+		const v = c / 255;
+		return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+	};
+	const l = 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
+	return l > 0.4 ? '#141517' : '#ffffff';
+}
+
+/** `p` with the user's own accent over the theme's. */
+export function withAccent(p: Palette, hex: string): Palette {
+	return /^#[0-9a-f]{6}$/i.test(hex) ? { ...p, accent: hex, accent2: hex, onAccent: onColor(hex) } : p;
+}

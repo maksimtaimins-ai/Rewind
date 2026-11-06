@@ -100,6 +100,15 @@ export interface Settings {
 	post_roll: { enabled: boolean; seconds: number };
 	slow_mo: { seconds: 2 | 3 | 5; speed: number };
 	playback: { fullscreen_on_open: boolean };
+	appearance: {
+		/** `#rrggbb` over the theme's accent; '' = the theme's own. */
+		accent: string;
+		font: 'theme' | 'inter' | 'mono' | 'system';
+		/** 80, 90, 100, 110, 125 or 150. */
+		ui_scale: number;
+		/** Encoder / FPS / game / buffer pills on the dashboard. */
+		status_pills: boolean;
+	};
 	/** Clip file name template; tokens in naming.ts. */
 	naming: { clip_template: string; folder_mode: 'flat' | 'game' | 'date' | 'game_date' | 'custom'; folder_template: string };
 	library: {

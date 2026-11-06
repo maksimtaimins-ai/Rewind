@@ -15,6 +15,7 @@
 	import WatchFolders from '#lib/components/WatchFolders.svelte';
 	import BenchReportView from '#lib/components/BenchReport.svelte';
 	import KeystrokeOverlay from '#lib/components/KeystrokeOverlay.svelte';
+	import AppearanceExtras from '#lib/components/AppearanceExtras.svelte';
 	import LibraryView from '#lib/components/LibraryView.svelte';
 	import FileNaming from '#lib/components/FileNaming.svelte';
 	import GameProfiles from '#lib/components/GameProfiles.svelte';
@@ -297,6 +298,7 @@
 				<div class="block-hint">Follow Windows, or pick one.</div>
 				<ThemePicker value={s.theme} onchange={(v) => set((x) => (x.theme = v))} />
 			</div>
+			<AppearanceExtras />
 			<Row id="s-compact-hud-toggle" label="Compact HUD" hint="Swap this window for a small always-on-top pill with the buffer and a Save button.{s.hotkeys.compact_hud ? ` ${s.hotkeys.compact_hud} switches back and forth.` : ''}">
 				<Toggle checked={s.hud.enabled} label="Compact HUD" onchange={(v) => set((x) => (x.hud.enabled = v))} />
 			</Row>
