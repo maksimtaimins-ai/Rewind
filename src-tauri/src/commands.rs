@@ -33,6 +33,7 @@ pub fn set_settings(app: tauri::AppHandle, engine: State<Engine>, lan: State<Lan
     lan.apply(&settings);
     crate::watch::ensure();
     crate::hud::apply(&app, &settings);
+    crate::on_main_thread_later(&app, crate::refresh_tray);
     let effective = engine.effective_settings();
     crate::live_keys::on_settings(&app, &effective);
     Ok(())

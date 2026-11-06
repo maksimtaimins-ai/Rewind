@@ -21,11 +21,13 @@ use crate::settings::AudioTrack;
 pub struct Flags {
     /// A privacy-listed app has focus.
     pub privacy: AtomicBool,
+    /// The user paused the buffer (tray, macro). Frames are dropped, as for privacy.
+    pub manual_pause: AtomicBool,
 }
 
 impl Flags {
     pub fn blocked(&self) -> bool {
-        self.privacy.load(Ordering::Relaxed)
+        self.privacy.load(Ordering::Relaxed) || self.manual_pause.load(Ordering::Relaxed)
     }
 }
 

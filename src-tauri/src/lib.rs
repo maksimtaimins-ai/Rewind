@@ -71,6 +71,11 @@ impl Events for UiEvents {
         });
     }
 
+    fn pause_changed(&self) {
+        // The tray's Pause/Resume label follows.
+        on_main_thread_later(&self.0, refresh_tray);
+    }
+
     fn profile_changed(&self, effective: &settings::Settings) {
         let _ = self.0.emit("profile-changed", ());
         // A profile may change which keys the live keystroke overlay shows.
@@ -119,13 +124,63 @@ fn open_full(app: &AppHandle) {
     }
 }
 
+/// The tray menu as the settings describe it. Rebuilt whenever they change
+/// and when the buffer is paused or resumed (the label flips).
+fn tray_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
+    let engine = app.state::<Engine>();
+    let cfg = engine.settings().tray;
+    let paused = engine.paused_by_hand();
+    let menu = Menu::new(app)?;
+    let mut quit = false;
+    for item in cfg.items.iter().filter(|i| i.enabled) {
+        let label = match item.id.as_str() {
+            "open" => "Open Rewind",
+            "save" => "Save clip",
+            "marker" => "Mark this moment",
+            "screenshot" => "Take screenshot",
+            "library" => "Open library",
+            "settings" => "Open settings",
+            "folder" => "Open clips folder",
+            "pause" if paused => "Resume buffer",
+            "pause" => "Pause buffer",
+            "quit" => {
+                quit = true;
+                continue;
+            }
+            _ => continue,
+        };
+        menu.append(&MenuItem::with_id(app, item.id.as_str(), label, true, None::<&str>)?)?;
+    }
+    // Quit always closes the menu, set apart from the rest.
+    if quit {
+        if !menu.items()?.is_empty() {
+            menu.append(&PredefinedMenuItem::separator(app)?)?;
+        }
+        menu.append(&MenuItem::with_id(app, "quit", "Quit Rewind", true, None::<&str>)?)?;
+    }
+    Ok(menu)
+}
+
+/// Re-read the tray settings into the live menu.
+pub(crate) fn refresh_tray(app: &AppHandle) {
+    if let Some(tray) = app.tray_by_id("main") {
+        match tray_menu(app) {
+            Ok(m) => {
+                let _ = tray.set_menu(Some(m));
+            }
+            Err(e) => tracing::warn!("tray menu: {e}"),
+        }
+    }
+}
+
+/// Open the main window on a page.
+fn open_page(app: &AppHandle, route: &str) {
+    open_full(app);
+    let _ = app.emit("navigate", route);
+}
+
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
-    let open = MenuItem::with_id(app, "open", "Open Rewind", true, None::<&str>)?;
-    let save = MenuItem::with_id(app, "save", "Save clip", true, None::<&str>)?;
-    let folder = MenuItem::with_id(app, "folder", "Open clips folder", true, None::<&str>)?;
-    let quit_item = MenuItem::with_id(app, "quit", "Quit Rewind", true, None::<&str>)?;
-    let sep = PredefinedMenuItem::separator(app)?;
-    let menu = Menu::with_items(app, &[&open, &save, &folder, &sep, &quit_item])?;
+    let menu = tray_menu(app)?;
     TrayIconBuilder::with_id("main")
         .icon(app.default_window_icon().cloned().expect("app icon"))
         .tooltip("Rewind")
@@ -136,6 +191,11 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
             match event.id.as_ref() {
                 "open" => open_full(app),
                 "save" => engine.handle(hotkey::Action::SaveClip),
+                "marker" => engine.handle(hotkey::Action::Marker),
+                "screenshot" => engine.handle(hotkey::Action::Screenshot),
+                "library" => open_page(app, "/library"),
+                "settings" => open_page(app, "/settings"),
+                "pause" => engine.handle(hotkey::Action::TogglePause),
                 "folder" => {
                     let dir = engine.clips_dir_path();
                     let _ = std::fs::create_dir_all(&dir);
@@ -147,7 +207,12 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
         })
         .on_tray_icon_event(|tray, event| {
             if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
-                open_full(tray.app_handle());
+                let app = tray.app_handle();
+                match app.state::<Engine>().settings().tray.left_click {
+                    settings::TrayClick::OpenWindow => open_full(app),
+                    settings::TrayClick::SaveClip => app.state::<Engine>().handle(hotkey::Action::SaveClip),
+                    settings::TrayClick::CompactHud => app.state::<Engine>().handle(hotkey::Action::ToggleHud),
+                }
             }
         })
         .build(app)?;

@@ -34,6 +34,10 @@ export function mockSettings(): Settings {
 		post_roll: { enabled: false, seconds: 10 },
 		slow_mo: { seconds: 3, speed: 0.25 },
 		playback: { fullscreen_on_open: false },
+		tray: {
+			items: ['open', 'save', 'marker', 'screenshot', 'library', 'settings', 'folder', 'pause', 'quit'].map((id) => ({ id: id as never, enabled: ['open', 'save', 'folder', 'quit'].includes(id) })),
+			left_click: 'open_window'
+		},
 		notifications: {
 			position: 'bottom_right',
 			duration_secs: 4,
@@ -147,6 +151,7 @@ export function mockStatus(): Status {
 		game: 'Counter-Strike 2',
 		profile: 'Counter-Strike 2',
 		privacy: false,
+		manual_pause: false,
 		markers: [
 			{ id: 1, ago: 340, at_ms: Date.now() - 340e3, in_buffer: false },
 			{ id: 2, ago: 21.6, at_ms: Date.now() - 21.6e3, in_buffer: true },

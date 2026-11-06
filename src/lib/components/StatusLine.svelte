@@ -10,7 +10,7 @@
 			case 'recording':
 				return `Buffering · ${fmtDuration(Math.min(status.buffered_secs, status.buffer_secs))} held`;
 			case 'paused':
-				return 'Paused while a private app is focused';
+				return status.manual_pause ? 'Buffer paused' : 'Paused while a private app is focused';
 			case 'error':
 				return status.error ?? 'Capture failed';
 			default:

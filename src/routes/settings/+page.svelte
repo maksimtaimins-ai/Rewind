@@ -15,6 +15,7 @@
 	import WatchFolders from '#lib/components/WatchFolders.svelte';
 	import BenchReportView from '#lib/components/BenchReport.svelte';
 	import KeystrokeOverlay from '#lib/components/KeystrokeOverlay.svelte';
+	import TrayMenu from '#lib/components/TrayMenu.svelte';
 	import NotificationSettings from '#lib/components/NotificationSettings.svelte';
 	import AppearanceExtras from '#lib/components/AppearanceExtras.svelte';
 	import LibraryView from '#lib/components/LibraryView.svelte';
@@ -700,7 +701,11 @@
 				</Row>
 
 
-				<h3 id="smart-highlights">Smart highlights (experimental)</h3>
+				<h3 id="tray">Tray menu</h3>
+					<TrayMenu />
+
+
+					<h3 id="smart-highlights">Smart highlights (experimental)</h3>
 				<p class="intro">Listens to a clip's audio for loud spikes, excited voices and long loud stretches, and marks them on the trim timeline. Runs on this PC only. Off, it never runs.</p>
 				<Row label="Smart highlights" hint={s.smart_highlights.enabled ? 'Analyze clips from the library, one session at a time.' : 'Off. Nothing is analyzed.'}>
 					<Toggle checked={s.smart_highlights.enabled} label="Smart highlights" onchange={(v) => set((x) => (x.smart_highlights.enabled = v))} />

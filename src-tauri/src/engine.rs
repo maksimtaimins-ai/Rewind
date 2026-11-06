@@ -53,6 +53,8 @@ pub struct Status {
     /// Name of the game profile in effect, if any.
     pub profile: Option<String>,
     pub privacy: bool,
+    /// The buffer was paused by hand (tray or macro).
+    pub manual_pause: bool,
     pub markers: Vec<MarkerInfo>,
     /// A save waiting for its post-roll to finish, if any.
     pub post_roll: Option<PostRollStatus>,
@@ -173,6 +175,8 @@ pub trait Events: Send + Sync {
     fn toggle_hud(&self) {}
     /// A game profile switched in or out; `effective` is what's in force now.
     fn profile_changed(&self, _effective: &Settings) {}
+    /// The buffer was paused or resumed by hand.
+    fn pause_changed(&self) {}
 }
 
 struct SaveJob {
@@ -530,6 +534,11 @@ impl Engine {
             Action::ExtendLast => self.extend_last(),
             Action::SlowMo => self.save_slow_mo(),
             Action::FavoriteLast => self.favorite_last(),
+            Action::TogglePause => {
+                let on = !self.paused_by_hand();
+                self.set_paused(on);
+                Ok(())
+            }
             Action::ToggleHud => {
                 self.inner.events.toggle_hud();
                 Ok(())
@@ -542,6 +551,18 @@ impl Engine {
 
     /// A free path for a new clip: the user's name template, plus `suffix`
     /// (" marker", " slowmo") so those kinds stay apart.
+    pub fn paused_by_hand(&self) -> bool {
+        self.inner.flags.manual_pause.load(Ordering::Relaxed)
+    }
+
+    /// Pause or resume the buffer. While paused no frames are kept, so a clip
+    /// saved after resuming has a gap where it was paused.
+    pub fn set_paused(&self, on: bool) {
+        self.inner.flags.manual_pause.store(on, Ordering::Relaxed);
+        self.inner.events.notice(Level::Info, if on { "Buffer paused" } else { "Buffer resumed" });
+        self.inner.events.pause_changed();
+    }
+
     fn clip_path(&self, secs: Option<u32>, suffix: &str) -> Result<PathBuf> {
         let root = self.clips_dir()?;
         let now = chrono::Local::now().naive_local();
@@ -929,6 +950,7 @@ impl Engine {
             game,
             profile,
             privacy: self.inner.flags.privacy.load(Ordering::Relaxed),
+            manual_pause: self.inner.flags.manual_pause.load(Ordering::Relaxed),
             markers,
             post_roll,
             error,

@@ -18,6 +18,8 @@ pub enum Action {
     FavoriteLast,
     /// Switch between the compact HUD and the full window.
     ToggleHud,
+    /// Pause or resume the buffer by hand.
+    TogglePause,
 }
 
 impl Action {
@@ -32,6 +34,7 @@ impl Action {
             Action::SlowMo => "Slow-mo replay".into(),
             Action::FavoriteLast => "Favorite the last clip".into(),
             Action::ToggleHud => "Compact HUD".into(),
+            Action::TogglePause => "Pause buffer".into(),
         }
     }
 }

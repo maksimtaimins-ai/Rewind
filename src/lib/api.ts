@@ -60,6 +60,7 @@ export interface DiscordWebhook {
 	limit_mb: 10 | 25;
 }
 
+export type TrayItemId = 'open' | 'save' | 'marker' | 'screenshot' | 'library' | 'settings' | 'folder' | 'pause' | 'quit';
 export type ToastPosition = 'top_left' | 'top_right' | 'bottom_left' | 'bottom_right' | 'top_center' | 'bottom_center';
 export type NoticeEvent = 'clip_saved' | 'marker' | 'screenshot' | 'update' | 'benchmark';
 export type LibrarySort = 'newest' | 'oldest' | 'name' | 'duration' | 'game' | 'size';
@@ -101,6 +102,11 @@ export interface Settings {
 	post_roll: { enabled: boolean; seconds: number };
 	slow_mo: { seconds: 2 | 3 | 5; speed: number };
 	playback: { fullscreen_on_open: boolean };
+	tray: {
+		/** Menu entries in order; quit is always on. */
+		items: { id: TrayItemId; enabled: boolean }[];
+		left_click: 'open_window' | 'save_clip' | 'compact_hud';
+	};
 	notifications: {
 		position: ToastPosition;
 		/** Seconds a toast stays, 1-10. */
@@ -317,7 +323,7 @@ export interface LanOffer {
 	size: number;
 }
 
-export type HotkeyAction = 'save_clip' | 'marker' | 'screenshot' | 'extend_last' | 'slow_mo' | 'favorite_last' | 'toggle_hud';
+export type HotkeyAction = 'save_clip' | 'marker' | 'screenshot' | 'extend_last' | 'slow_mo' | 'favorite_last' | 'toggle_hud' | 'toggle_pause';
 
 export type EngineState = 'idle' | 'recording' | 'paused' | 'error';
 
@@ -337,6 +343,8 @@ export interface Status {
 	/** Game profile in effect. */
 	profile: string | null;
 	privacy: boolean;
+	/** Paused by hand (tray or macro). */
+	manual_pause: boolean;
 	/** Markers set this session, oldest first. */
 	markers: MarkerInfo[];
 	/** A save still recording its post-roll. */

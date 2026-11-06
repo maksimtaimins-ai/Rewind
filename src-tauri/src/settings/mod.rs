@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-pub const SETTINGS_VERSION: u32 = 28;
+pub const SETTINGS_VERSION: u32 = 29;
 
 /// Allowed range for [`BufferSettings::seconds`].
 pub const MIN_BUFFER_SECS: u32 = 10;
@@ -241,6 +241,58 @@ pub struct NotificationSettings {
     pub duration_secs: u32,
     pub events: NoticeEvents,
     pub sounds: NoticeSounds,
+}
+
+/// Tray right-click menu entries, in their default order.
+pub const TRAY_ITEMS: [&str; 9] = ["open", "save", "marker", "screenshot", "library", "settings", "folder", "pause", "quit"];
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TrayItem {
+    pub id: String,
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TrayClick {
+    OpenWindow,
+    SaveClip,
+    CompactHud,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TraySettings {
+    /// Menu entries in display order. Quit is always on.
+    pub items: Vec<TrayItem>,
+    pub left_click: TrayClick,
+}
+
+impl TraySettings {
+    /// The menu Rewind has always had: open, save, folder, quit.
+    pub fn standard() -> Self {
+        let on = ["open", "save", "folder", "quit"];
+        TraySettings {
+            items: TRAY_ITEMS.iter().map(|id| TrayItem { id: (*id).into(), enabled: on.contains(id) }).collect(),
+            left_click: TrayClick::OpenWindow,
+        }
+    }
+
+    /// Known entries only, each once; ones added by a newer version are
+    /// appended off; quit stays on.
+    fn sanitize(&mut self) {
+        let mut seen = std::collections::HashSet::new();
+        self.items.retain(|i| TRAY_ITEMS.contains(&i.id.as_str()) && seen.insert(i.id.clone()));
+        for id in TRAY_ITEMS {
+            if !seen.contains(id) {
+                self.items.push(TrayItem { id: id.into(), enabled: false });
+            }
+        }
+        for i in &mut self.items {
+            if i.id == "quit" {
+                i.enabled = true;
+            }
+        }
+    }
 }
 
 /// How saved clips are named. See `naming`.
@@ -666,6 +718,7 @@ pub struct Settings {
     pub naming: NamingSettings,
     pub appearance: AppearanceSettings,
     pub notifications: NotificationSettings,
+    pub tray: TraySettings,
     pub library: LibrarySettings,
     pub audio: Vec<AudioTrack>,
     pub hotkeys: Hotkeys,
@@ -726,6 +779,7 @@ impl Default for Settings {
             post_roll: PostRollSettings { enabled: false, seconds: 10 },
             slow_mo: SlowMoSettings { seconds: 3, speed: 0.25 },
             playback: PlaybackSettings { fullscreen_on_open: false },
+            tray: TraySettings::standard(),
             notifications: NotificationSettings {
                 position: ToastPosition::BottomRight,
                 duration_secs: 4,
@@ -939,6 +993,7 @@ impl Settings {
             self.sharing.lan_port = 7777;
         }
         self.sanitize_dashboard();
+        self.tray.sanitize();
         self.notifications.duration_secs = self.notifications.duration_secs.clamp(1, 10);
         for snd in [
             &mut self.notifications.sounds.clip_saved,
@@ -1026,6 +1081,7 @@ fn migrate(value: &mut toml::Table) -> Result<()> {
             }
         }
     }
+    // v28 -> v29: `tray` added (the menu it always had; left click opens the window).
     // v27 -> v28: `notifications` added. The old `play_sound_on_save` became the
     // clip-saved sound (blip, or none if it was off).
     if version < 28 {
@@ -1413,6 +1469,19 @@ enabled = true
         assert_eq!(s.notifications.sounds.clip_saved, "none");
         let s = parse("version = 28\n[notifications]\nduration_secs = 99\n[notifications.sounds]\nmarker = \"nonsense\"\nupdate = \"chime\"\n").unwrap();
         assert_eq!((s.notifications.duration_secs, s.notifications.sounds.marker.as_str(), s.notifications.sounds.update.as_str()), (10, "none", "chime"));
+    }
+
+    #[test]
+    fn tray_defaults_and_sanitizing() {
+        let s = parse("version = 28\n").unwrap();
+        assert_eq!(s.tray, TraySettings::standard());
+        let on: Vec<_> = s.tray.items.iter().filter(|i| i.enabled).map(|i| i.id.as_str()).collect();
+        assert_eq!(on, ["open", "save", "folder", "quit"]);
+        let s = parse("version = 29\n[tray]\nleft_click = \"save_clip\"\n[[tray.items]]\nid = \"quit\"\nenabled = false\n[[tray.items]]\nid = \"nope\"\nenabled = true\n[[tray.items]]\nid = \"pause\"\nenabled = true\n").unwrap();
+        assert_eq!(s.tray.items.len(), TRAY_ITEMS.len());
+        assert_eq!(s.tray.left_click, TrayClick::SaveClip);
+        assert!(s.tray.items.iter().find(|i| i.id == "quit").unwrap().enabled);
+        assert_eq!(s.tray.items[1].id, "pause");
     }
 
     #[test]
