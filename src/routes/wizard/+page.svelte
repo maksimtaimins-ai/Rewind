@@ -6,6 +6,7 @@
 	import { app, inApp, updateSettings } from '#lib/stores/app.svelte.ts';
 	import HotkeyInput from '#lib/components/HotkeyInput.svelte';
 	import Segmented from '#lib/components/Segmented.svelte';
+	import { applyPreset, presetLabel, presetSummary, suggest, type Preset } from '#lib/presets.ts';
 
 	const s = $derived(app.settings!);
 	const steps = ['Encoder', 'Hotkey', 'Clips folder', 'Ready'];
@@ -28,6 +29,18 @@
 		const order = ['nvenc', 'amf', 'qsv', 'other', 'software'];
 		return ok.sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind) || b.fps - a.fps)[0] ?? null;
 	});
+	// HEVC on the same kind of encoder, if the test found one that works.
+	const hevcOk = $derived(!!best && (results ?? []).some((r) => r.ok && r.codec === 'hevc' && r.kind === best.kind && r.kind !== 'software'));
+	const suggested = $derived<Preset>(best ? suggest(best.fps, best.kind !== 'software') : 'low');
+	let chosen = $state<Preset | null>(null);
+	const preset = $derived(chosen ?? suggested);
+	const rationale = $derived(
+		best
+			? best.kind === 'software'
+				? 'No hardware encoder worked, so the Low preset keeps the load on your PC small.'
+				: `Your GPU can sustain ${best.fps.toFixed(0)} fps on ${kindName[best.kind]}, so the ${presetLabel[suggested]} preset is recommended.`
+			: ''
+	);
 	const unique = $derived(
 		(results ?? []).filter((r, i, all) => all.findIndex((x) => x.name === r.name && x.codec === r.codec) === i)
 	);
@@ -53,7 +66,11 @@
 	onMount(test);
 
 	async function useBest() {
-		if (best) await updateSettings((x) => (x.video.encoder = best.kind === 'other' ? 'auto' : (best.kind as EncoderChoice)));
+		if (best)
+			await updateSettings((x) => {
+				x.video.encoder = best.kind === 'other' ? 'auto' : (best.kind as EncoderChoice);
+				applyPreset(x, preset, hevcOk);
+			});
 		step = 1;
 	}
 
@@ -101,6 +118,18 @@
 						{/each}
 					</tbody>
 				</table>
+				{#if best}
+					<div class="preset">
+						<p class="why">{rationale}</p>
+						<Segmented
+							label="Quality preset"
+							value={preset}
+							options={(['low', 'medium', 'high'] as Preset[]).map((p) => ({ value: p, label: presetLabel[p] }))}
+							onchange={(v) => (chosen = v)}
+						/>
+						<p class="sub">{presetSummary[preset]}{preset !== 'low' && hevcOk ? ', saved as HEVC' : ''}.</p>
+					</div>
+				{/if}
 				{#if best && best.kind === 'software'}
 					<p class="problem">
 						No hardware encoder worked. The CPU encoder will cost frames while gaming; updating your graphics driver
@@ -250,6 +279,19 @@
 		color: var(--faint);
 		font-weight: 400;
 		font-size: 12px;
+	}
+	.preset {
+		margin-top: 24px;
+		display: grid;
+		gap: 12px;
+		justify-items: start;
+	}
+	.why {
+		margin: 0;
+		max-width: 52ch;
+	}
+	.preset .sub {
+		margin: 0;
 	}
 	.field {
 		display: flex;
