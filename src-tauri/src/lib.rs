@@ -12,6 +12,7 @@ pub mod gpu;
 pub mod hotkey;
 pub mod input;
 pub mod library;
+pub mod macros;
 pub mod live_keys;
 pub mod mux;
 pub mod naming;
@@ -68,6 +69,16 @@ impl Events for UiEvents {
             if let Err(e) = hud::set_enabled(&app, on) {
                 tracing::warn!("toggle HUD: {e:#}");
             }
+        });
+    }
+
+    fn open_clip(&self, path: &std::path::Path) {
+        let app = self.0.clone();
+        let path = path.to_string_lossy().into_owned();
+        // The window may be hidden in the tray; bring it up, then point it at the clip.
+        on_main_thread_later(&self.0, move |a| {
+            open_full(a);
+            let _ = app.emit("open-clip", path);
         });
     }
 
@@ -372,6 +383,7 @@ pub fn run() {
             commands::storage_breakdown,
             commands::feature_diagnostics,
             commands::play_sound,
+            commands::run_macro,
             commands::set_do_not_disturb,
             commands::do_not_disturb,
         ])

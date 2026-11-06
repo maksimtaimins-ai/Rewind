@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-pub const SETTINGS_VERSION: u32 = 29;
+pub const SETTINGS_VERSION: u32 = 30;
 
 /// Allowed range for [`BufferSettings::seconds`].
 pub const MIN_BUFFER_SECS: u32 = 10;
@@ -293,6 +293,38 @@ impl TraySettings {
             }
         }
     }
+}
+
+/// At most this many custom macros.
+pub const MAX_MACROS: usize = 10;
+pub const MAX_MACRO_STEPS: usize = 12;
+
+/// One action in a macro. Steps that need a clip use the most recent one.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "kind")]
+pub enum MacroStep {
+    SaveClip,
+    SetMarker,
+    Screenshot,
+    SlowMo,
+    ExtendLast,
+    OpenLastClip,
+    ToggleHud,
+    PauseBuffer,
+    /// Re-encode the last clip with a preset.
+    RunExport { preset: crate::export::Preset },
+    /// Post the last clip to a Discord webhook (index into `sharing.discord_webhooks`).
+    PostDiscord { webhook: u32 },
+    ShowToast { message: String },
+}
+
+/// A hotkey that runs `steps` in order.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Macro {
+    pub name: String,
+    pub hotkey: String,
+    pub enabled: bool,
+    pub steps: Vec<MacroStep>,
 }
 
 /// How saved clips are named. See `naming`.
@@ -719,6 +751,8 @@ pub struct Settings {
     pub appearance: AppearanceSettings,
     pub notifications: NotificationSettings,
     pub tray: TraySettings,
+    /// Custom hotkey chains. Empty (the default) costs nothing.
+    pub macros: Vec<Macro>,
     pub library: LibrarySettings,
     pub audio: Vec<AudioTrack>,
     pub hotkeys: Hotkeys,
@@ -780,6 +814,7 @@ impl Default for Settings {
             slow_mo: SlowMoSettings { seconds: 3, speed: 0.25 },
             playback: PlaybackSettings { fullscreen_on_open: false },
             tray: TraySettings::standard(),
+            macros: Vec::new(),
             notifications: NotificationSettings {
                 position: ToastPosition::BottomRight,
                 duration_secs: 4,
@@ -994,6 +1029,19 @@ impl Settings {
         }
         self.sanitize_dashboard();
         self.tray.sanitize();
+        self.macros.truncate(MAX_MACROS);
+        for (i, m) in self.macros.iter_mut().enumerate() {
+            m.name = m.name.trim().chars().take(40).collect();
+            if m.name.is_empty() {
+                m.name = format!("Macro {}", i + 1);
+            }
+            m.steps.truncate(MAX_MACRO_STEPS);
+            for step in &mut m.steps {
+                if let MacroStep::ShowToast { message } = step {
+                    *message = message.chars().take(120).collect();
+                }
+            }
+        }
         self.notifications.duration_secs = self.notifications.duration_secs.clamp(1, 10);
         for snd in [
             &mut self.notifications.sounds.clip_saved,
@@ -1081,6 +1129,7 @@ fn migrate(value: &mut toml::Table) -> Result<()> {
             }
         }
     }
+    // v29 -> v30: `macros` added (none).
     // v28 -> v29: `tray` added (the menu it always had; left click opens the window).
     // v27 -> v28: `notifications` added. The old `play_sound_on_save` became the
     // clip-saved sound (blip, or none if it was off).
@@ -1482,6 +1531,33 @@ enabled = true
         assert_eq!(s.tray.left_click, TrayClick::SaveClip);
         assert!(s.tray.items.iter().find(|i| i.id == "quit").unwrap().enabled);
         assert_eq!(s.tray.items[1].id, "pause");
+    }
+
+    #[test]
+    fn macros_default_empty_roundtrip_and_clamped() {
+        assert!(parse("version = 29\n").unwrap().macros.is_empty());
+        let mut s = Settings::default();
+        s.macros.push(Macro {
+            name: "  ".into(),
+            hotkey: "Ctrl+Alt+1".into(),
+            enabled: true,
+            steps: vec![
+                MacroStep::SaveClip,
+                MacroStep::PostDiscord { webhook: 0 },
+                MacroStep::RunExport { preset: crate::export::Preset::Shorts },
+                MacroStep::ShowToast { message: "x".repeat(500) },
+            ],
+        });
+        s.sanitize();
+        assert_eq!(s.macros[0].name, "Macro 1");
+        let again = parse(&toml::to_string_pretty(&s).unwrap()).unwrap();
+        assert_eq!(again.macros, s.macros);
+        assert!(matches!(&again.macros[0].steps[3], MacroStep::ShowToast { message } if message.len() == 120));
+        for _ in 0..30 {
+            s.macros.push(s.macros[0].clone());
+        }
+        s.sanitize();
+        assert_eq!(s.macros.len(), MAX_MACROS);
     }
 
     #[test]

@@ -450,3 +450,9 @@ pub fn set_do_not_disturb(on: bool) {
 pub fn do_not_disturb() -> bool {
     crate::notify::dnd()
 }
+
+/// Run macro number `index` now, as its hotkey would. Errors arrive as notices.
+#[tauri::command]
+pub fn run_macro(engine: State<Engine>, index: usize) {
+    crate::macros::run(&engine, index);
+}

@@ -132,6 +132,7 @@ export async function init(opts: { hud?: boolean } = {}) {
 		app.clips = [e.payload, ...app.clips.filter((c) => c.path !== e.payload.path)];
 		storageChanged();
 	});
+	await listen<string>('open-clip', (e) => goto(`/trim?path=${encodeURIComponent(e.payload)}`));
 	await listen('library-changed', () => (refreshClips(), storageChanged()));
 	await listen<{ level: ToastLevel; message: string; event?: NoticeEvent }>('notice', (e) =>
 		toast(e.payload.level, e.payload.message, e.payload.event)

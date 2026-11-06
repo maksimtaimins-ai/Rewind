@@ -34,6 +34,7 @@ export function mockSettings(): Settings {
 		post_roll: { enabled: false, seconds: 10 },
 		slow_mo: { seconds: 3, speed: 0.25 },
 		playback: { fullscreen_on_open: false },
+		macros: [],
 		tray: {
 			items: ['open', 'save', 'marker', 'screenshot', 'library', 'settings', 'folder', 'pause', 'quit'].map((id) => ({ id: id as never, enabled: ['open', 'save', 'folder', 'quit'].includes(id) })),
 			left_click: 'open_window'

@@ -164,6 +164,8 @@ pub trait Events: Send + Sync {
     fn status(&self, status: &Status);
     fn clip_saved(&self, clip: &ClipInfo);
     fn notice(&self, level: Level, message: &str);
+    /// A clip should open in the app (a macro asked).
+    fn open_clip(&self, _path: &Path) {}
     /// A notice for one of the events with their own toast and sound switches
     /// (`notify::EVENTS`).
     fn notice_as(&self, _event: &str, level: Level, message: &str) {
@@ -218,6 +220,9 @@ struct Inner {
     last_save: Mutex<Option<LastSave>>,
     /// Most recently written clip of any kind, for "favorite last clip".
     last_clip: Mutex<Option<PathBuf>>,
+    /// Saves finished (written or failed), for macros waiting on one.
+    save_seq: AtomicU64,
+    last_save_failed: AtomicBool,
     save_tx: Sender<SaveJob>,
     /// Saves still recording their post-roll, handed to the saver in order.
     post_tx: Sender<SaveJob>,
@@ -271,6 +276,8 @@ impl Engine {
             next_marker: AtomicU64::new(1),
             last_save: Mutex::new(None),
             last_clip: Mutex::new(None),
+            save_seq: AtomicU64::new(0),
+            last_save_failed: AtomicBool::new(false),
             save_tx,
             post_tx,
             post_pending: Mutex::new(VecDeque::new()),
@@ -398,7 +405,7 @@ impl Engine {
     /// rebind hotkeys, restart capture, resize the buffer, (un)hook input.
     fn switch_effective(&self, new: Settings) {
         let old = std::mem::replace(&mut *self.inner.effective.write(), new.clone());
-        if old.hotkeys != new.hotkeys || old.buffer.extra_slots != new.buffer.extra_slots {
+        if old.hotkeys != new.hotkeys || old.buffer.extra_slots != new.buffer.extra_slots || old.macros != new.macros {
             if let Some(hk) = self.inner.hotkeys.lock().as_ref() {
                 for e in hk.bind(&new) {
                     self.inner.events.notice(Level::Warning, &format!("Hotkey not set: {e}"));
@@ -534,6 +541,10 @@ impl Engine {
             Action::ExtendLast => self.extend_last(),
             Action::SlowMo => self.save_slow_mo(),
             Action::FavoriteLast => self.favorite_last(),
+            Action::Macro(i) => {
+                crate::macros::run(self, i as usize);
+                Ok(())
+            }
             Action::TogglePause => {
                 let on = !self.paused_by_hand();
                 self.set_paused(on);
@@ -551,6 +562,32 @@ impl Engine {
 
     /// A free path for a new clip: the user's name template, plus `suffix`
     /// (" marker", " slowmo") so those kinds stay apart.
+    /// A notice from outside the engine (macros).
+    pub fn notify(&self, level: Level, message: &str) {
+        self.inner.events.notice(level, message);
+    }
+
+    pub fn library_changed(&self) {
+        self.inner.events.library_changed();
+    }
+
+    pub fn open_clip(&self, path: &Path) {
+        self.inner.events.open_clip(path);
+    }
+
+    pub fn last_clip_path(&self) -> Option<PathBuf> {
+        self.inner.last_clip.lock().clone()
+    }
+
+    /// Counts finished saves; a macro compares it before and after.
+    pub fn save_seq(&self) -> u64 {
+        self.inner.save_seq.load(Ordering::Acquire)
+    }
+
+    pub fn last_save_failed(&self) -> bool {
+        self.inner.last_save_failed.load(Ordering::Relaxed)
+    }
+
     pub fn paused_by_hand(&self) -> bool {
         self.inner.flags.manual_pause.load(Ordering::Relaxed)
     }
@@ -686,7 +723,7 @@ impl Engine {
     }
 
     /// Save the last few seconds as a slowed-down clip.
-    fn save_slow_mo(&self) -> Result<()> {
+    pub fn save_slow_mo(&self) -> Result<()> {
         self.check_disk()?;
         let sm = self.inner.settings.read().slow_mo.clone();
         let pipeline = self.inner.pipeline.lock();
@@ -707,7 +744,7 @@ impl Engine {
 
     /// Re-save the last clip in place with up to `extend_secs` more footage
     /// before its start, taken from the buffer.
-    fn extend_last(&self) -> Result<()> {
+    pub fn extend_last(&self) -> Result<()> {
         self.check_disk()?;
         let last = self.inner.last_save.lock().clone().ok_or_else(|| anyhow!("No clip to extend yet"))?;
         if !last.path.exists() {
@@ -816,9 +853,14 @@ impl Engine {
                 crate::analysis::on_clip_saved(&self.inner.settings.read(), &job.path, move || inner.events.library_changed());
                 let verb = if job.replaces { "Extended" } else if job.slow_mo.is_some() { "Saved slow-mo" } else { "Saved" };
                 self.inner.events.notice_as("clip_saved", Level::Success, &format!("{verb} {:.0}s clip", info.duration));
+                self.inner.last_save_failed.store(false, Ordering::Relaxed);
             }
-            Err(e) => self.inner.events.notice(Level::Error, &format!("Saving clip failed: {e:#}")),
+            Err(e) => {
+                self.inner.events.notice(Level::Error, &format!("Saving clip failed: {e:#}"));
+                self.inner.last_save_failed.store(true, Ordering::Relaxed);
+            }
         }
+        self.inner.save_seq.fetch_add(1, Ordering::Release);
     }
 
     /// Save the keystrokes recorded during a clip next to it, if recording is on.

@@ -20,6 +20,8 @@ pub enum Action {
     ToggleHud,
     /// Pause or resume the buffer by hand.
     TogglePause,
+    /// A custom macro (index into `Settings::macros`).
+    Macro(u8),
 }
 
 impl Action {
@@ -35,6 +37,7 @@ impl Action {
             Action::FavoriteLast => "Favorite the last clip".into(),
             Action::ToggleHud => "Compact HUD".into(),
             Action::TogglePause => "Pause buffer".into(),
+            Action::Macro(i) => format!("Macro {}", i as usize + 1),
         }
     }
 }
@@ -141,6 +144,10 @@ pub fn bindings(s: &crate::settings::Settings) -> Vec<(Action, String)> {
         (Action::FavoriteLast, h.favorite_last.clone()),
         (Action::ToggleHud, h.compact_hud.clone()),
     ]);
+    // Only macros that are on and have a key take one.
+    for (i, m) in s.macros.iter().enumerate().filter(|(_, m)| m.enabled && !m.steps.is_empty()) {
+        v.push((Action::Macro(i as u8), m.hotkey.clone()));
+    }
     v
 }
 

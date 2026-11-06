@@ -15,6 +15,7 @@
 	import WatchFolders from '#lib/components/WatchFolders.svelte';
 	import BenchReportView from '#lib/components/BenchReport.svelte';
 	import KeystrokeOverlay from '#lib/components/KeystrokeOverlay.svelte';
+	import Macros from '#lib/components/Macros.svelte';
 	import TrayMenu from '#lib/components/TrayMenu.svelte';
 	import NotificationSettings from '#lib/components/NotificationSettings.svelte';
 	import AppearanceExtras from '#lib/components/AppearanceExtras.svelte';
@@ -59,6 +60,7 @@
 		[
 			['essentials', 'Essentials'],
 			['hotkeys', 'Hotkeys'],
+				['macros', 'Macros'],
 			['appearance', 'Appearance'],
 				['notifications', 'Notifications'],
 			['capture', 'Capture'],
@@ -293,6 +295,11 @@
 				<input type="range" min="0.1" max="0.5" step="0.05" value={s.slow_mo.speed} onchange={(e) => set((x) => (x.slow_mo.speed = num(e)))} aria-label="Slow-mo speed" />
 				<span class="readout num">{s.slow_mo.speed.toFixed(2)}×</span>
 			</Row>
+		</section>
+
+		<section id="macros">
+			<h2>Macros</h2>
+			<Macros />
 		</section>
 
 		<section id="appearance">

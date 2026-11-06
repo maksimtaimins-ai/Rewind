@@ -60,6 +60,11 @@ export interface DiscordWebhook {
 	limit_mb: 10 | 25;
 }
 
+export type MacroStep =
+	| { kind: 'save_clip' | 'set_marker' | 'screenshot' | 'slow_mo' | 'extend_last' | 'open_last_clip' | 'toggle_hud' | 'pause_buffer' }
+	| { kind: 'run_export'; preset: ExportPreset }
+	| { kind: 'post_discord'; webhook: number }
+	| { kind: 'show_toast'; message: string };
 export type TrayItemId = 'open' | 'save' | 'marker' | 'screenshot' | 'library' | 'settings' | 'folder' | 'pause' | 'quit';
 export type ToastPosition = 'top_left' | 'top_right' | 'bottom_left' | 'bottom_right' | 'top_center' | 'bottom_center';
 export type NoticeEvent = 'clip_saved' | 'marker' | 'screenshot' | 'update' | 'benchmark';
@@ -102,6 +107,8 @@ export interface Settings {
 	post_roll: { enabled: boolean; seconds: number };
 	slow_mo: { seconds: 2 | 3 | 5; speed: number };
 	playback: { fullscreen_on_open: boolean };
+	/** Custom hotkey chains, up to ten. */
+	macros: { name: string; hotkey: string; enabled: boolean; steps: MacroStep[] }[];
 	tray: {
 		/** Menu entries in order; quit is always on. */
 		items: { id: TrayItemId; enabled: boolean }[];
@@ -535,6 +542,8 @@ export const api = {
 	/** Resolves with the number of moments found. Progress: `analysis-progress` events. */
 	analyzeClips: (paths: string[]) => invoke<number>('analyze_clips', { paths }),
 	/** Play a notification sound setting once. */
+	/** Run macro number `index` now. Errors arrive as notices. */
+	runMacro: (index: number) => invoke<void>('run_macro', { index }),
 	playSound: (sound: string) => invoke<void>('play_sound', { sound }),
 	/** Silence toasts and sounds until Rewind restarts. Never saved. */
 	setDoNotDisturb: (on: boolean) => invoke<void>('set_do_not_disturb', { on }),
