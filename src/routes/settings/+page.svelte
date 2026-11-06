@@ -15,6 +15,7 @@
 	import WatchFolders from '#lib/components/WatchFolders.svelte';
 	import BenchReportView from '#lib/components/BenchReport.svelte';
 	import KeystrokeOverlay from '#lib/components/KeystrokeOverlay.svelte';
+	import NotificationSettings from '#lib/components/NotificationSettings.svelte';
 	import AppearanceExtras from '#lib/components/AppearanceExtras.svelte';
 	import LibraryView from '#lib/components/LibraryView.svelte';
 	import FileNaming from '#lib/components/FileNaming.svelte';
@@ -58,6 +59,7 @@
 			['essentials', 'Essentials'],
 			['hotkeys', 'Hotkeys'],
 			['appearance', 'Appearance'],
+				['notifications', 'Notifications'],
 			['capture', 'Capture'],
 			['performance', 'Performance'],
 			['library', 'Library'],
@@ -103,7 +105,7 @@
 			const update = await check();
 			if (!update) return toast('info', 'Rewind is up to date');
 			updating = 'installing';
-			toast('info', `Installing Rewind ${update.version}. It restarts when done.`);
+			toast('info', `Rewind ${update.version} is available. Installing; it restarts when done.`, 'update');
 			// The installer closes Rewind itself, then relaunches it.
 			await update.downloadAndInstall();
 		} catch (e) {
@@ -151,6 +153,7 @@
 		bench = null;
 		try {
 			bench = await api.benchmark(5);
+			toast('success', 'Encoder benchmark finished', 'benchmark');
 		} catch (e) {
 			toast('error', String(e));
 		} finally {
@@ -305,9 +308,12 @@
 			<Row label="Open minimized to the tray" hint="The window stays hidden until you open it.">
 				<Toggle checked={s.start_minimized} label="Open minimized" onchange={(v) => set((x) => (x.start_minimized = v))} />
 			</Row>
-			<Row label="Play a sound on save" hint="A short click when a clip is written.">
-				<Toggle checked={s.play_sound_on_save} label="Sound on save" onchange={(v) => set((x) => (x.play_sound_on_save = v))} />
-			</Row>
+			
+		</section>
+
+		<section id="notifications">
+			<h2>Notifications</h2>
+			<NotificationSettings />
 		</section>
 
 		<section id="capture">

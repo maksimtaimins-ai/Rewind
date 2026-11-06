@@ -264,43 +264,21 @@ pub fn write_image(path: &Path, w: u32, h: u32, bgra: &[u8], format: ImageFormat
     Ok(())
 }
 
-/// Short two-tone confirmation blip, synthesised once and played async.
-pub fn play_save_sound() {
-    use std::sync::OnceLock;
+/// Play a WAV held in memory, without waiting for it. `wav` must outlive the
+/// sound, which is why built-ins are `'static`.
+pub fn play_wav_bytes(wav: &'static [u8]) {
     use windows::Win32::Media::Audio::{PlaySoundW, SND_ASYNC, SND_MEMORY, SND_NODEFAULT};
-    static WAV: OnceLock<Vec<u8>> = OnceLock::new();
-    let wav = WAV.get_or_init(|| {
-        let rate = 44_100u32;
-        let mut pcm: Vec<i16> = Vec::new();
-        for (freq, ms) in [(880.0f32, 60u32), (1320.0, 90)] {
-            let n = rate * ms / 1000;
-            for i in 0..n {
-                let t = i as f32 / rate as f32;
-                let env = (1.0 - i as f32 / n as f32).powi(2);
-                pcm.push(((t * freq * std::f32::consts::TAU).sin() * env * 9000.0) as i16);
-            }
-        }
-        let data_len = (pcm.len() * 2) as u32;
-        let mut w = Vec::with_capacity(44 + data_len as usize);
-        w.extend_from_slice(b"RIFF");
-        w.extend_from_slice(&(36 + data_len).to_le_bytes());
-        w.extend_from_slice(b"WAVEfmt ");
-        w.extend_from_slice(&16u32.to_le_bytes());
-        w.extend_from_slice(&1u16.to_le_bytes());
-        w.extend_from_slice(&1u16.to_le_bytes());
-        w.extend_from_slice(&rate.to_le_bytes());
-        w.extend_from_slice(&(rate * 2).to_le_bytes());
-        w.extend_from_slice(&2u16.to_le_bytes());
-        w.extend_from_slice(&16u16.to_le_bytes());
-        w.extend_from_slice(b"data");
-        w.extend_from_slice(&data_len.to_le_bytes());
-        for s in pcm {
-            w.extend_from_slice(&s.to_le_bytes());
-        }
-        w
-    });
     unsafe {
         let _ = PlaySoundW(PCWSTR(wav.as_ptr() as _), None, SND_MEMORY | SND_ASYNC | SND_NODEFAULT);
+    }
+}
+
+/// Play a WAV file, without waiting for it. A missing or unplayable file is silent.
+pub fn play_wav_file(path: &str) {
+    use windows::Win32::Media::Audio::{PlaySoundW, SND_ASYNC, SND_FILENAME, SND_NODEFAULT};
+    let wide: Vec<u16> = path.encode_utf16().chain(std::iter::once(0)).collect();
+    unsafe {
+        let _ = PlaySoundW(PCWSTR(wide.as_ptr()), None, SND_FILENAME | SND_ASYNC | SND_NODEFAULT);
     }
 }
 

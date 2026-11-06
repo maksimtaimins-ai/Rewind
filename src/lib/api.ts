@@ -60,6 +60,8 @@ export interface DiscordWebhook {
 	limit_mb: 10 | 25;
 }
 
+export type ToastPosition = 'top_left' | 'top_right' | 'bottom_left' | 'bottom_right' | 'top_center' | 'bottom_center';
+export type NoticeEvent = 'clip_saved' | 'marker' | 'screenshot' | 'update' | 'benchmark';
 export type LibrarySort = 'newest' | 'oldest' | 'name' | 'duration' | 'game' | 'size';
 export type FpsMode = 'fixed' | 'display';
 export type DashboardWidgetId = 'save' | 'buffer' | 'recent' | 'disk' | 'counters' | 'status' | 'playtime';
@@ -75,7 +77,6 @@ export interface Settings {
 	clips_dir: string;
 	launch_on_startup: boolean;
 	start_minimized: boolean;
-	play_sound_on_save: boolean;
 	video: {
 		monitor: number;
 		height: number;
@@ -100,6 +101,15 @@ export interface Settings {
 	post_roll: { enabled: boolean; seconds: number };
 	slow_mo: { seconds: 2 | 3 | 5; speed: number };
 	playback: { fullscreen_on_open: boolean };
+	notifications: {
+		position: ToastPosition;
+		/** Seconds a toast stays, 1-10. */
+		duration_secs: number;
+		/** Which events show a toast; warnings and errors always do. */
+		events: Record<NoticeEvent, boolean>;
+		/** `none`, a built-in id (blip, chime, click, pop, low) or `file:<path>.wav`. */
+		sounds: Record<NoticeEvent, string>;
+	};
 	appearance: {
 		/** `#rrggbb` over the theme's accent; '' = the theme's own. */
 		accent: string;
@@ -515,7 +525,12 @@ export const api = {
 	hudMenu: () => invoke<void>('hud_menu'),
 	liveBenchmark: (secs: number) => invoke<BenchReport>('run_live_benchmark', { secs }),
 	/** Resolves with the number of moments found. Progress: `analysis-progress` events. */
-	analyzeClips: (paths: string[]) => invoke<number>('analyze_clips', { paths })
+	analyzeClips: (paths: string[]) => invoke<number>('analyze_clips', { paths }),
+	/** Play a notification sound setting once. */
+	playSound: (sound: string) => invoke<void>('play_sound', { sound }),
+	/** Silence toasts and sounds until Rewind restarts. Never saved. */
+	setDoNotDisturb: (on: boolean) => invoke<void>('set_do_not_disturb', { on }),
+	doNotDisturb: () => invoke<boolean>('do_not_disturb')
 };
 
 export const fileUrl = (path: string) => convertFileSrc(path);

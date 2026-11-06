@@ -11,7 +11,6 @@ export function mockSettings(): Settings {
 		clips_dir: 'C:\\Users\\you\\AppData\\Roaming\\Rewind\\Clips',
 		launch_on_startup: false,
 		start_minimized: false,
-		play_sound_on_save: true,
 		video: {
 			monitor: 0,
 			height: 1080,
@@ -35,6 +34,12 @@ export function mockSettings(): Settings {
 		post_roll: { enabled: false, seconds: 10 },
 		slow_mo: { seconds: 3, speed: 0.25 },
 		playback: { fullscreen_on_open: false },
+		notifications: {
+			position: 'bottom_right',
+			duration_secs: 4,
+			events: { clip_saved: true, marker: true, screenshot: true, update: true, benchmark: false },
+			sounds: { clip_saved: 'blip', marker: 'none', screenshot: 'none', update: 'none', benchmark: 'none' }
+		},
 		appearance: { accent: '', font: 'theme', ui_scale: 100, status_pills: false },
 		naming: { clip_template: '{game} {date} {time}', folder_mode: 'flat', folder_template: '{game}/{year}-{month}' },
 		library: {

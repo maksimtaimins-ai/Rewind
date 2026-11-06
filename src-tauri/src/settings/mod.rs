@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-pub const SETTINGS_VERSION: u32 = 27;
+pub const SETTINGS_VERSION: u32 = 28;
 
 /// Allowed range for [`BufferSettings::seconds`].
 pub const MIN_BUFFER_SECS: u32 = 10;
@@ -201,6 +201,46 @@ pub struct AppearanceSettings {
     pub ui_scale: u32,
     /// Encoder / FPS / game / buffer pills above the dashboard widgets.
     pub status_pills: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ToastPosition {
+    TopLeft,
+    TopRight,
+    BottomLeft,
+    BottomRight,
+    TopCenter,
+    BottomCenter,
+}
+
+/// Which events show a toast. Warnings and errors always do.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NoticeEvents {
+    pub clip_saved: bool,
+    pub marker: bool,
+    pub screenshot: bool,
+    pub update: bool,
+    pub benchmark: bool,
+}
+
+/// A sound per event: `none`, a built-in id, or `file:<path>.wav`. See `notify`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NoticeSounds {
+    pub clip_saved: String,
+    pub marker: String,
+    pub screenshot: String,
+    pub update: String,
+    pub benchmark: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NotificationSettings {
+    pub position: ToastPosition,
+    /// How long a toast stays, seconds (1-10).
+    pub duration_secs: u32,
+    pub events: NoticeEvents,
+    pub sounds: NoticeSounds,
 }
 
 /// How saved clips are named. See `naming`.
@@ -618,7 +658,6 @@ pub struct Settings {
     pub clips_dir: PathBuf,
     pub launch_on_startup: bool,
     pub start_minimized: bool,
-    pub play_sound_on_save: bool,
     pub video: VideoSettings,
     pub buffer: BufferSettings,
     pub post_roll: PostRollSettings,
@@ -626,6 +665,7 @@ pub struct Settings {
     pub playback: PlaybackSettings,
     pub naming: NamingSettings,
     pub appearance: AppearanceSettings,
+    pub notifications: NotificationSettings,
     pub library: LibrarySettings,
     pub audio: Vec<AudioTrack>,
     pub hotkeys: Hotkeys,
@@ -661,7 +701,6 @@ impl Default for Settings {
             clips_dir: default_clips_dir(),
             launch_on_startup: false,
             start_minimized: false,
-            play_sound_on_save: true,
             video: VideoSettings {
                 monitor: 0,
                 height: 1080,
@@ -687,6 +726,18 @@ impl Default for Settings {
             post_roll: PostRollSettings { enabled: false, seconds: 10 },
             slow_mo: SlowMoSettings { seconds: 3, speed: 0.25 },
             playback: PlaybackSettings { fullscreen_on_open: false },
+            notifications: NotificationSettings {
+                position: ToastPosition::BottomRight,
+                duration_secs: 4,
+                events: NoticeEvents { clip_saved: true, marker: true, screenshot: true, update: true, benchmark: false },
+                sounds: NoticeSounds {
+                    clip_saved: "blip".into(),
+                    marker: "none".into(),
+                    screenshot: "none".into(),
+                    update: "none".into(),
+                    benchmark: "none".into(),
+                },
+            },
             appearance: AppearanceSettings { accent: String::new(), font: UiFont::Theme, ui_scale: 100, status_pills: false },
             naming: NamingSettings {
                 clip_template: crate::naming::DEFAULT_CLIP_TEMPLATE.into(),
@@ -888,6 +939,18 @@ impl Settings {
             self.sharing.lan_port = 7777;
         }
         self.sanitize_dashboard();
+        self.notifications.duration_secs = self.notifications.duration_secs.clamp(1, 10);
+        for snd in [
+            &mut self.notifications.sounds.clip_saved,
+            &mut self.notifications.sounds.marker,
+            &mut self.notifications.sounds.screenshot,
+            &mut self.notifications.sounds.update,
+            &mut self.notifications.sounds.benchmark,
+        ] {
+            if !crate::notify::valid_sound(snd) {
+                *snd = "none".into();
+            }
+        }
         if !self.appearance.accent.is_empty() && !is_hex_color(&self.appearance.accent) {
             self.appearance.accent.clear();
         }
@@ -962,6 +1025,20 @@ fn migrate(value: &mut toml::Table) -> Result<()> {
                 }
             }
         }
+    }
+    // v27 -> v28: `notifications` added. The old `play_sound_on_save` became the
+    // clip-saved sound (blip, or none if it was off).
+    if version < 28 {
+        if value.get("play_sound_on_save").and_then(|v| v.as_bool()) == Some(false) {
+            let n = value.entry("notifications").or_insert_with(|| toml::Value::Table(Default::default()));
+            if let toml::Value::Table(n) = n {
+                let sounds = n.entry("sounds").or_insert_with(|| toml::Value::Table(Default::default()));
+                if let toml::Value::Table(sounds) = sounds {
+                    sounds.insert("clip_saved".into(), "none".into());
+                }
+            }
+        }
+        value.remove("play_sound_on_save");
     }
     // v26 -> v27: `appearance` added (theme accent, theme font, 100%, no pills).
     // v25 -> v26: `library` gains view preferences (the old look); defaults fill them in.
@@ -1323,6 +1400,19 @@ enabled = true
         let s = parse("version = 27\n[appearance]\naccent = \"red\"\nui_scale = 133\nfont = \"mono\"\n").unwrap();
         assert_eq!((s.appearance.accent.as_str(), s.appearance.ui_scale, s.appearance.font), ("", 100, UiFont::Mono));
         assert_eq!(parse("version = 27\n[appearance]\naccent = \"#ff8800\"\nui_scale = 125\n").unwrap().appearance.accent, "#ff8800");
+    }
+
+    #[test]
+    fn notifications_defaults_migration_and_sanitizing() {
+        let s = parse("version = 27\n").unwrap();
+        assert_eq!((s.notifications.position, s.notifications.duration_secs), (ToastPosition::BottomRight, 4));
+        assert!(s.notifications.events.clip_saved && !s.notifications.events.benchmark);
+        assert_eq!(s.notifications.sounds.clip_saved, "blip");
+        // The old switch carries over.
+        let s = parse("version = 27\nplay_sound_on_save = false\n").unwrap();
+        assert_eq!(s.notifications.sounds.clip_saved, "none");
+        let s = parse("version = 28\n[notifications]\nduration_secs = 99\n[notifications.sounds]\nmarker = \"nonsense\"\nupdate = \"chime\"\n").unwrap();
+        assert_eq!((s.notifications.duration_secs, s.notifications.sounds.marker.as_str(), s.notifications.sounds.update.as_str()), (10, "none", "chime"));
     }
 
     #[test]

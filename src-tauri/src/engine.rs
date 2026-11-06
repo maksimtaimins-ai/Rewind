@@ -162,6 +162,11 @@ pub trait Events: Send + Sync {
     fn status(&self, status: &Status);
     fn clip_saved(&self, clip: &ClipInfo);
     fn notice(&self, level: Level, message: &str);
+    /// A notice for one of the events with their own toast and sound switches
+    /// (`notify::EVENTS`).
+    fn notice_as(&self, _event: &str, level: Level, message: &str) {
+        self.notice(level, message)
+    }
     /// Clip metadata changed outside the UI (e.g. a hotkey); reload the library.
     fn library_changed(&self);
     /// The compact HUD hotkey was pressed.
@@ -644,7 +649,7 @@ impl Engine {
         let id = self.inner.next_marker.fetch_add(1, Ordering::Relaxed);
         let at_ms = chrono::Local::now().timestamp_millis();
         self.inner.markers.lock().push(Marker { id, at: qpc_now(), at_ms });
-        self.inner.events.notice(Level::Info, "Marker set");
+        self.inner.events.notice_as("marker", Level::Info, "Marker set");
         Ok(())
     }
 
@@ -724,7 +729,7 @@ impl Engine {
                 .ok_or_else(|| anyhow!("No frame captured yet"))
                 .and_then(|(w, h, px)| platform::write_image(&path, w, h, &px, ImageFormat::Png));
             match r {
-                Ok(()) => inner.events.notice(Level::Success, "Screenshot saved"),
+                Ok(()) => inner.events.notice_as("screenshot", Level::Success, "Screenshot saved"),
                 Err(e) => inner.events.notice(Level::Error, &format!("Screenshot failed: {e:#}")),
             }
         });
@@ -789,7 +794,7 @@ impl Engine {
                 let inner = self.inner.clone();
                 crate::analysis::on_clip_saved(&self.inner.settings.read(), &job.path, move || inner.events.library_changed());
                 let verb = if job.replaces { "Extended" } else if job.slow_mo.is_some() { "Saved slow-mo" } else { "Saved" };
-                self.inner.events.notice(Level::Success, &format!("{verb} {:.0}s clip", info.duration));
+                self.inner.events.notice_as("clip_saved", Level::Success, &format!("{verb} {:.0}s clip", info.duration));
             }
             Err(e) => self.inner.events.notice(Level::Error, &format!("Saving clip failed: {e:#}")),
         }

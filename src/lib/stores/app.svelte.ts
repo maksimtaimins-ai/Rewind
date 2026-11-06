@@ -1,7 +1,7 @@
 import { isTauri } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { goto } from '$app/navigation';
-import { api, type Clip, type LanOffer, type LanProgress, type LibraryMeta, type Settings, type Status, type StorageBreakdown } from '#lib/api.ts';
+import { api, type NoticeEvent, type Clip, type LanOffer, type LanProgress, type LibraryMeta, type Settings, type Status, type StorageBreakdown } from '#lib/api.ts';
 import { mockClips, mockLevels, mockSettings, mockStatus, mockStorage, mockTagColors } from './mock.ts';
 
 export type ToastLevel = 'info' | 'success' | 'warning' | 'error';
@@ -24,7 +24,9 @@ export const app = $state({
 	/** A LAN transfer in progress, either way. */
 	transfer: null as LanProgress | null,
 	/** Storage breakdown, once something has asked for it. */
-	storage: null as StorageBreakdown | null
+	storage: null as StorageBreakdown | null,
+	/** Do not disturb: no toasts or notification sounds until the next launch. */
+	dnd: false
 });
 
 let storageWanted = false;
@@ -57,10 +59,27 @@ function logLevels(status: Status) {
 }
 
 let toastId = 0;
-export function toast(level: ToastLevel, message: string) {
+/** Events this window raises itself; the engine plays the sound for the others. */
+const LOCAL_EVENTS: NoticeEvent[] = ['update', 'benchmark'];
+
+/** Show a toast. `event` ties it to a switch and a sound in Settings → Notifications. */
+export function toast(level: ToastLevel, message: string, event?: NoticeEvent) {
+	if (app.dnd) return;
+	const n = app.settings?.notifications;
+	if (event && n) {
+		if (inApp && LOCAL_EVENTS.includes(event) && n.sounds[event] !== 'none') api.playSound(n.sounds[event]).catch(() => {});
+		if (!n.events[event]) return;
+	}
 	const id = ++toastId;
+	const secs = n?.duration_secs ?? 4;
 	app.toasts = [...app.toasts.slice(-3), { id, level, message }];
-	setTimeout(() => (app.toasts = app.toasts.filter((t) => t.id !== id)), level === 'error' ? 8000 : 4000);
+	setTimeout(() => (app.toasts = app.toasts.filter((t) => t.id !== id)), (level === 'error' ? Math.max(secs, 8) : secs) * 1000);
+}
+
+/** Do not disturb on or off, here and in the engine. */
+export async function setDnd(on: boolean) {
+	app.dnd = on;
+	if (inApp) await api.setDoNotDisturb(on).catch(() => {});
 }
 
 export async function refreshClips() {
@@ -114,9 +133,10 @@ export async function init(opts: { hud?: boolean } = {}) {
 		storageChanged();
 	});
 	await listen('library-changed', () => (refreshClips(), storageChanged()));
-	await listen<{ level: ToastLevel; message: string }>('notice', (e) =>
-		toast(e.payload.level, e.payload.message)
+	await listen<{ level: ToastLevel; message: string; event?: NoticeEvent }>('notice', (e) =>
+		toast(e.payload.level, e.payload.message, e.payload.event)
 	);
+	app.dnd = await api.doNotDisturb().catch(() => false);
 	// Imported here, not at the top: share.ts imports this module.
 	const { answerOffer } = await import('#lib/share.ts');
 	await listen<LanOffer>('lan-offer', (e) => answerOffer(e.payload));

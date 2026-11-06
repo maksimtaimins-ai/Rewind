@@ -15,6 +15,7 @@ pub mod library;
 pub mod live_keys;
 pub mod mux;
 pub mod naming;
+pub mod notify;
 pub mod perf;
 pub mod pipeline;
 pub mod platform;
@@ -53,9 +54,6 @@ impl Events for UiEvents {
 
     fn clip_saved(&self, clip: &ClipInfo) {
         let _ = self.0.emit("clip-saved", clip);
-        if self.0.state::<Engine>().settings().play_sound_on_save {
-            platform::play_save_sound();
-        }
     }
 
     fn library_changed(&self) {
@@ -77,6 +75,13 @@ impl Events for UiEvents {
         let _ = self.0.emit("profile-changed", ());
         // A profile may change which keys the live keystroke overlay shows.
         live_keys::on_settings(&self.0, effective);
+    }
+
+    fn notice_as(&self, event: &str, level: Level, message: &str) {
+        tracing::info!("notice {level:?} ({event}): {message}");
+        // The sound is played here, not by the window: it works from the tray too.
+        notify::play_event(&self.0.state::<Engine>().settings().notifications, event);
+        let _ = self.0.emit("notice", serde_json::json!({ "level": level, "message": message, "event": event }));
     }
 
     fn notice(&self, level: Level, message: &str) {
@@ -301,6 +306,9 @@ pub fn run() {
             commands::make_montage,
             commands::storage_breakdown,
             commands::feature_diagnostics,
+            commands::play_sound,
+            commands::set_do_not_disturb,
+            commands::do_not_disturb,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Rewind")

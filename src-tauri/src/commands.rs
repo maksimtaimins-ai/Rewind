@@ -431,3 +431,21 @@ pub fn feature_diagnostics(app: tauri::AppHandle, engine: State<Engine>, lan: St
         live_keys_window: app.get_webview_window(crate::live_keys::LABEL).is_some(),
     }
 }
+
+/// Play a notification sound setting (`blip`, `file:<path>.wav`...) once, e.g.
+/// to preview it. Respects nothing but its own validity: the user asked.
+#[tauri::command]
+pub fn play_sound(sound: String) {
+    crate::notify::play(&sound);
+}
+
+/// Silence toasts and notification sounds until Rewind restarts.
+#[tauri::command]
+pub fn set_do_not_disturb(on: bool) {
+    crate::notify::set_dnd(on);
+}
+
+#[tauri::command]
+pub fn do_not_disturb() -> bool {
+    crate::notify::dnd()
+}
