@@ -43,6 +43,23 @@
 		color: var(--faint);
 		font-weight: 500;
 	}
+	@media (max-width: 559px) {
+		.title,
+		.find span,
+		.find kbd {
+			display: none;
+		}
+		.find {
+			width: 28px;
+			justify-content: center;
+			padding: 0;
+		}
+	}
+	@media (max-width: 399px) {
+		.find {
+			display: none;
+		}
+	}
 	.controls {
 		display: flex;
 		height: 100%;

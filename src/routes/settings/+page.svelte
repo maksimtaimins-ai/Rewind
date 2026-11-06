@@ -711,6 +711,15 @@
 		gap: 32px;
 		padding: 32px;
 	}
+	@media (max-width: 799px) {
+		.page {
+			grid-template-columns: minmax(0, 1fr);
+			padding: var(--s-4);
+		}
+		.index {
+			display: none;
+		}
+	}
 	.index {
 		position: sticky;
 		top: 0;

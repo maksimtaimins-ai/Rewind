@@ -217,6 +217,8 @@
 	onMount(() => void refreshStorage());
 </script>
 
+<svelte:window onresize={() => innerWidth < 400 && (editing = false)} />
+
 <div class="page" class:editing>
 	{#if s && s.disk !== 'ok' && s.disk_free_gb != null}
 		<p class="disk {s.disk}" role="status">
@@ -967,6 +969,7 @@
 			padding: var(--s-3);
 			gap: var(--s-3);
 		}
+		.disk,
 		.tier-ess,
 		.tools,
 		.markers,

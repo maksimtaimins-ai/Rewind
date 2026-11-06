@@ -4,9 +4,9 @@
 	import StatusLine from './StatusLine.svelte';
 
 	const links = [
-		{ href: '/', label: 'Live', tour: undefined },
-		{ href: '/library', label: 'Clips', tour: 'nav-clips' },
-		{ href: '/settings', label: 'Settings', tour: 'nav-settings' }
+		{ href: '/', label: 'Live', tour: undefined, icon: 'M3 12l8-6v12zM12 12l8-6v12z' },
+		{ href: '/library', label: 'Clips', tour: 'nav-clips', icon: 'M4 6h16v12H4zM10 9.5v5l4.5-2.5z' },
+		{ href: '/settings', label: 'Settings', tour: 'nav-settings', icon: 'M5 7h14M5 12h14M5 17h14M9 5v4M15 10v4M8 15v4' }
 	];
 	let els = $state<HTMLElement[]>([]);
 	// The accent bar rides to whichever link is current.
@@ -31,8 +31,9 @@
 		<span class="bar" class:show={bar.show} style:transform="translateY({bar.y}px)" style:height="{bar.h}px" aria-hidden="true"></span>
 		{#each links as l, i (l.href)}
 			<li>
-				<a bind:this={els[i]} href={l.href} class:on={active(l.href)} aria-current={active(l.href) ? 'page' : undefined} data-tour={l.tour}>
-					{l.label}
+				<a bind:this={els[i]} href={l.href} class:on={active(l.href)} aria-current={active(l.href) ? 'page' : undefined} aria-label={l.label} title={l.label} data-tour={l.tour}>
+					<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d={l.icon} /></svg>
+					<span class="lbl">{l.label}</span>
 					{#if l.href === '/library' && app.clips.length}
 						<span class="count num">{app.clips.length}</span>
 					{/if}
@@ -54,6 +55,8 @@
 <style>
 	.rail {
 		width: 200px;
+		overflow: hidden;
+		transition: width var(--dur) var(--ease), padding var(--dur) var(--ease);
 		flex: none;
 		display: flex;
 		flex-direction: column;
@@ -84,6 +87,19 @@
 		padding: 0;
 		display: grid;
 		gap: 4px;
+	}
+	.ico {
+		display: none;
+		width: 20px;
+		height: 20px;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 1.6;
+		stroke-linejoin: round;
+		stroke-linecap: round;
+	}
+	.lbl {
+		flex: 1;
 	}
 	ul a {
 		display: flex;
@@ -131,5 +147,35 @@
 	.local {
 		margin: 0;
 		color: var(--faint);
+	}
+	/* Under 700px the rail keeps only icons, so the content gets the room. */
+	@media (max-width: 699px) {
+		.rail {
+			width: 56px;
+			padding-inline: var(--s-2);
+		}
+		.mark span,
+		.lbl,
+		.count,
+		.local,
+		.foot :global(.text) {
+			display: none;
+		}
+		.mark {
+			justify-content: center;
+			padding-inline: 0;
+		}
+		ul a {
+			justify-content: center;
+			padding-inline: 0;
+			height: 36px;
+		}
+		.ico {
+			display: block;
+		}
+		.foot {
+			padding: 0;
+			justify-items: center;
+		}
 	}
 </style>
