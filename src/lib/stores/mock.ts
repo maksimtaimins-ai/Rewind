@@ -36,6 +36,7 @@ export function mockSettings(): Settings {
 		playback: { fullscreen_on_open: false },
 		macros: [],
 		situational: [],
+		section_order: ['essentials', 'hotkeys', 'macros', 'appearance', 'notifications', 'capture', 'performance', 'library', 'storage', 'sharing', 'games', 'help', 'advanced'],
 		tray: {
 			items: ['open', 'save', 'marker', 'screenshot', 'library', 'settings', 'folder', 'pause', 'quit'].map((id) => ({ id: id as never, enabled: ['open', 'save', 'folder', 'quit'].includes(id) })),
 			left_click: 'open_window'

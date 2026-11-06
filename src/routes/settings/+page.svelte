@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { open, save } from '@tauri-apps/plugin-dialog';
 	import { check } from '@tauri-apps/plugin-updater';
-	import { api, type BenchReport, type BenchResult, type Device, type EncoderInfo, type Monitor, type Settings, type AudioSource } from '#lib/api.ts';
+	import { api, SETTINGS_SECTIONS, type BenchReport, type BenchResult, type Device, type EncoderInfo, type Monitor, type Settings, type AudioSource } from '#lib/api.ts';
 	import { reducedMotion } from '#lib/motion.ts';
 	import { app, inApp, refreshStorage, toast, updateSettings } from '#lib/stores/app.svelte.ts';
 	import StorageBar from '#lib/components/StorageBar.svelte';
@@ -16,6 +16,7 @@
 	import BenchReportView from '#lib/components/BenchReport.svelte';
 	import KeystrokeOverlay from '#lib/components/KeystrokeOverlay.svelte';
 	import SituationalProfiles from '#lib/components/SituationalProfiles.svelte';
+	import Sortable from '#lib/components/Sortable.svelte';
 	import Macros from '#lib/components/Macros.svelte';
 	import TrayMenu from '#lib/components/TrayMenu.svelte';
 	import NotificationSettings from '#lib/components/NotificationSettings.svelte';
@@ -57,23 +58,27 @@
 	const num = (e: Event) => Number((e.currentTarget as HTMLInputElement).value);
 	const monitorLabel = (m: Monitor) => `${m.name}, ${m.width}×${m.height} at ${m.x}, ${m.y}${m.primary ? ' (main)' : ''}`;
 
-	const sections = $derived(
-		[
-			['essentials', 'Essentials'],
-			['hotkeys', 'Hotkeys'],
-				['macros', 'Macros'],
-			['appearance', 'Appearance'],
-				['notifications', 'Notifications'],
-			['capture', 'Capture'],
-			['performance', 'Performance'],
-			['library', 'Library'],
-			['storage', 'Storage'],
-			['sharing', 'Sharing'],
-			['games', 'Profiles'],
-			['help', 'Help'],
-			['advanced', 'Advanced']
-		].filter(([id]) => pro || id !== 'advanced')
-	);
+	const labels: Record<string, string> = {
+		essentials: 'Essentials',
+		hotkeys: 'Hotkeys',
+		macros: 'Macros',
+		appearance: 'Appearance',
+		notifications: 'Notifications',
+		capture: 'Capture',
+		performance: 'Performance',
+		library: 'Library',
+		storage: 'Storage',
+		sharing: 'Sharing',
+		games: 'Profiles',
+		help: 'Help',
+		advanced: 'Advanced'
+	};
+	// The user's order. Advanced only exists in Pro mode.
+	const order = $derived(s.section_order.filter((id) => pro || id !== 'advanced'));
+	const sections = $derived(order.map((id) => [id, labels[id]] as const));
+	const defaultOrder = SETTINGS_SECTIONS.filter(() => true) as string[];
+	const isDefaultOrder = $derived(s.section_order.join() === defaultOrder.join());
+	let reordering = $state(false);
 
 	// Advanced is folded away until asked for. A link or search result that
 	// points inside it opens it first.
@@ -225,8 +230,20 @@
 			<Row label="Pro mode" hint="Show encoder, bitrate, codec and other advanced settings.">
 				<Toggle checked={pro} label="Pro mode" onchange={(v) => set((x) => (x.pro_mode = v))} />
 			</Row>
+			<Row label="Section order" hint="Put the sections you use most first.">
+				<button class="secondary" aria-expanded={reordering} onclick={() => (reordering = !reordering)}>{reordering ? 'Done' : 'Reorder'}</button>
+				<button class="secondary" disabled={isDefaultOrder} onclick={() => set((x) => (x.section_order = [...defaultOrder]))}>Reset</button>
+			</Row>
+			{#if reordering}
+				<div class="reorder">
+					<Sortable items={order.map((id) => ({ id }))} label="Settings sections" onchange={(ids) => set((x) => (x.section_order = [...ids, ...x.section_order.filter((id) => !ids.includes(id))]))}>
+						{#snippet row(it)}<span>{labels[it.id]}</span>{/snippet}
+					</Sortable>
+				</div>
+			{/if}
 		</div>
 
+{#snippet sec_essentials()}
 		<section id="essentials">
 			<h2>Essentials</h2>
 			<Row label="Buffer length" hint="Keeps the last {s.buffer.seconds >= 60 && s.buffer.seconds % 60 === 0 ? `${s.buffer.seconds / 60} ${s.buffer.seconds === 60 ? 'minute' : 'minutes'}` : `${s.buffer.seconds} seconds`} of your screen in memory, about {ramEstimate} MB of RAM.">
@@ -260,7 +277,10 @@
 				</select>
 			</Row>
 		</section>
+{/snippet}
 
+
+{#snippet sec_hotkeys()}
 		<section id="hotkeys">
 			<h2>Hotkeys</h2>
 			<Row label="Save clip" hint="Saves the last {s.buffer.seconds} seconds (slot A).">
@@ -297,12 +317,18 @@
 				<span class="readout num">{s.slow_mo.speed.toFixed(2)}×</span>
 			</Row>
 		</section>
+{/snippet}
 
+
+{#snippet sec_macros()}
 		<section id="macros">
 			<h2>Macros</h2>
 			<Macros />
 		</section>
+{/snippet}
 
+
+{#snippet sec_appearance()}
 		<section id="appearance">
 			<h2>Appearance</h2>
 			<div class="block">
@@ -319,12 +345,18 @@
 			</Row>
 			
 		</section>
+{/snippet}
 
+
+{#snippet sec_notifications()}
 		<section id="notifications">
 			<h2>Notifications</h2>
 			<NotificationSettings />
 		</section>
+{/snippet}
 
+
+{#snippet sec_capture()}
 		<section id="capture">
 			<h2>Capture</h2>
 			<Row label="Record extra after press" hint={s.post_roll.enabled ? `Keeps recording ${s.post_roll.seconds}s after you save. Markers, slow-mo and screenshots are unaffected.` : 'Off. A clip ends the moment you press save.'}>
@@ -477,7 +509,10 @@
 
 			<KeystrokeOverlay />
 		</section>
+{/snippet}
 
+
+{#snippet sec_performance()}
 		<section id="performance">
 			<h2>Performance</h2>
 			<p class="intro">For PCs that struggle while gaming. These sit on top of your settings; turn them off and everything is as you set it.</p>
@@ -488,7 +523,10 @@
 				<Toggle checked={s.performance.battery_throttle} label="Save power on battery" onchange={(v) => set((x) => (x.performance.battery_throttle = v))} />
 			</Row>
 		</section>
+{/snippet}
 
+
+{#snippet sec_library()}
 		<section id="library">
 			<h2>Library</h2>
 			<FileNaming />
@@ -505,7 +543,10 @@
 			</Row>
 			<LibraryView />
 		</section>
+{/snippet}
 
+
+{#snippet sec_storage()}
 		<section id="storage">
 			<h2>Storage</h2>
 			<div class="storage-bar">
@@ -521,7 +562,10 @@
 				<span class="readout num wide">{(app.status?.written_week_gb ?? 0).toFixed(2)} GB</span>
 			</Row>
 		</section>
+{/snippet}
 
+
+{#snippet sec_sharing()}
 		<section id="sharing">
 			<h2>Sharing</h2>
 			<p class="intro">Discord webhooks post a clip straight into a channel. Make one in the channel's settings under Integrations, then paste its URL here. Anyone with the URL can post, so keep it private.</p>
@@ -582,7 +626,10 @@
 				<Toggle checked={s.sharing.discord_presence} label="Discord Rich Presence" onchange={(v) => set((x) => (x.sharing.discord_presence = v))} />
 			</Row>
 		</section>
+{/snippet}
 
+
+{#snippet sec_games()}
 		<section id="games">
 			<h2>Profiles</h2>
 			<h3 id="game-profiles">Per game</h3>
@@ -590,7 +637,10 @@
 			<h3 id="situational">Situational</h3>
 			<SituationalProfiles />
 		</section>
+{/snippet}
 
+
+{#snippet sec_help()}
 		<section id="help">
 			<h2>Help</h2>
 			<Row label="Tour of the Live tab" hint="Four quick pointers: saving, the buffer, your clips and settings.">
@@ -602,8 +652,10 @@
 				</button>
 			</Row>
 		</section>
+{/snippet}
 
-		{#if pro}
+
+{#snippet sec_advanced()}
 			<section id="advanced">
 				<details bind:open={advancedOpen}>
 					<summary><h2>Advanced</h2><span>Encoder tuning, monitors, benchmarks and diagnostics</span></summary>
@@ -736,7 +788,24 @@
 				<PerformanceList />
 				</details>
 			</section>
-		{/if}
+{/snippet}
+
+		{#each order as id (id)}
+			{#if id === 'essentials'}{@render sec_essentials()}
+			{:else if id === 'hotkeys'}{@render sec_hotkeys()}
+			{:else if id === 'macros'}{@render sec_macros()}
+			{:else if id === 'appearance'}{@render sec_appearance()}
+			{:else if id === 'notifications'}{@render sec_notifications()}
+			{:else if id === 'capture'}{@render sec_capture()}
+			{:else if id === 'performance'}{@render sec_performance()}
+			{:else if id === 'library'}{@render sec_library()}
+			{:else if id === 'storage'}{@render sec_storage()}
+			{:else if id === 'sharing'}{@render sec_sharing()}
+			{:else if id === 'games'}{@render sec_games()}
+			{:else if id === 'help'}{@render sec_help()}
+			{:else if id === 'advanced' && pro}{@render sec_advanced()}
+			{/if}
+		{/each}
 	</div>
 </div>
 
@@ -794,6 +863,12 @@
 	.pro {
 		margin-bottom: var(--s-4);
 		padding-block: var(--s-1);
+	}
+	.pro > :global(.row + .row) {
+		border-top: 1px solid var(--border);
+	}
+	.reorder {
+		padding: 0 0 var(--s-3);
 	}
 	.body > section :global(.row + .row) {
 		border-top: 1px solid var(--border);

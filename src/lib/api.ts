@@ -89,6 +89,7 @@ export type TrayItemId = 'open' | 'save' | 'marker' | 'screenshot' | 'library' |
 export type ToastPosition = 'top_left' | 'top_right' | 'bottom_left' | 'bottom_right' | 'top_center' | 'bottom_center';
 export type NoticeEvent = 'clip_saved' | 'marker' | 'screenshot' | 'update' | 'benchmark';
 export type LibrarySort = 'newest' | 'oldest' | 'name' | 'duration' | 'game' | 'size';
+export const SETTINGS_SECTIONS = ['essentials', 'hotkeys', 'macros', 'appearance', 'notifications', 'capture', 'performance', 'library', 'storage', 'sharing', 'games', 'help', 'advanced'] as const;
 export type FpsMode = 'fixed' | 'display';
 export type DashboardWidgetId = 'save' | 'buffer' | 'recent' | 'disk' | 'counters' | 'status' | 'playtime';
 
@@ -127,6 +128,8 @@ export interface Settings {
 	post_roll: { enabled: boolean; seconds: number };
 	slow_mo: { seconds: 2 | 3 | 5; speed: number };
 	playback: { fullscreen_on_open: boolean };
+	/** Settings sections in the user's order (ids as in the page). */
+	section_order: string[];
 	/** Circumstance-based profiles, first match wins. Empty = nothing runs. */
 	situational: SituationalProfile[];
 	/** Custom hotkey chains, up to ten. */

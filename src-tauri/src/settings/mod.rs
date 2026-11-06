@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-pub const SETTINGS_VERSION: u32 = 32;
+pub const SETTINGS_VERSION: u32 = 33;
 
 /// Allowed range for [`BufferSettings::seconds`].
 pub const MIN_BUFFER_SECS: u32 = 10;
@@ -810,6 +810,11 @@ pub struct PerformanceSettings {
     pub fps_mode: FpsMode,
 }
 
+/// Settings page sections, in their default order. The user may reorder them.
+pub const SETTINGS_SECTIONS: [&str; 13] = [
+    "essentials", "hotkeys", "macros", "appearance", "notifications", "capture", "performance", "library", "storage", "sharing", "games", "help", "advanced",
+];
+
 /// Dashboard widget ids, in their default order.
 pub const DASHBOARD_WIDGETS: [&str; 7] = ["save", "buffer", "recent", "disk", "counters", "status", "playtime"];
 
@@ -844,6 +849,8 @@ pub struct Settings {
     pub macros: Vec<Macro>,
     /// Situational profiles. Empty (the default) costs nothing.
     pub situational: Vec<SituationalProfile>,
+    /// Settings page sections in the order the user wants them.
+    pub section_order: Vec<String>,
     pub library: LibrarySettings,
     pub audio: Vec<AudioTrack>,
     pub hotkeys: Hotkeys,
@@ -907,6 +914,7 @@ impl Default for Settings {
             tray: TraySettings::standard(),
             macros: Vec::new(),
             situational: Vec::new(),
+            section_order: SETTINGS_SECTIONS.iter().map(|s| (*s).into()).collect(),
             notifications: NotificationSettings {
                 position: ToastPosition::BottomRight,
                 duration_secs: 4,
@@ -1128,6 +1136,7 @@ impl Settings {
         }
         self.sanitize_dashboard();
         self.tray.sanitize();
+        self.sanitize_section_order();
         self.situational.truncate(MAX_SITUATIONAL);
         for p in &mut self.situational {
             p.name = p.name.trim().chars().take(40).collect();
@@ -1182,6 +1191,17 @@ impl Settings {
         self.naming.clip_template = if t.is_empty() { crate::naming::DEFAULT_CLIP_TEMPLATE.into() } else { t.chars().take(crate::naming::MAX_TEMPLATE_LEN).collect() };
         for w in &mut self.sharing.discord_webhooks {
             w.limit_mb = if w.limit_mb >= 25 { 25 } else { 10 };
+        }
+    }
+
+    /// Known sections only, each once; ones a newer version adds go last.
+    fn sanitize_section_order(&mut self) {
+        let mut seen = std::collections::HashSet::new();
+        self.section_order.retain(|id| SETTINGS_SECTIONS.contains(&id.as_str()) && seen.insert(id.clone()));
+        for id in SETTINGS_SECTIONS {
+            if !seen.contains(id) {
+                self.section_order.push(id.into());
+            }
         }
     }
 
@@ -1246,6 +1266,7 @@ fn migrate(value: &mut toml::Table) -> Result<()> {
             }
         }
     }
+    // v32 -> v33: `section_order` added (the page's own order).
     // v31 -> v32: `appearance` gains display formats (system time, friendly dates, 1:23, KB/MB).
     // v30 -> v31: `situational` added (none).
     // v29 -> v30: `macros` added (none).
@@ -1710,6 +1731,16 @@ size_format = \"iec\"
         assert_eq!((p.name.as_str(), p.fps, p.buffer_seconds), ("Profile", Some(240), Some(MIN_BUFFER_SECS)));
         assert_eq!(p.trigger, Trigger::TimeOfDay { from: "22:00".into(), to: "07:30".into() });
         assert_eq!(parse(&toml::to_string_pretty(&s).unwrap()).unwrap().situational, s.situational);
+    }
+
+    #[test]
+    fn section_order_defaults_and_sanitizes() {
+        let s = parse("version = 32\n").unwrap();
+        assert_eq!(s.section_order, SETTINGS_SECTIONS);
+        let s = parse("version = 33\nsection_order = [\"library\", \"bogus\", \"help\", \"library\"]\n").unwrap();
+        assert_eq!(s.section_order.len(), SETTINGS_SECTIONS.len());
+        assert_eq!(&s.section_order[..2], ["library", "help"]);
+        assert!(s.section_order.iter().any(|x| x == "essentials"));
     }
 
     #[test]
