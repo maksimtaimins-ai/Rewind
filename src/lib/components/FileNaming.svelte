@@ -2,7 +2,8 @@
   Settings → Library → File names: the clip name template, with a live preview.
 -->
 <script lang="ts">
-	import { DEFAULT_CLIP_TEMPLATE, NAME_TOKENS, renderName, sample } from '#lib/naming.ts';
+	import { DEFAULT_CLIP_TEMPLATE, FOLDER_TOKENS, NAME_TOKENS, folderTemplate, renderFolder, renderName, sample, type FolderMode } from '#lib/naming.ts';
+	import Segmented from './Segmented.svelte';
 	import { app, updateSettings } from '#lib/stores/app.svelte.ts';
 	import Row from './Row.svelte';
 
@@ -16,6 +17,21 @@
 	const ctx = sample();
 	const preview = $derived(renderName(draft.trim() || DEFAULT_CLIP_TEMPLATE, ctx));
 	const save = (v: string) => updateSettings((x) => (x.naming.clip_template = v.trim() || DEFAULT_CLIP_TEMPLATE));
+
+	const nm = $derived(app.settings!.naming);
+	let folderInput = $state<HTMLInputElement>();
+	let folderDraft = $state('');
+	$effect(() => {
+		folderDraft = nm.folder_template;
+	});
+	const folderPath = $derived(renderFolder(folderTemplate(nm.folder_mode, folderDraft), ctx));
+	const saveFolder = (v: string) => updateSettings((x) => (x.naming.folder_template = v.trim()));
+	function insertFolder(token: string) {
+		const at = folderInput?.selectionStart ?? folderDraft.length;
+		const end = folderInput?.selectionEnd ?? at;
+		folderDraft = `${folderDraft.slice(0, at)}{${token}}${folderDraft.slice(end)}`;
+		saveFolder(folderDraft);
+	}
 
 	function insert(token: string) {
 		const at = input?.selectionStart ?? draft.length;
@@ -45,6 +61,35 @@
 	<p class="preview"><span class="k">Looks like</span> <span class="num">{preview}.mp4</span></p>
 </div>
 
+<Row id="s-folders" label="Folders" hint="Sort new clips into subfolders of your save folder.">
+	<Segmented
+		label="Folder organization"
+		value={nm.folder_mode}
+		options={[
+			{ value: 'flat' as FolderMode, label: 'Flat' },
+			{ value: 'game' as FolderMode, label: 'Per game' },
+			{ value: 'date' as FolderMode, label: 'Per date' },
+			{ value: 'game_date' as FolderMode, label: 'Game + date' },
+			{ value: 'custom' as FolderMode, label: 'Custom' }
+		]}
+		onchange={(v) => updateSettings((x) => (x.naming.folder_mode = v))}
+	/>
+</Row>
+<div class="under">
+	{#if nm.folder_mode === 'custom'}
+		<input type="text" class="field wide" bind:this={folderInput} bind:value={folderDraft} maxlength="120" spellcheck="false" placeholder={'{game}/{year}-{month}'} aria-label="Folder template" onchange={() => saveFolder(folderDraft)} />
+		<div class="chips" role="group" aria-label="Insert a folder token">
+			{#each FOLDER_TOKENS as t (t)}
+				<button class="chip" onclick={() => insertFolder(t)}>{`{${t}}`}</button>
+			{/each}
+		</div>
+	{/if}
+	<p class="preview">
+		<span class="k">Saves to</span>
+		<span class="num">{['…', ...folderPath, `${preview}.mp4`].join(' / ')}</span>
+	</p>
+</div>
+
 <style>
 	.tpl {
 		display: flex;
@@ -61,6 +106,10 @@
 		outline: none;
 		font-family: var(--mono, ui-monospace, monospace);
 		font-size: 13px;
+	}
+	.field.wide {
+		width: 100%;
+		box-sizing: border-box;
 	}
 	.field:focus-visible {
 		box-shadow: 0 0 0 2px var(--accent);

@@ -58,3 +58,58 @@ export function renderName(template: string, c: Sample): string {
 	});
 	return sanitize(out) || renderName(DEFAULT_CLIP_TEMPLATE, c);
 }
+
+export type FolderMode = 'flat' | 'game' | 'date' | 'game_date' | 'custom';
+export const FOLDER_TOKENS = ['game', 'year', 'month', 'day', 'week'] as const;
+export const MAX_FOLDER_DEPTH = 3;
+
+export function folderTemplate(mode: FolderMode, custom: string): string {
+	switch (mode) {
+		case 'flat':
+			return '';
+		case 'game':
+			return '{game}';
+		case 'date':
+			return '{year}-{month}-{day}';
+		case 'game_date':
+			return '{game}/{year}-{month}-{day}';
+		case 'custom':
+			return custom;
+	}
+}
+
+function isoWeek(d: Date): number {
+	const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+	const day = t.getUTCDay() || 7;
+	t.setUTCDate(t.getUTCDate() + 4 - day);
+	const y0 = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
+	return Math.ceil(((t.getTime() - y0.getTime()) / 86400000 + 1) / 7);
+}
+
+/** Relative subfolder parts, same rules as the backend: cleaned, no `.`/`..`, three deep. */
+export function renderFolder(template: string, c: Sample): string[] {
+	const d = c.now;
+	const parts: string[] = [];
+	for (const raw of template.split(/[\\/]/)) {
+		const part = sanitize(
+			expand(raw, (n) => {
+				switch (n) {
+					case 'game':
+						return c.game;
+					case 'year':
+						return String(d.getFullYear()).padStart(4, '0');
+					case 'month':
+						return p2(d.getMonth() + 1);
+					case 'day':
+						return p2(d.getDate());
+					case 'week':
+						return p2(isoWeek(d));
+					default:
+						return null;
+				}
+			})
+		);
+		if (part && part !== '.' && part !== '..' && parts.length < MAX_FOLDER_DEPTH) parts.push(part);
+	}
+	return parts;
+}

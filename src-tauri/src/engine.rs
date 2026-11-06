@@ -538,26 +538,32 @@ impl Engine {
     /// A free path for a new clip: the user's name template, plus `suffix`
     /// (" marker", " slowmo") so those kinds stay apart.
     fn clip_path(&self, secs: Option<u32>, suffix: &str) -> Result<PathBuf> {
-        let dir = self.clips_dir()?;
-        let (game, template, hotkey, monitor) = {
+        let root = self.clips_dir()?;
+        let now = chrono::Local::now().naive_local();
+        let (game, template, folder, hotkey, monitor) = {
             let eff = self.inner.effective.read();
             let slot_key = secs.and_then(|s| eff.buffer.extra_slots.iter().find(|x| x.enabled && x.seconds == s).map(|x| x.hotkey.clone()));
             (
                 self.inner.game.lock().as_ref().map(|g| g.name.clone()).unwrap_or_else(|| "Desktop".into()),
                 eff.naming.clip_template.clone(),
+                naming::folder_template(eff.naming.folder_mode, &eff.naming.folder_template),
                 slot_key.unwrap_or_else(|| eff.hotkeys.save_clip.clone()),
                 eff.video.monitor + 1,
             )
         };
-        let counter = if template.to_ascii_lowercase().contains("{counter}") { library::count_clips(&dir) + 1 } else { 1 };
-        let ctx = naming::Ctx {
+        let mut ctx = naming::Ctx {
             game: &game,
-            now: chrono::Local::now().naive_local(),
+            now,
             duration_secs: (self.clip_ticks(secs) / TICKS_PER_SEC) as u32,
             hotkey: &hotkey,
             monitor,
-            counter,
+            counter: 1,
         };
+        let dir = root.join(naming::render_folder(&folder, &ctx));
+        std::fs::create_dir_all(library::thumbs_dir(&dir))?;
+        if template.to_ascii_lowercase().contains("{counter}") {
+            ctx.counter = library::count_clips(&dir) + 1;
+        }
         Ok(library::unique_path(&dir, &format!("{}{suffix}", naming::render(&template, &ctx)), "mp4"))
     }
 

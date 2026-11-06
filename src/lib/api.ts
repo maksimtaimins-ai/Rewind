@@ -100,7 +100,7 @@ export interface Settings {
 	slow_mo: { seconds: 2 | 3 | 5; speed: number };
 	playback: { fullscreen_on_open: boolean };
 	/** Clip file name template; tokens in naming.ts. */
-	naming: { clip_template: string };
+	naming: { clip_template: string; folder_mode: 'flat' | 'game' | 'date' | 'game_date' | 'custom'; folder_template: string };
 	library: { session_gap_mins: number; purge_days: number };
 	audio: AudioTrack[];
 	hotkeys: Hotkeys;

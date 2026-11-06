@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-pub const SETTINGS_VERSION: u32 = 24;
+pub const SETTINGS_VERSION: u32 = 25;
 
 /// Allowed range for [`BufferSettings::seconds`].
 pub const MIN_BUFFER_SECS: u32 = 10;
@@ -126,6 +126,9 @@ pub struct PlaybackSettings {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NamingSettings {
     pub clip_template: String,
+    pub folder_mode: crate::naming::FolderMode,
+    /// Used when `folder_mode` is custom: `{game}/{year}-{month}`.
+    pub folder_template: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -602,7 +605,11 @@ impl Default for Settings {
             post_roll: PostRollSettings { enabled: false, seconds: 10 },
             slow_mo: SlowMoSettings { seconds: 3, speed: 0.25 },
             playback: PlaybackSettings { fullscreen_on_open: false },
-            naming: NamingSettings { clip_template: crate::naming::DEFAULT_CLIP_TEMPLATE.into() },
+            naming: NamingSettings {
+                clip_template: crate::naming::DEFAULT_CLIP_TEMPLATE.into(),
+                folder_mode: crate::naming::FolderMode::Flat,
+                folder_template: "{game}/{year}-{month}".into(),
+            },
             library: LibrarySettings { session_gap_mins: 30, purge_days: 30 },
             audio: vec![
                 AudioTrack { name: "Desktop".into(), enabled: true, source: AudioSource::System, volume: 1.0 },
@@ -788,6 +795,7 @@ impl Settings {
             self.sharing.lan_port = 7777;
         }
         self.sanitize_dashboard();
+        self.naming.folder_template = self.naming.folder_template.trim().chars().take(crate::naming::MAX_TEMPLATE_LEN).collect();
         let t = self.naming.clip_template.trim();
         self.naming.clip_template = if t.is_empty() { crate::naming::DEFAULT_CLIP_TEMPLATE.into() } else { t.chars().take(crate::naming::MAX_TEMPLATE_LEN).collect() };
         for w in &mut self.sharing.discord_webhooks {
@@ -856,6 +864,7 @@ fn migrate(value: &mut toml::Table) -> Result<()> {
             }
         }
     }
+    // v24 -> v25: `naming.folder_mode` and `folder_template` added (flat, as before).
     // v23 -> v24: `naming` added (the old "{game} {date} {time}" names).
     // v22 -> v23: `playback` added (fullscreen off); defaults fill it in.
     // v21 -> v22: `performance`, `dashboard` and `sharing.discord_presence`

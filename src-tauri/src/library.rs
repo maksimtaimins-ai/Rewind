@@ -248,32 +248,37 @@ fn info_bare(path: &Path) -> Result<ClipInfo> {
     Ok(c)
 }
 
-/// Files in `dir` and its subfolders one level down (game profiles can save
-/// into `<clips>/<game>/`). Hidden folders like `.thumbs` are skipped.
-pub fn files_one_deep(dir: &Path) -> Vec<PathBuf> {
-    let Ok(rd) = std::fs::read_dir(dir) else { return Vec::new() };
-    let mut out = Vec::new();
-    for e in rd.flatten() {
-        let p = e.path();
-        if e.file_type().is_ok_and(|t| t.is_dir()) {
-            if !e.file_name().to_string_lossy().starts_with('.') {
-                out.extend(std::fs::read_dir(&p).into_iter().flatten().flatten().filter(|f| f.file_type().is_ok_and(|t| t.is_file())).map(|f| f.path()));
+/// Files in `dir` and its subfolders, as deep as folder templates can go
+/// (`naming::MAX_FOLDER_DEPTH`, plus a game profile's own folder). Hidden
+/// folders like `.thumbs` are skipped.
+pub fn files_deep(dir: &Path) -> Vec<PathBuf> {
+    fn walk(dir: &Path, depth: usize, out: &mut Vec<PathBuf>) {
+        let Ok(rd) = std::fs::read_dir(dir) else { return };
+        for e in rd.flatten() {
+            let p = e.path();
+            let Ok(t) = e.file_type() else { continue };
+            if t.is_dir() {
+                if depth > 0 && !e.file_name().to_string_lossy().starts_with('.') {
+                    walk(&p, depth - 1, out);
+                }
+            } else if t.is_file() {
+                out.push(p);
             }
-        } else {
-            out.push(p);
         }
     }
+    let mut out = Vec::new();
+    walk(dir, crate::naming::MAX_FOLDER_DEPTH + 1, &mut out);
     out
 }
 
 /// Clips in `dir` (and its subfolders), for the `{counter}` token.
 pub fn count_clips(dir: &Path) -> u32 {
-    files_one_deep(dir).iter().filter(|p| p.extension().is_some_and(|e| e.eq_ignore_ascii_case("mp4"))).count() as u32
+    files_deep(dir).iter().filter(|p| p.extension().is_some_and(|e| e.eq_ignore_ascii_case("mp4"))).count() as u32
 }
 
 pub fn list(dir: &Path) -> Vec<ClipInfo> {
     let meta = load_meta();
-    let mut out: Vec<ClipInfo> = files_one_deep(dir)
+    let mut out: Vec<ClipInfo> = files_deep(dir)
         .into_iter()
         .filter(|p| p.extension().is_some_and(|e| e.eq_ignore_ascii_case("mp4")))
         .filter_map(|p| info_bare(&p).ok())
@@ -295,7 +300,7 @@ pub struct ShotInfo {
 
 /// PNGs in the clips folder (and one level down), newest first.
 pub fn list_screenshots(dir: &Path) -> Vec<ShotInfo> {
-    let mut out: Vec<ShotInfo> = files_one_deep(dir)
+    let mut out: Vec<ShotInfo> = files_deep(dir)
         .into_iter()
         .filter(|p| p.extension().is_some_and(|e| e.eq_ignore_ascii_case("png")))
         .filter_map(|p| {

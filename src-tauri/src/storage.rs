@@ -85,11 +85,11 @@ fn walk(dir: &Path, depth: u32, in_thumbs: bool, f: &mut dyn FnMut(&Path, u64, b
     }
 }
 
-/// Measure the clips folder (two levels: per-game folders and their
-/// `.thumbs`), the Recently deleted bin, and the app's own files.
+/// Measure the clips folder (every level a folder template can make, and the
+/// `.thumbs` inside them), the Recently deleted bin, and the app's own files.
 pub fn measure(clips: &Path, bin: &Path, app_data: &Path) -> [Usage; 6] {
     let mut u: [Usage; 6] = Default::default();
-    walk(clips, 2, false, &mut |p, len, thumbs| add(&mut u, classify(p, thumbs), len));
+    walk(clips, crate::naming::MAX_FOLDER_DEPTH as u32 + 2, false, &mut |p, len, thumbs| add(&mut u, classify(p, thumbs), len));
     walk(bin, 0, false, &mut |_, len, _| add(&mut u, Kind::Recycled, len));
     // Settings, library.json, usage, log: top-level files only, so the clips
     // folder (which defaults to living in here) isn't counted twice.

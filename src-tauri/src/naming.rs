@@ -4,7 +4,10 @@
 //! Name tokens: `{game}` `{date}` `{time}` `{duration}` `{counter}` `{hotkey}`
 //! `{monitor}`. Unknown `{words}` are kept as typed.
 
-use chrono::NaiveDateTime;
+use std::path::PathBuf;
+
+use chrono::{Datelike, NaiveDateTime};
+use serde::{Deserialize, Serialize};
 
 pub const DEFAULT_CLIP_TEMPLATE: &str = "{game} {date} {time}";
 pub const MAX_TEMPLATE_LEN: usize = 120;
@@ -80,6 +83,58 @@ pub(crate) fn expand(template: &str, value: impl Fn(&str) -> Option<String>) -> 
     out
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FolderMode {
+    /// Everything in the clips folder.
+    Flat,
+    Game,
+    Date,
+    GameDate,
+    /// `NamingSettings::folder_template`.
+    Custom,
+}
+
+/// Folders deeper than this are cut off; the library looks this deep.
+pub const MAX_FOLDER_DEPTH: usize = 3;
+
+/// The template a mode stands for (`custom` is the user's own).
+pub fn folder_template(mode: FolderMode, custom: &str) -> String {
+    match mode {
+        FolderMode::Flat => String::new(),
+        FolderMode::Game => "{game}".into(),
+        FolderMode::Date => "{year}-{month}-{day}".into(),
+        FolderMode::GameDate => "{game}/{year}-{month}-{day}".into(),
+        FolderMode::Custom => custom.to_string(),
+    }
+}
+
+/// The subfolder (relative to the clips folder) for `template`. Each part is
+/// cleaned; empty parts, `.` and `..` are dropped so a template can never
+/// leave the clips folder.
+pub fn render_folder(template: &str, ctx: &Ctx) -> PathBuf {
+    // Split before filling tokens in, or a "/" from the template and one from
+    // a game's name would look the same.
+    let mut path = PathBuf::new();
+    for part in template.split(['/', '\\']) {
+        let part = expand(part, |name| {
+            Some(match name {
+                "game" => ctx.game.to_string(),
+                "year" => format!("{:04}", ctx.now.year()),
+                "month" => format!("{:02}", ctx.now.month()),
+                "day" => format!("{:02}", ctx.now.day()),
+                "week" => format!("{:02}", ctx.now.iso_week().week()),
+                _ => return None,
+            })
+        });
+        let part = crate::library::sanitize(&part);
+        if !part.is_empty() && part != "." && part != ".." && path.components().count() < MAX_FOLDER_DEPTH {
+            path.push(part);
+        }
+    }
+    path
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -116,6 +171,25 @@ mod tests {
     fn illegal_characters_are_replaced_and_empty_falls_back() {
         assert_eq!(render("a/b:c", &ctx()), "a_b_c");
         assert_eq!(render("   ", &ctx()), "Valorant 2026-11-06 14-03-09");
+    }
+
+    #[test]
+    fn folders() {
+        let c = ctx();
+        assert_eq!(render_folder("{game}/{year}-{month}/", &c), PathBuf::from("Valorant").join("2026-11"));
+        assert_eq!(render_folder(&folder_template(FolderMode::GameDate, ""), &c), PathBuf::from("Valorant").join("2026-11-06"));
+        assert_eq!(render_folder("", &c), PathBuf::new());
+        assert_eq!(render_folder("W{week}", &c), PathBuf::from("W45"));
+    }
+
+    #[test]
+    fn folders_cannot_escape() {
+        let c = ctx();
+        assert_eq!(render_folder("../../x/./{game}", &c), PathBuf::from("x").join("Valorant"));
+        assert_eq!(render_folder("C:\\evil", &c), PathBuf::from("C_").join("evil"));
+        assert_eq!(render_folder("a/b/c/d/e", &c).components().count(), MAX_FOLDER_DEPTH);
+        let weird = Ctx { game: "AC/DC: Live", ..ctx() };
+        assert_eq!(render_folder("{game}", &weird), PathBuf::from("AC_DC_ Live"));
     }
 
     #[test]
