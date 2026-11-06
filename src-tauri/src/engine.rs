@@ -18,6 +18,7 @@ use crate::encode::{self, BenchResult, EncoderInfo, EncoderParams};
 use crate::hotkey::{Action, HotkeyThread};
 use crate::library::{self, ClipInfo};
 use crate::mux;
+use crate::naming;
 use crate::pipeline::{FrameGrab, Flags, Pipeline, PipelineConfig};
 use crate::platform::{self, qpc_now, ImageFormat};
 use crate::profiles::{self, Detector, Game};
@@ -534,9 +535,30 @@ impl Engine {
         }
     }
 
-    fn clip_stem(&self) -> String {
-        let game = self.inner.game.lock().as_ref().map(|g| g.name.clone()).unwrap_or_else(|| "Desktop".into());
-        format!("{game} {}", chrono::Local::now().format("%Y-%m-%d %H-%M-%S"))
+    /// A free path for a new clip: the user's name template, plus `suffix`
+    /// (" marker", " slowmo") so those kinds stay apart.
+    fn clip_path(&self, secs: Option<u32>, suffix: &str) -> Result<PathBuf> {
+        let dir = self.clips_dir()?;
+        let (game, template, hotkey, monitor) = {
+            let eff = self.inner.effective.read();
+            let slot_key = secs.and_then(|s| eff.buffer.extra_slots.iter().find(|x| x.enabled && x.seconds == s).map(|x| x.hotkey.clone()));
+            (
+                self.inner.game.lock().as_ref().map(|g| g.name.clone()).unwrap_or_else(|| "Desktop".into()),
+                eff.naming.clip_template.clone(),
+                slot_key.unwrap_or_else(|| eff.hotkeys.save_clip.clone()),
+                eff.video.monitor + 1,
+            )
+        };
+        let counter = if template.to_ascii_lowercase().contains("{counter}") { library::count_clips(&dir) + 1 } else { 1 };
+        let ctx = naming::Ctx {
+            game: &game,
+            now: chrono::Local::now().naive_local(),
+            duration_secs: (self.clip_ticks(secs) / TICKS_PER_SEC) as u32,
+            hotkey: &hotkey,
+            monitor,
+            counter,
+        };
+        Ok(library::unique_path(&dir, &format!("{}{suffix}", naming::render(&template, &ctx)), "mp4"))
     }
 
     fn clips_dir(&self) -> Result<PathBuf> {
@@ -567,7 +589,7 @@ impl Engine {
         let job = SaveJob {
             from: now - self.clip_ticks(secs),
             to: now + post as i64 * TICKS_PER_SEC,
-            path: library::unique_path(&self.clips_dir()?, &self.clip_stem(), "mp4"),
+            path: self.clip_path(secs, "")?,
             thumb: Some(p.request_frame()),
             replaces: false,
             slow_mo: None,
@@ -600,7 +622,7 @@ impl Engine {
         let job = SaveJob {
             from,
             to,
-            path: library::unique_path(&self.clips_dir()?, &format!("{} marker", self.clip_stem()), "mp4"),
+            path: self.clip_path(Some(secs), " marker")?,
             thumb: None,
             replaces: false,
             slow_mo: None,
@@ -641,7 +663,7 @@ impl Engine {
         let job = SaveJob {
             from: now - self.clip_ticks(Some(sm.seconds)),
             to: now,
-            path: library::unique_path(&self.clips_dir()?, &format!("{} slowmo", self.clip_stem()), "mp4"),
+            path: self.clip_path(Some(sm.seconds), " slowmo")?,
             thumb: Some(p.request_frame()),
             replaces: false,
             slow_mo: Some(sm.speed as f64),

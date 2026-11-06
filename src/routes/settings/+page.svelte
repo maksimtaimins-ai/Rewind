@@ -15,6 +15,7 @@
 	import WatchFolders from '#lib/components/WatchFolders.svelte';
 	import BenchReportView from '#lib/components/BenchReport.svelte';
 	import KeystrokeOverlay from '#lib/components/KeystrokeOverlay.svelte';
+	import FileNaming from '#lib/components/FileNaming.svelte';
 	import GameProfiles from '#lib/components/GameProfiles.svelte';
 	import PerformanceList from '#lib/components/PerformanceList.svelte';
 
@@ -472,6 +473,7 @@
 
 		<section id="library">
 			<h2>Library</h2>
+			<FileNaming />
 			<Row label="Group into sessions" hint="Clips saved this close together show as one session.">
 				<input class="numbox num" type="number" min="1" max="1440" value={s.library.session_gap_mins} onchange={(e) => set((x) => (x.library.session_gap_mins = Math.min(1440, Math.max(1, num(e)))))} aria-label="Session gap in minutes" />
 				<span class="unit">min</span>

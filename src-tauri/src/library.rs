@@ -266,6 +266,11 @@ pub fn files_one_deep(dir: &Path) -> Vec<PathBuf> {
     out
 }
 
+/// Clips in `dir` (and its subfolders), for the `{counter}` token.
+pub fn count_clips(dir: &Path) -> u32 {
+    files_one_deep(dir).iter().filter(|p| p.extension().is_some_and(|e| e.eq_ignore_ascii_case("mp4"))).count() as u32
+}
+
 pub fn list(dir: &Path) -> Vec<ClipInfo> {
     let meta = load_meta();
     let mut out: Vec<ClipInfo> = files_one_deep(dir)

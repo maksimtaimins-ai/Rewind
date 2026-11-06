@@ -14,6 +14,7 @@ pub mod input;
 pub mod library;
 pub mod live_keys;
 pub mod mux;
+pub mod naming;
 pub mod perf;
 pub mod pipeline;
 pub mod platform;
