@@ -8,6 +8,7 @@
 	import { fileUrl, fmtDuration, fmtWhen, type Clip } from '#lib/api.ts';
 	import { inApp } from '#lib/stores/app.svelte.ts';
 	import TagChip from './TagChip.svelte';
+	import { inview } from '#lib/inview.ts';
 
 	let {
 		clip,
@@ -39,6 +40,8 @@
 
 	// The revision busts the webview's image cache when a thumbnail is replaced.
 	const thumb = $derived(clip.thumb && inApp ? `${fileUrl(clip.thumb)}?v=${clip.thumb_rev}` : null);
+	// Thumbnails are fetched and decoded only once the tile is near the viewport.
+	let near = $state(false);
 	const star = 'M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z';
 </script>
 
@@ -48,11 +51,13 @@
 		onclick={(e) => (selecting || e.ctrlKey || e.shiftKey ? onselect() : onopen())}
 		aria-label="{selecting ? 'Select' : 'Open'} {clip.name}"
 	>
-		{#if thumb}
-			<img src={thumb} alt="" loading="lazy" />
-		{:else}
-			<div class="blank"></div>
-		{/if}
+		<div class="art" use:inview={{ onenter: () => (near = true) }}>
+			{#if thumb && near}
+				<img src={thumb} alt="" decoding="async" />
+			{:else}
+				<div class="blank"></div>
+			{/if}
+		</div>
 		<span class="len num">{fmtDuration(clip.duration)}</span>
 		{#if selecting}
 			<span class="check" aria-hidden="true">
@@ -152,6 +157,10 @@
 	.selected .frame {
 		outline: 2px solid var(--text);
 		outline-offset: 2px;
+	}
+	.art {
+		width: 100%;
+		height: 100%;
 	}
 	img,
 	.blank {
