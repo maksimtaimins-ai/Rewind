@@ -362,6 +362,11 @@ Function PageLeaveReinstall
   ${EndIf}
 
   reinst_uninstall:
+    ; The old uninstaller aborts with "Failed to kill Rewind" when it can't
+    ; stop a running copy; v0.1.x ones have no graceful-quit logic at all.
+    ; Stop it here first (retry dialog included), so they find it gone.
+    !insertmacro REWIND_LOG_START "reinstall (old uninstaller)"
+    !insertmacro REWIND_QUIT_RUNNING
     HideWindow
     ClearErrors
 
@@ -531,6 +536,8 @@ LangString choowHowToInstall 0 ""
 {{#each language_files}}
   !include "{{this}}"
 {{/each}}
+
+!insertmacro REWIND_DEFINE_FUNCS ""
 
 Function .onInit
   ${GetOptions} $CMDLINE "/P" $PassiveMode
@@ -824,6 +831,8 @@ Function .onInstSuccess
     ${EndIf}
   ${EndIf}
 FunctionEnd
+
+!insertmacro REWIND_DEFINE_FUNCS "un."
 
 Function un.onInit
   !insertmacro SetContext
