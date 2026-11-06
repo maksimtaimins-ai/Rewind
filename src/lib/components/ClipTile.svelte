@@ -58,7 +58,11 @@
 				<div class="blank"></div>
 			{/if}
 		</div>
-		<span class="len num">{fmtDuration(clip.duration)}</span>
+		<!-- Name and length sit on a scrim at the bottom of the thumbnail. -->
+		<span class="shade">
+			<span class="name" title={clip.name}>{clip.name}</span>
+			<span class="sub"><span class="num">{fmtDuration(clip.duration)}</span><span>{fmtWhen(clip.modified)}</span></span>
+		</span>
 		{#if selecting}
 			<span class="check" aria-hidden="true">
 				{#if selected}<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>{/if}
@@ -102,17 +106,14 @@
 			{/if}
 		</div>
 	{/if}
-	<div class="meta">
-		<div class="name" title={clip.name}>{clip.name}</div>
-		<div class="when">{fmtWhen(clip.modified)}</div>
-		{#if clip.tags.length}
-			<div class="tags">
-				{#each clip.tags as t (t)}
-					<TagChip tag={t} active={activeTags.includes(t)} onclick={ontag && (() => ontag(t))} />
-				{/each}
-			</div>
-		{/if}
-	</div>
+	{#if clip.tags.length && !selecting}
+		<div class="tags" style:left={clip.favorite ? '32px' : '8px'}>
+			{#each clip.tags.slice(0, 3) as t (t)}
+				<TagChip tag={t} active={activeTags.includes(t)} onclick={ontag && (() => ontag(t))} />
+			{/each}
+			{#if clip.tags.length > 3}<span class="more num">+{clip.tags.length - 3}</span>{/if}
+		</div>
+	{/if}
 </article>
 
 <style>
@@ -149,7 +150,7 @@
 		aspect-ratio: 16 / 9;
 		padding: 0;
 		border: 0;
-		border-radius: 4px;
+		border-radius: var(--r-2);
 		overflow: hidden;
 		background: var(--sunken);
 		cursor: pointer;
@@ -172,20 +173,41 @@
 	.blank {
 		background: var(--sunken);
 	}
-	.len {
+	/* Scrim, so the name reads on any frame. */
+	.shade {
 		position: absolute;
-		right: 8px;
-		bottom: 8px;
-		padding: 0 4px;
-		border-radius: 4px;
-		background: var(--scrim);
+		inset: auto 0 0 0;
+		display: grid;
+		gap: 2px;
+		padding: 40px var(--s-3) var(--s-3);
+		text-align: left;
+		background: linear-gradient(to top, rgb(0 0 0 / 0.82), rgb(0 0 0 / 0.5) 55%, transparent);
 		color: var(--on-scrim);
-		font-size: 11px;
+		pointer-events: none;
+	}
+	.shade .name {
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		font-weight: 600;
+		font-size: 14px;
+	}
+	.shade .sub {
+		display: flex;
+		gap: var(--s-2);
+		font-size: 12px;
+		opacity: 0.78;
+	}
+	.frame img {
+		transition: transform 400ms var(--ease);
+	}
+	.tile:hover .frame img {
+		transform: scale(1.04);
 	}
 	.fav-mark {
 		position: absolute;
 		left: 8px;
-		bottom: 8px;
+		top: 8px;
 		width: 16px;
 		height: 16px;
 		color: var(--on-scrim);
@@ -284,23 +306,20 @@
 			filter: drop-shadow(0 0 0 transparent);
 		}
 	}
-	.meta {
-		padding: 8px 0 0;
-	}
-	.name {
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		font-weight: 500;
-	}
-	.when {
-		color: var(--muted);
-		font-size: 12px;
-	}
+	/* Tags float over the top-left of the thumbnail, out of the way of the name. */
 	.tags {
+		position: absolute;
+		left: 8px;
+		top: 8px;
 		display: flex;
-		flex-wrap: wrap;
 		gap: 4px;
-		margin-top: 8px;
+		max-width: calc(100% - 140px);
+		overflow: hidden;
+	}
+	.more {
+		align-self: center;
+		padding: 0 4px;
+		color: var(--on-scrim);
+		font-size: 11px;
 	}
 </style>

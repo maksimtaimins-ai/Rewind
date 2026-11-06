@@ -335,7 +335,7 @@
 	{#snippet tiles(list: Clip[])}
 		{#if list.length >= VIRTUAL_AT}
 			<!-- A long list renders only the rows on screen. -->
-			<VirtualGrid items={list} key={(c) => c.path} item={clipTile} threshold={VIRTUAL_AT} />
+			<VirtualGrid items={list} key={(c) => c.path} item={clipTile} threshold={VIRTUAL_AT} minWidth={340} gap={16} />
 		{:else}
 			<div class="grid">
 				{#each list as c, i (c.path)}
@@ -859,8 +859,8 @@
 	}
 	.grid {
 		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-		gap: 24px;
+		grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+		gap: var(--s-4);
 	}
 	.empty {
 		color: var(--muted);

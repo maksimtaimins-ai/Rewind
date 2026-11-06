@@ -147,6 +147,23 @@ export function mockStatus(): Status {
 
 export function mockClips(): Clip[] {
 	const now = Date.now();
+	// Preview only: `?many=300` fills the library to try virtual scrolling.
+	const many = Number(new URLSearchParams(globalThis.location?.search).get('many')) || 0;
+	if (many) {
+		return Array.from({ length: many }, (_, i) => ({
+			path: `C:\clips\Clip ${i + 1}.mp4`,
+			name: `Counter-Strike 2 clip ${i + 1}`,
+			size: 40e6,
+			modified: now - i * 6e4,
+			duration: 30,
+			thumb: null,
+			thumb_rev: 0,
+			favorite: false,
+			tags: i % 7 === 0 ? ['ace'] : [],
+			has_input: false,
+			highlights: null
+		}));
+	}
 	const names = [
 		'Counter-Strike 2 2026-10-31 21-14-02',
 		'Counter-Strike 2 2026-10-31 20-58-41',
