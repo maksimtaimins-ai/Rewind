@@ -53,6 +53,7 @@ const settings: Setting[] = [
 	{ label: 'Record extra after press', hint: 'Keeps recording a few seconds after you save', words: 'post-roll postroll after' },
 	{ label: 'Extend last clip by', hint: 'Footage added before your last clip', words: 'seconds extend' },
 	{ label: 'Save resolution', hint: 'Clips are scaled to this on the graphics card', id: 'save-resolution', words: '720p 1080p 1440p native size downscale resolution' },
+	{ label: 'Show my game on Discord', hint: 'Rich Presence: Playing a game with Rewind', id: 's-discord-presence', words: 'discord status rich presence activity' },
 	{ label: 'Low-spec mode', hint: '720p30 HEVC, 30 second buffer, no overlays', id: 's-low-spec', words: 'performance weak slow pc preset potato' },
 	{ label: 'Save power on battery', hint: 'Low-spec preset while a laptop is unplugged', id: 's-battery-throttle', words: 'laptop battery throttle performance' },
 	{ label: 'Frame rate', hint: 'Frames per second cap for clips', words: 'fps 30 60 120 144' },

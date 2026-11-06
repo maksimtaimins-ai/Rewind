@@ -4,5 +4,6 @@ pub mod discord;
 #[cfg(windows)]
 pub mod http;
 pub mod lan;
+pub mod presence;
 #[cfg(windows)]
 pub mod zeroconf;

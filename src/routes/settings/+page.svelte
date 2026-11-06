@@ -552,6 +552,11 @@
 
 			<h3 id="watch">Watch folders</h3>
 			<WatchFolders />
+
+			<h3 id="presence">Discord status</h3>
+			<Row id="s-discord-presence" label="Show my game on Discord" hint="Shows Playing a game with Rewind on your Discord profile while a game is in front. Needs the Discord app running on this PC. Off: Rewind never talks to Discord.">
+				<Toggle checked={s.sharing.discord_presence} label="Discord Rich Presence" onchange={(v) => set((x) => (x.sharing.discord_presence = v))} />
+			</Row>
 		</section>
 
 		<section id="games">

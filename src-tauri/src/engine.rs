@@ -225,6 +225,8 @@ struct Inner {
     input: Mutex<crate::input::Recorder>,
     /// The PC runs on battery (only polled while battery throttling is on).
     on_battery: AtomicBool,
+    /// Discord Rich Presence; connects only when switched on.
+    presence: Mutex<crate::share::presence::Presence>,
 }
 
 #[derive(Clone)]
@@ -269,6 +271,7 @@ impl Engine {
             shutdown: AtomicBool::new(false),
             buffer_secs: AtomicU32::new(settings.buffer.seconds),
             on_battery: AtomicBool::new(false),
+            presence: Mutex::default(),
             effective: RwLock::new(settings.clone()),
             profile: Mutex::new(None),
             settings: RwLock::new(settings),
@@ -1033,7 +1036,9 @@ impl Engine {
                 last_detect = Instant::now();
                 let g = detector.poll(&s);
                 let exe = g.as_ref().map(|g| g.exe.clone());
+                let game_name = g.as_ref().map(|g| g.name.clone());
                 *self.inner.game.lock() = g;
+                self.inner.presence.lock().update(crate::share::presence::line(s.sharing.discord_presence, game_name.as_deref()));
                 // Profiles off: stop here, nothing is looked up or switched.
                 if s.profiles_enabled {
                     self.follow_profile(&s, exe.as_deref());
