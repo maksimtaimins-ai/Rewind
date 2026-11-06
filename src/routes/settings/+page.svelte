@@ -476,7 +476,10 @@
 				<input class="numbox num" type="number" min="1" max="1440" value={s.library.session_gap_mins} onchange={(e) => set((x) => (x.library.session_gap_mins = Math.min(1440, Math.max(1, num(e)))))} aria-label="Session gap in minutes" />
 				<span class="unit">min</span>
 			</Row>
-			<Row label="Keep deleted clips for" hint="Then they're removed from Recently deleted for good.">
+			<Row label="Open clips fullscreen" hint="Playing a clip fills the screen. Press F or Esc to switch back and forth.">
+					<Toggle checked={s.playback.fullscreen_on_open} label="Open clips fullscreen" onchange={(v) => set((x) => (x.playback.fullscreen_on_open = v))} />
+				</Row>
+				<Row label="Keep deleted clips for" hint="Then they're removed from Recently deleted for good.">
 				<input class="numbox num" type="number" min="1" max="365" value={s.library.purge_days} onchange={(e) => set((x) => (x.library.purge_days = Math.min(365, Math.max(1, num(e)))))} aria-label="Days to keep deleted clips" />
 				<span class="unit">days</span>
 			</Row>

@@ -1,6 +1,8 @@
 <script lang="ts">
+	import { onDestroy, onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
+	import { getCurrentWindow } from '@tauri-apps/api/window';
 	import { revealItemInDir } from '@tauri-apps/plugin-opener';
 	import { api, fileUrl, fmtBytes, fmtDuration, fmtWhen, type ExportPreset } from '#lib/api.ts';
 	import ExportMenu from '#lib/components/ExportMenu.svelte';
@@ -29,6 +31,40 @@
 
 	$effect(() => {
 		name = clip?.name ?? '';
+	});
+
+	// Fullscreen: the window itself goes fullscreen (on whichever monitor it is
+	// on) and the player stage covers it. Controls fade after 2 s without the
+	// mouse moving, and the cursor goes with them.
+	let fs = $state(false);
+	let idle = $state(false);
+	let idleTimer: ReturnType<typeof setTimeout> | undefined;
+
+	function wake() {
+		idle = false;
+		clearTimeout(idleTimer);
+		if (fs) idleTimer = setTimeout(() => (idle = !drag), 2000);
+	}
+
+	async function setFs(on: boolean) {
+		if (on === fs) return;
+		fs = on;
+		wake();
+		if (!inApp) return;
+		try {
+			await getCurrentWindow().setFullscreen(on);
+		} catch (e) {
+			fs = !on;
+			toast('error', `Couldn't switch fullscreen: ${e}`);
+		}
+	}
+
+	onMount(() => {
+		if (app.settings?.playback.fullscreen_on_open) setFs(true);
+	});
+	onDestroy(() => {
+		clearTimeout(idleTimer);
+		if (fs && inApp) getCurrentWindow().setFullscreen(false);
 	});
 
 	$effect(() => {
@@ -88,7 +124,12 @@
 
 	function keys(e: KeyboardEvent) {
 		if ((e.target as HTMLElement).tagName === 'INPUT') return;
-		if (e.key === ' ') {
+		if (fs) wake();
+		if (e.key === 'Escape' && fs) {
+			e.preventDefault();
+			setFs(false);
+		} else if (e.key === 'f' && !e.ctrlKey && !e.metaKey && !e.altKey) setFs(!fs);
+		else if (e.key === ' ') {
 			e.preventDefault();
 			paused = !paused;
 		} else if (e.key === 'i') inPt = Math.min(current, outPt - 0.5);
@@ -202,6 +243,7 @@
 		</aside>
 	{/if}
 
+	<div class="stage" class:fs class:idle={fs && idle} onpointermove={wake} role="presentation">
 	<div class="player">
 		{#if inApp && path}
 			<!-- svelte-ignore a11y_media_has_caption -->
@@ -216,6 +258,21 @@
 		{:else}
 			<div class="placeholder">Preview plays here inside the app.</div>
 		{/if}
+		<button
+			class="fsbtn"
+			onclick={(e) => {
+				setFs(!fs);
+				e.currentTarget.blur();
+			}}
+			aria-label={fs ? 'Exit fullscreen' : 'Fullscreen'}
+			title="{fs ? 'Exit fullscreen' : 'Fullscreen'} (F)"
+		>
+			{#if fs}
+				<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" /></svg>
+			{:else}
+				<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></svg>
+			{/if}
+		</button>
 	</div>
 
 	<div class="scrub">
@@ -250,7 +307,7 @@
 			<span>{fmtDuration(current)}</span>
 			<span>{fmtDuration(duration)}</span>
 		</div>
-		{#if moments.length}
+		{#if moments.length && !fs}
 			<div class="moments" aria-label="Highlights">
 				{#each moments as m, i (i)}
 					<button class="jump" onclick={() => seek(m.at)}>
@@ -261,6 +318,7 @@
 				<span class="moments-hint"><Keycap keys="N" /> next</span>
 			</div>
 		{/if}
+	</div>
 	</div>
 
 	<div class="bar">
@@ -372,6 +430,85 @@
 	}
 	.tag-add {
 		width: 220px;
+	}
+	.stage {
+		display: grid;
+		gap: 16px;
+		position: relative;
+	}
+	.stage.fs {
+		position: fixed;
+		inset: 0;
+		z-index: 900;
+		display: block;
+		background: #000;
+	}
+	.stage.fs .player {
+		position: absolute;
+		inset: 0;
+		max-height: none;
+		aspect-ratio: auto;
+		border-radius: 0;
+	}
+	.stage.fs.idle {
+		cursor: none;
+	}
+	.stage.fs .scrub {
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		padding: 56px 72px 20px 24px;
+		background: linear-gradient(to top, rgb(0 0 0 / 0.72), transparent);
+		transition: opacity 220ms ease-out;
+	}
+	.stage.fs.idle .scrub,
+	.stage.fs.idle .fsbtn {
+		opacity: 0;
+		pointer-events: none;
+	}
+	.fsbtn {
+		position: absolute;
+		right: 12px;
+		bottom: 12px;
+		width: 36px;
+		height: 36px;
+		display: grid;
+		place-items: center;
+		border: 0;
+		border-radius: 8px;
+		background: rgb(0 0 0 / 0.55);
+		color: #fff;
+		cursor: pointer;
+		opacity: 0;
+		transition: opacity 160ms ease-out, background 120ms;
+	}
+	.player:hover .fsbtn,
+	.fsbtn:focus-visible,
+	.stage.fs .fsbtn {
+		opacity: 1;
+	}
+	.fsbtn:hover {
+		background: rgb(0 0 0 / 0.8);
+	}
+	.fsbtn svg {
+		width: 18px;
+		height: 18px;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 1.8;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.stage.fs .fsbtn {
+		bottom: 20px;
+		right: 20px;
+	}
+	.stage.fs .times {
+		color: rgb(255 255 255 / 0.7);
+	}
+	.player {
+		position: relative;
 	}
 	.player {
 		background: var(--media);

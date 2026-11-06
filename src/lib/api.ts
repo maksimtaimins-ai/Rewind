@@ -98,6 +98,7 @@ export interface Settings {
 	/** Opt-in: a normal save also records `seconds` (1-120) after the keypress. */
 	post_roll: { enabled: boolean; seconds: number };
 	slow_mo: { seconds: 2 | 3 | 5; speed: number };
+	playback: { fullscreen_on_open: boolean };
 	library: { session_gap_mins: number; purge_days: number };
 	audio: AudioTrack[];
 	hotkeys: Hotkeys;

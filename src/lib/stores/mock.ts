@@ -34,6 +34,7 @@ export function mockSettings(): Settings {
 			max_memory_mb: 1024, extend_secs: 15 },
 		post_roll: { enabled: false, seconds: 10 },
 		slow_mo: { seconds: 3, speed: 0.25 },
+		playback: { fullscreen_on_open: false },
 		library: { session_gap_mins: 30, purge_days: 30 },
 		audio: [
 			{ name: 'Desktop', enabled: true, source: { kind: 'system' }, volume: 1 },
