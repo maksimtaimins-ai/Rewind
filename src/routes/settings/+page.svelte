@@ -738,11 +738,23 @@
 	.index a:hover {
 		color: var(--text);
 	}
-	.pro {
-		margin-bottom: 32px;
-		padding: 4px 16px;
-		border-radius: 8px;
+	/* Each section is a card: a raised, rounded container with room to breathe. */
+	.pro,
+	.body > section {
+		padding: var(--s-4) var(--s-5);
+		border-radius: var(--r-3);
 		background: var(--raised);
+		box-shadow: inset 0 0 0 1px var(--border);
+	}
+	.pro {
+		margin-bottom: var(--s-4);
+		padding-block: var(--s-1);
+	}
+	.body > section :global(.row + .row) {
+		border-top: 1px solid var(--border);
+	}
+	.body > section :global(.row) {
+		padding: var(--s-4) 0;
 	}
 	summary {
 		list-style: none;
@@ -785,15 +797,14 @@
 		}
 	}
 	section {
-		padding-bottom: 32px;
-		scroll-margin-top: 16px;
+		margin-bottom: var(--s-4);
+		scroll-margin-top: var(--s-4);
 	}
-	/* Small, quiet section headers: the controls carry the page. */
 	h2 {
-		margin: 0 0 8px;
-		font-size: 13px;
-		font-weight: 600;
-		color: var(--muted);
+		margin: 0 0 var(--s-2);
+		font-size: 15px;
+		font-weight: 650;
+		letter-spacing: -0.01em;
 	}
 	h3 {
 		scroll-margin-top: 16px;
@@ -828,7 +839,7 @@
 		height: 32px;
 		padding: 0 8px;
 		border: 0;
-		border-radius: 4px;
+		border-radius: var(--r-1);
 		background: var(--sunken);
 		outline: none;
 	}
@@ -862,8 +873,8 @@
 		height: 32px;
 		padding: 0 12px;
 		border: 0;
-		border-radius: 4px;
-		background: var(--raised);
+		border-radius: var(--r-1);
+		background: var(--sunken);
 		font-weight: 500;
 		cursor: pointer;
 	}
@@ -896,8 +907,8 @@
 		align-items: center;
 		gap: 4px;
 		padding: 4px 4px 4px 12px;
-		border-radius: 4px;
-		background: var(--raised);
+		border-radius: var(--r-1);
+		background: var(--sunken);
 	}
 	.chips button {
 		width: 24px;

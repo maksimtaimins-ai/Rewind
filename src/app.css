@@ -127,6 +127,24 @@ select {
 	--ease: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
+/* One scale for shape, space, borders and shadow. New UI uses these; nothing
+   else. Radii 4/8/12, spacing 4/8/12/16/24/32, one border strength, one
+   shadow (for what floats: menus, dialogs). */
+:root {
+	--r-1: 4px;
+	--r-2: 8px;
+	--r-3: 12px;
+	--s-1: 4px;
+	--s-2: 8px;
+	--s-3: 12px;
+	--s-4: 16px;
+	--s-5: 24px;
+	--s-6: 32px;
+	--border: color-mix(in srgb, var(--line) 70%, transparent);
+	--shadow-float: 0 8px 24px var(--scrim-soft);
+	--dur: 180ms;
+}
+
 /* Every button gives a little under the pointer. */
 button {
 	transition:
@@ -206,4 +224,20 @@ dialog[open]::backdrop {
 	100% {
 		background: transparent;
 	}
+}
+
+/* Folded sections (<details>) open and close with a height tween. Browsers
+   without ::details-content just snap, as before. */
+details {
+	interpolate-size: allow-keywords;
+}
+details::details-content {
+	block-size: 0;
+	overflow: hidden;
+	transition:
+		block-size var(--dur) var(--ease),
+		content-visibility var(--dur) allow-discrete;
+}
+details[open]::details-content {
+	block-size: auto;
 }
