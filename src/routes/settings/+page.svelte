@@ -56,6 +56,7 @@
 			['hotkeys', 'Hotkeys'],
 			['appearance', 'Appearance'],
 			['capture', 'Capture'],
+			['performance', 'Performance'],
 			['library', 'Library'],
 			['storage', 'Storage'],
 			['sharing', 'Sharing'],
@@ -344,9 +345,9 @@
 					</select>
 				</Row>
 			{/if}
-			<Row label="Resolution" hint="Height of saved clips. Lower makes smaller files." help="Recording below your screen's resolution makes smaller files and gives the encoder less to do. Scaling happens on the graphics card, so it costs the game nothing. 1080p is a good default; match your screen if you want every detail.">
+			<Row label="Save resolution" hint="Your screen is captured at full size; clips are scaled to this on the graphics card." help="Recording below your screen's resolution makes smaller files and gives the encoder less to do. Rewind always captures at your screen's own size and shrinks the picture on the graphics card while encoding, so a 1440p screen can save 720p or 1080p clips with no extra cost to the game. Native keeps every detail.">
 				<Segmented
-					label="Resolution"
+					label="Save resolution"
 					value={s.video.height}
 					options={[
 						{ value: 720, label: '720p' },
@@ -357,13 +358,24 @@
 					onchange={(v) => set((x) => (x.video.height = v))}
 				/>
 			</Row>
-			<Row label="Frame rate" hint="A cap. Variable refresh is followed as it happens.">
+			<Row label="Frame rate" hint={s.performance.fps_mode === 'display' ? 'Matches the refresh rate of your screen. A game running slower records at its own pace.' : 'A cap. Variable refresh is followed as it happens.'}>
 				<Segmented
-					label="Frame rate"
-					value={s.video.fps}
-					options={[30, 60, 120, 144].map((f) => ({ value: f, label: String(f) }))}
-					onchange={(v) => set((x) => (x.video.fps = v))}
+					label="Frame rate mode"
+					value={s.performance.fps_mode}
+					options={[
+						{ value: 'fixed', label: 'Fixed' },
+						{ value: 'display', label: 'Match display' }
+					]}
+					onchange={(v) => set((x) => (x.performance.fps_mode = v))}
 				/>
+				{#if s.performance.fps_mode === 'fixed'}
+					<Segmented
+						label="Frame rate"
+						value={s.video.fps}
+						options={[30, 60, 120, 144].map((f) => ({ value: f, label: String(f) }))}
+						onchange={(v) => set((x) => (x.video.fps = v))}
+					/>
+				{/if}
 			</Row>
 			<Row label="Record the mouse cursor" hint="Draws the pointer into clips.">
 				<Toggle checked={s.video.capture_cursor} label="Record cursor" onchange={(v) => set((x) => (x.video.capture_cursor = v))} />
@@ -445,6 +457,17 @@
 			</form>
 
 			<KeystrokeOverlay />
+		</section>
+
+		<section id="performance">
+			<h2>Performance</h2>
+			<p class="intro">For PCs that struggle while gaming. These sit on top of your settings; turn them off and everything is as you set it.</p>
+			<Row id="s-low-spec" label="Low-spec mode" hint="720p at 30 fps, HEVC at about 4 Mb/s, a 30 second buffer, no overlays." help="One switch for weaker PCs: smaller picture, half the frames, a quarter of the data and no extras running. Clips are lighter on the graphics card and on RAM. HEVC is used when your graphics card can encode it, otherwise H.264.">
+				<Toggle checked={s.performance.low_spec} label="Low-spec mode" onchange={(v) => set((x) => (x.performance.low_spec = v))} />
+			</Row>
+			<Row id="s-battery-throttle" label="Save power on battery" hint="Switches to the low-spec preset while a laptop is unplugged, and back when it is plugged in.">
+				<Toggle checked={s.performance.battery_throttle} label="Save power on battery" onchange={(v) => set((x) => (x.performance.battery_throttle = v))} />
+			</Row>
 		</section>
 
 		<section id="library">

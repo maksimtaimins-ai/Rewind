@@ -31,6 +31,7 @@ pub fn set_settings(app: tauri::AppHandle, engine: State<Engine>, lan: State<Lan
     settings.sanitize();
     engine.set_settings(settings.clone()).map_err(err)?;
     lan.apply(&settings);
+    crate::watch::ensure();
     crate::hud::apply(&app, &settings);
     let effective = engine.effective_settings();
     crate::live_keys::on_settings(&app, &effective);
@@ -257,6 +258,7 @@ pub fn import_settings(engine: State<Engine>, lan: State<Lan>, path: PathBuf) ->
     s.sharing.trusted_peers = current.sharing.trusted_peers;
     engine.set_settings(s.clone()).map_err(err)?;
     lan.apply(&s);
+    crate::watch::ensure();
     Ok(s)
 }
 

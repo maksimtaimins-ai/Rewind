@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-pub const SETTINGS_VERSION: u32 = 21;
+pub const SETTINGS_VERSION: u32 = 22;
 
 /// Allowed range for [`BufferSettings::seconds`].
 pub const MIN_BUFFER_SECS: u32 = 10;
@@ -296,6 +296,8 @@ pub struct SharingSettings {
     /// Random id for this install, made on first launch.
     pub device_id: String,
     pub trusted_peers: Vec<TrustedPeer>,
+    /// Show "Playing <game> with Rewind" on the user's Discord profile.
+    pub discord_presence: bool,
 }
 
 /// Audio-based smart highlights. Off by default; while off nothing is analysed.
@@ -478,6 +480,35 @@ impl KeystrokeSettings {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FpsMode {
+    /// `video.fps`.
+    Fixed,
+    /// The recorded screen's refresh rate. Frames still arrive only when the
+    /// game presents one, so a 60 fps game on a 144 Hz screen records 60.
+    Display,
+}
+
+/// Hardware-friendliness switches. All default to off.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PerformanceSettings {
+    /// The low preset (see `perf::low_spec`) is applied over the settings.
+    pub low_spec: bool,
+    /// Apply the low preset while the PC runs on battery.
+    pub battery_throttle: bool,
+    pub fps_mode: FpsMode,
+}
+
+/// Dashboard widget ids, in their default order.
+pub const DASHBOARD_WIDGETS: [&str; 7] = ["save", "buffer", "recent", "disk", "counters", "status", "playtime"];
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DashboardWidget {
+    pub id: String,
+    pub enabled: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Settings {
     pub version: u32,
@@ -514,6 +545,9 @@ pub struct Settings {
     /// Monitor index (as in `video.monitor`) the on-screen overlays go on;
     /// None = the recorded monitor.
     pub overlay_monitor: Option<u32>,
+    pub performance: PerformanceSettings,
+    /// Dashboard widgets in display order.
+    pub dashboard: Vec<DashboardWidget>,
 }
 
 impl Default for Settings {
@@ -588,6 +622,7 @@ impl Default for Settings {
                 device_name: String::new(),
                 device_id: String::new(),
                 trusted_peers: Vec::new(),
+                discord_presence: false,
             },
             watch_folders: Vec::new(),
             hud: HudSettings { enabled: false, x: None, y: None },
@@ -635,6 +670,8 @@ impl Default for Settings {
                 },
             },
             overlay_monitor: None,
+            performance: PerformanceSettings { low_spec: false, battery_throttle: false, fps_mode: FpsMode::Fixed },
+            dashboard: DASHBOARD_WIDGETS.iter().map(|id| DashboardWidget { id: (*id).into(), enabled: true }).collect(),
         }
     }
 }
@@ -733,8 +770,26 @@ impl Settings {
         if self.sharing.lan_port < 1024 {
             self.sharing.lan_port = 7777;
         }
+        self.sanitize_dashboard();
         for w in &mut self.sharing.discord_webhooks {
             w.limit_mb = if w.limit_mb >= 25 { 25 } else { 10 };
+        }
+    }
+
+    /// Known widgets only, each once, the save button always on; widgets
+    /// added by a newer version are appended.
+    fn sanitize_dashboard(&mut self) {
+        let mut seen = std::collections::HashSet::new();
+        self.dashboard.retain(|w| DASHBOARD_WIDGETS.contains(&w.id.as_str()) && seen.insert(w.id.clone()));
+        for id in DASHBOARD_WIDGETS {
+            if !seen.contains(id) {
+                self.dashboard.push(DashboardWidget { id: id.into(), enabled: true });
+            }
+        }
+        for w in &mut self.dashboard {
+            if w.id == "save" {
+                w.enabled = true;
+            }
         }
     }
 
@@ -782,6 +837,8 @@ fn migrate(value: &mut toml::Table) -> Result<()> {
             }
         }
     }
+    // v21 -> v22: `performance`, `dashboard` and `sharing.discord_presence`
+    // added (all off / default order); defaults fill them in.
     // v19 -> v20: `keystrokes.live` added (off); defaults fill it in.
     // v18 -> v19: profiles get a master switch (on for anyone who already had
     // profiles, so nothing changes for them) and the built-in game profiles.
@@ -1089,6 +1146,33 @@ fps = 999
         assert!(s.profiles_enabled);
         let cs = s.profiles.iter().filter(|p| p.exe.eq_ignore_ascii_case("cs2.exe")).collect::<Vec<_>>();
         assert_eq!((cs.len(), cs[0].name.as_str(), cs[0].fps, cs[0].enabled), (1, "Mine", Some(240), true));
+    }
+
+    #[test]
+    fn performance_defaults_off_and_dashboard_sanitized() {
+        let s = parse("version = 21
+").unwrap();
+        assert!(!s.performance.low_spec && !s.performance.battery_throttle && !s.sharing.discord_presence);
+        assert_eq!(s.performance.fps_mode, FpsMode::Fixed);
+        assert_eq!(s.dashboard.len(), DASHBOARD_WIDGETS.len());
+        let s = parse("version = 22
+[[dashboard]]
+id = \"disk\"
+enabled = false
+[[dashboard]]
+id = \"save\"
+enabled = false
+[[dashboard]]
+id = \"bogus\"
+enabled = true
+[[dashboard]]
+id = \"disk\"
+enabled = true
+").unwrap();
+        assert_eq!(s.dashboard.len(), DASHBOARD_WIDGETS.len());
+        assert_eq!(s.dashboard[0].id, "disk");
+        assert!(!s.dashboard[0].enabled);
+        assert!(s.dashboard.iter().find(|w| w.id == "save").unwrap().enabled);
     }
 
     #[test]

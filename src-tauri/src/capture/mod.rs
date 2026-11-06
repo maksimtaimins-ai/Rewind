@@ -71,6 +71,25 @@ pub fn monitors() -> Vec<MonitorInfo> {
     Vec::new()
 }
 
+/// Current refresh rate of the monitor named `name` (`DISPLAY1`), in Hz.
+#[cfg(windows)]
+pub fn refresh_hz(name: &str) -> Option<u32> {
+    use windows::core::PCWSTR;
+    use windows::Win32::Graphics::Gdi::{EnumDisplaySettingsW, DEVMODEW, ENUM_CURRENT_SETTINGS};
+    let wide: Vec<u16> = format!(r"\\.\{name}").encode_utf16().chain(Some(0)).collect();
+    let mut mode = DEVMODEW { dmSize: std::mem::size_of::<DEVMODEW>() as u16, ..Default::default() };
+    unsafe { EnumDisplaySettingsW(PCWSTR(wide.as_ptr()), ENUM_CURRENT_SETTINGS, &mut mode) }
+        .as_bool()
+        .then_some(mode.dmDisplayFrequency)
+        // 0 and 1 mean "hardware default".
+        .filter(|&hz| hz > 1)
+}
+
+#[cfg(not(windows))]
+pub fn refresh_hz(_: &str) -> Option<u32> {
+    None
+}
+
 /// Largest side a real display mode has; anything bigger is a bogus rect.
 const MAX_SIDE: u32 = 16384;
 

@@ -1,5 +1,5 @@
 // Sample data for previewing the UI in a plain browser (no Tauri backend).
-import type { Clip, Settings, Status } from '#lib/api.ts';
+import type { Clip, DashboardWidgetId, Settings, Status } from '#lib/api.ts';
 
 export function mockSettings(): Settings {
 	return {
@@ -64,7 +64,8 @@ export function mockSettings(): Settings {
 			lan_port: 7777,
 			device_name: '',
 			device_id: 'mock',
-			trusted_peers: [{ id: 'laptop', name: 'LAPTOP-7Q2' }]
+			trusted_peers: [{ id: 'laptop', name: 'LAPTOP-7Q2' }],
+			discord_presence: false
 		},
 		hud: { enabled: false, x: null, y: null },
 		disk: { warn_gb: 10, block_gb: 2 },
@@ -101,6 +102,8 @@ export function mockSettings(): Settings {
 			position: { anchor: 'bottom_left', x: 0.05, y: 0.8, margin: 40, click_position: 'cursor', click_style: 'ring', trail: false, trail_ms: 400 }
 		},
 		overlay_monitor: null,
+		performance: { low_spec: false, battery_throttle: false, fps_mode: 'fixed' },
+		dashboard: ['save', 'buffer', 'recent', 'disk', 'counters', 'status', 'playtime'].map((id) => ({ id: id as DashboardWidgetId, enabled: true })),
 		watch_folders: [
 			{ enabled: true, input: 'C:\\clips\\outbox\\youtube-shorts', preset: 'shorts', output: 'C:\\clips\\exported\\youtube', delete_original: false }
 		]

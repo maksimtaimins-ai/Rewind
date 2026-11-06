@@ -223,6 +223,8 @@ struct Inner {
     buffer_secs: AtomicU32,
     /// Keystroke overlay recording; holds no hook or thread while it's off.
     input: Mutex<crate::input::Recorder>,
+    /// The PC runs on battery (only polled while battery throttling is on).
+    on_battery: AtomicBool,
 }
 
 #[derive(Clone)]
@@ -266,11 +268,19 @@ impl Engine {
             disk_free: AtomicU64::new(u64::MAX),
             shutdown: AtomicBool::new(false),
             buffer_secs: AtomicU32::new(settings.buffer.seconds),
+            on_battery: AtomicBool::new(false),
             effective: RwLock::new(settings.clone()),
             profile: Mutex::new(None),
             settings: RwLock::new(settings),
         });
         let engine = Engine { inner };
+        if engine.inner.settings.read().performance.battery_throttle {
+            engine.inner.on_battery.store(crate::perf::on_battery().unwrap_or(false), Ordering::Relaxed);
+        }
+        {
+            let s = engine.inner.settings.read().clone();
+            *engine.inner.effective.write() = engine.compute_effective(&s, None);
+        }
         engine.apply_input();
 
         let (action_tx, action_rx) = unbounded();
@@ -343,11 +353,32 @@ impl Engine {
         let exe = self.inner.game.lock().as_ref().map(|g| g.exe.clone());
         let profile = profiles::active(&new, exe.as_deref()).cloned();
         *self.inner.profile.lock() = profile.clone();
-        self.switch_effective(profiles::effective(&new, profile.as_ref()));
+        self.inner.on_battery.store(
+            new.performance.battery_throttle && crate::perf::on_battery().unwrap_or(false),
+            Ordering::Relaxed,
+        );
+        self.switch_effective(self.compute_effective(&new, profile.as_ref()));
         if old.launch_on_startup != new.launch_on_startup {
             platform::set_autostart(new.launch_on_startup)?;
         }
         Ok(())
+    }
+
+    /// `s` with a game profile and the performance settings applied.
+    fn compute_effective(&self, s: &Settings, profile: Option<&settings::GameProfile>) -> Settings {
+        let mut e = profiles::effective(s, profile);
+        let hz = (e.performance.fps_mode == settings::FpsMode::Display)
+            .then(|| capture::capture_monitor(&e).and_then(|m| capture::refresh_hz(&m.name)))
+            .flatten();
+        crate::perf::apply(&mut e, self.inner.on_battery.load(Ordering::Relaxed), hz);
+        e
+    }
+
+    /// Re-derive the effective settings after the power source changed.
+    fn refresh_effective(&self) {
+        let s = self.inner.settings.read().clone();
+        let profile = self.inner.profile.lock().clone();
+        self.switch_effective(self.compute_effective(&s, profile.as_ref()));
     }
 
     /// Put new effective settings in force, doing only what changed requires:
@@ -883,9 +914,20 @@ impl Engine {
             bail!("Screen {} reports {}x{} at {},{}; waiting for the display to settle", monitor.name, monitor.width, monitor.height, monitor.x, monitor.y);
         }
         let list = self.encoders();
-        let encoder = encode::pick(&list, v.encoder, v.codec)
-            .or_else(|| encode::pick(&list, crate::settings::EncoderChoice::Auto, v.codec))
-            .ok_or_else(|| anyhow!("No video encoder available for {:?}", v.codec))?;
+        let mut v = v.clone();
+        let pick = |codec| {
+            encode::pick(&list, v.encoder, codec).or_else(|| encode::pick(&list, crate::settings::EncoderChoice::Auto, codec))
+        };
+        let encoder = match pick(v.codec) {
+            Some(e) => e,
+            // HEVC asked for (low-spec, a profile) on a PC without an HEVC encoder.
+            None if v.codec == crate::settings::Codec::Hevc => {
+                tracing::warn!("no HEVC encoder; using H.264");
+                v.codec = crate::settings::Codec::H264;
+                pick(v.codec).ok_or_else(|| anyhow!("No video encoder available"))?
+            }
+            None => return Err(anyhow!("No video encoder available for {:?}", v.codec)),
+        };
         let buffer_secs = s.buffer.seconds;
         self.inner.buffer_secs.store(buffer_secs, Ordering::Relaxed);
         *self.inner.buffer.lock() = ReplayBuffer::new(keep_secs(s, buffer_secs), s.buffer.max_memory_mb as usize * MB);
@@ -924,7 +966,7 @@ impl Engine {
             (None, None) => String::new(),
         };
         *self.inner.profile.lock() = want.clone();
-        let effective = profiles::effective(s, want.as_ref());
+        let effective = self.compute_effective(s, want.as_ref());
         self.switch_effective(effective.clone());
         self.inner.events.profile_changed(&effective);
         self.inner.events.notice(Level::Info, &msg);
@@ -940,6 +982,8 @@ impl Engine {
         let mut last_purge = Instant::now() - Duration::from_secs(3600);
         let mut last_disk = Instant::now() - Duration::from_secs(60);
         let mut disk_was = DiskLevel::Ok;
+        let mut last_power = Instant::now();
+        let mut first_run_codec_done = false;
         while !self.inner.shutdown.load(Ordering::Relaxed) {
             let s = self.inner.settings.read().clone();
             self.inner.flags.privacy.store(profiles::privacy_focused(&s), Ordering::Relaxed);
@@ -965,6 +1009,24 @@ impl Engine {
                     _ => {}
                 }
                 disk_was = level;
+            }
+
+            // Only looked at while battery throttling is on.
+            if s.performance.battery_throttle && last_power.elapsed() >= Duration::from_secs(5) {
+                last_power = Instant::now();
+                let now = crate::perf::on_battery().unwrap_or(false);
+                if self.inner.on_battery.swap(now, Ordering::Relaxed) != now {
+                    self.inner.events.notice(
+                        Level::Info,
+                        if now { "On battery: using the low-spec preset" } else { "Plugged in: back to your usual settings" },
+                    );
+                    self.refresh_effective();
+                }
+            }
+
+            if !first_run_codec_done {
+                first_run_codec_done = true;
+                self.default_to_hevc();
             }
 
             if last_detect.elapsed() >= Duration::from_secs(2) {
@@ -1032,6 +1094,23 @@ impl Engine {
                 self.inner.events.status(&self.build_status(fps, kbps));
             }
             std::thread::sleep(Duration::from_millis(250));
+        }
+    }
+
+    /// First launch only: record HEVC when a hardware HEVC encoder exists
+    /// (smaller files, same quality). Anything else stays H.264.
+    fn default_to_hevc(&self) {
+        let mut s = self.settings();
+        if s.first_run_complete || s.video.codec != settings::Codec::H264 || s.performance.low_spec {
+            return;
+        }
+        let hevc = self.encoders().iter().any(|e| e.codec == settings::Codec::Hevc && e.kind != encode::EncoderKind::Software);
+        if hevc {
+            s.video.codec = settings::Codec::Hevc;
+            tracing::info!("first launch: hardware HEVC encoder found, defaulting to HEVC");
+            if let Err(e) = self.set_settings(s) {
+                tracing::warn!("default to HEVC: {e:#}");
+            }
         }
     }
 

@@ -110,8 +110,30 @@ fn mp4s(dir: &Path) -> Vec<(PathBuf, u64, SystemTime)> {
 
 pub type Emit = Arc<dyn Fn(&str, serde_json::Value) + Send + Sync>;
 
-/// Poll every watch folder until the app exits.
+static HOST: std::sync::OnceLock<(Engine, Emit)> = std::sync::OnceLock::new();
+static RUNNING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Remember how to run the watcher. Nothing starts until a watch folder is
+/// switched on, so with none set up there is no thread and no polling.
 pub fn start(engine: Engine, emit: Emit) {
+    let _ = HOST.set((engine, emit));
+    ensure();
+}
+
+/// Start the polling thread if a folder is enabled and it isn't running yet.
+/// Call after settings change. Once started it runs until the app exits.
+pub fn ensure() {
+    let Some((engine, emit)) = HOST.get() else { return };
+    if !engine.settings().watch_folders.iter().any(|w| w.enabled) {
+        return;
+    }
+    if RUNNING.swap(true, std::sync::atomic::Ordering::SeqCst) {
+        return;
+    }
+    spawn(engine.clone(), emit.clone());
+}
+
+fn spawn(engine: Engine, emit: Emit) {
     std::thread::Builder::new()
         .name("rewind-watch".into())
         .spawn(move || {

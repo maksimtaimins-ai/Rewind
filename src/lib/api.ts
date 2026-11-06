@@ -60,6 +60,9 @@ export interface DiscordWebhook {
 	limit_mb: 10 | 25;
 }
 
+export type FpsMode = 'fixed' | 'display';
+export type DashboardWidgetId = 'save' | 'buffer' | 'recent' | 'disk' | 'counters' | 'status' | 'playtime';
+
 export interface Settings {
 	version: number;
 	first_run_complete: boolean;
@@ -113,6 +116,8 @@ export interface Settings {
 		device_id: string;
 		/** PCs whose clips are accepted without asking. */
 		trusted_peers: { id: string; name: string }[];
+		/** Show "Playing <game> with Rewind" on Discord. Off: no connection is made. */
+		discord_presence: boolean;
 	};
 	watch_folders: WatchFolder[];
 	/** Compact HUD pill instead of the main window. Position in physical pixels. */
@@ -123,6 +128,15 @@ export interface Settings {
 	keystrokes: Keystrokes;
 	/** Monitor index the on-screen overlays go on; null = the recorded monitor. */
 	overlay_monitor: number | null;
+	performance: {
+		/** 720p30 HEVC ~4 Mb/s, 30 s buffer, overlays off, laid over your settings. */
+		low_spec: boolean;
+		/** Use the low preset while on battery. */
+		battery_throttle: boolean;
+		fps_mode: FpsMode;
+	};
+	/** Dashboard widgets in display order; 'save' is always enabled. */
+	dashboard: { id: DashboardWidgetId; enabled: boolean }[];
 }
 
 export type KeyFilterMode = 'all' | 'allow' | 'block';
