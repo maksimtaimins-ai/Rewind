@@ -4,7 +4,7 @@
 	import { goto } from '$app/navigation';
 	import { getCurrentWindow } from '@tauri-apps/api/window';
 	import { revealItemInDir } from '@tauri-apps/plugin-opener';
-	import { api, fileUrl, fmtBytes, fmtDuration, fmtWhen, type ExportPreset } from '#lib/api.ts';
+	import { api, fileUrl, fmtBytes, fmtClock, fmtDuration, fmtWhen, type ExportPreset } from '#lib/api.ts';
 	import ExportMenu from '#lib/components/ExportMenu.svelte';
 	import Keycap from '#lib/components/Keycap.svelte';
 	import DiscordMenu from '#lib/components/DiscordMenu.svelte';
@@ -297,21 +297,21 @@
 				<span class="tick" style="left: {pct(k)}"></span>
 			{/each}
 			{#each moments as m, i (i)}
-				<span class="moment" style="left: {pct(m.at)}; width: max(3px, calc({pct(m.end)} - {pct(m.at)}))" style:--strength={0.45 + m.score * 0.55} title="{reasonLabel[m.reason]} at {fmtDuration(m.at)}"></span>
+				<span class="moment" style="left: {pct(m.at)}; width: max(3px, calc({pct(m.end)} - {pct(m.at)}))" style:--strength={0.45 + m.score * 0.55} title="{reasonLabel[m.reason]} at {fmtClock(m.at)}"></span>
 			{/each}
 			<span class="handle" style="left: {pct(inPt)}" aria-hidden="true"></span>
 			<span class="handle out" style="left: {pct(outPt)}" aria-hidden="true"></span>
 			<span class="head" style="left: {pct(current)}" aria-hidden="true"></span>
 		</div>
 		<div class="times num">
-			<span>{fmtDuration(current)}</span>
-			<span>{fmtDuration(duration)}</span>
+			<span>{fmtClock(current)}</span>
+			<span>{fmtClock(duration)}</span>
 		</div>
 		{#if moments.length && !fs}
 			<div class="moments" aria-label="Highlights">
 				{#each moments as m, i (i)}
 					<button class="jump" onclick={() => seek(m.at)}>
-						<span class="num">{fmtDuration(m.at)}</span>
+						<span class="num">{fmtClock(m.at)}</span>
 						{reasonLabel[m.reason]}
 					</button>
 				{/each}

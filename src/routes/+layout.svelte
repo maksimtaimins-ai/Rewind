@@ -11,6 +11,7 @@
 	import Toasts from '#lib/components/Toasts.svelte';
 	import { apply as applyTheme, resolve as resolveTheme, withAccent, SYSTEM, type Palette } from '#lib/themes.ts';
 	import { applyFont, applyScale } from '#lib/appearance.ts';
+	import { fmt } from '#lib/format.svelte.ts';
 	import { fly } from 'svelte/transition';
 	import { enter, ms, reducedMotion } from '#lib/motion.ts';
 
@@ -49,6 +50,15 @@
 		// An accent change alone is applied at once; only a new theme crossfades.
 		if (first || !themeChanged || reducedMotion() || !document.startViewTransition) applyTheme(eff);
 		else document.startViewTransition(() => applyTheme(eff));
+	});
+
+	// Time, date, duration and size styles for everything that shows one.
+	$effect(() => {
+		const a = app.settings?.appearance;
+		fmt.time = a?.time_format ?? 'system';
+		fmt.date = a?.date_format ?? 'friendly';
+		fmt.duration = a?.duration_format ?? 'clock';
+		fmt.size = a?.size_format ?? 'si';
 	});
 
 	// Typeface and UI scale. The HUD pill and live overlays keep their own size.

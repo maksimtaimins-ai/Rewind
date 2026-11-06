@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-pub const SETTINGS_VERSION: u32 = 31;
+pub const SETTINGS_VERSION: u32 = 32;
 
 /// Allowed range for [`BufferSettings::seconds`].
 pub const MIN_BUFFER_SECS: u32 = 10;
@@ -188,6 +188,53 @@ pub enum UiFont {
     System,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TimeFormat {
+    /// Whatever Windows uses.
+    System,
+    H12,
+    H24,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DateFormat {
+    /// Today, Yesterday, then "Nov 5".
+    Friendly,
+    Iso,
+    Dmy,
+    Mdy,
+    /// Today, "5 days ago".
+    Relative,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DurationFormat {
+    /// `1:23`
+    Clock,
+    /// `1m 23s`
+    Words,
+    /// `83s`
+    Seconds,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SizeFormat {
+    /// KB, MB, GB (powers of 1000).
+    Si,
+    /// KiB, MiB, GiB (powers of 1024).
+    Iec,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Language {
+    En,
+}
+
 /// Allowed UI scales, percent.
 pub const UI_SCALES: [u32; 6] = [80, 90, 100, 110, 125, 150];
 
@@ -201,6 +248,11 @@ pub struct AppearanceSettings {
     pub ui_scale: u32,
     /// Encoder / FPS / game / buffer pills above the dashboard widgets.
     pub status_pills: bool,
+    pub time_format: TimeFormat,
+    pub date_format: DateFormat,
+    pub duration_format: DurationFormat,
+    pub size_format: SizeFormat,
+    pub language: Language,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -867,7 +919,14 @@ impl Default for Settings {
                     benchmark: "none".into(),
                 },
             },
-            appearance: AppearanceSettings { accent: String::new(), font: UiFont::Theme, ui_scale: 100, status_pills: false },
+            appearance: AppearanceSettings { accent: String::new(), font: UiFont::Theme, ui_scale: 100,
+                status_pills: false,
+                time_format: TimeFormat::System,
+                date_format: DateFormat::Friendly,
+                duration_format: DurationFormat::Clock,
+                size_format: SizeFormat::Si,
+                language: Language::En,
+            },
             naming: NamingSettings {
                 clip_template: crate::naming::DEFAULT_CLIP_TEMPLATE.into(),
                 folder_mode: crate::naming::FolderMode::Flat,
@@ -1187,6 +1246,7 @@ fn migrate(value: &mut toml::Table) -> Result<()> {
             }
         }
     }
+    // v31 -> v32: `appearance` gains display formats (system time, friendly dates, 1:23, KB/MB).
     // v30 -> v31: `situational` added (none).
     // v29 -> v30: `macros` added (none).
     // v28 -> v29: `tray` added (the menu it always had; left click opens the window).
@@ -1560,7 +1620,16 @@ enabled = true
     #[test]
     fn appearance_defaults_and_sanitized() {
         let s = parse("version = 26\n").unwrap();
-        assert_eq!(s.appearance, AppearanceSettings { accent: String::new(), font: UiFont::Theme, ui_scale: 100, status_pills: false });
+        assert_eq!(s.appearance, Settings::default().appearance);
+        assert_eq!((s.appearance.time_format, s.appearance.date_format, s.appearance.duration_format, s.appearance.size_format), (TimeFormat::System, DateFormat::Friendly, DurationFormat::Clock, SizeFormat::Si));
+        let s = parse("version = 31
+[appearance]
+time_format = \"h12\"
+date_format = \"dmy\"
+duration_format = \"words\"
+size_format = \"iec\"
+").unwrap();
+        assert_eq!((s.appearance.time_format, s.appearance.date_format, s.appearance.duration_format, s.appearance.size_format), (TimeFormat::H12, DateFormat::Dmy, DurationFormat::Words, SizeFormat::Iec));
         let s = parse("version = 27\n[appearance]\naccent = \"red\"\nui_scale = 133\nfont = \"mono\"\n").unwrap();
         assert_eq!((s.appearance.accent.as_str(), s.appearance.ui_scale, s.appearance.font), ("", 100, UiFont::Mono));
         assert_eq!(parse("version = 27\n[appearance]\naccent = \"#ff8800\"\nui_scale = 125\n").unwrap().appearance.accent, "#ff8800");

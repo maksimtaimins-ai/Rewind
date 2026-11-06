@@ -1,6 +1,7 @@
 // Global search: one flat list of things you can jump to, ranked by a simple
 // word match. Pure functions; the palette component owns the UI.
 import type { Clip, Settings } from '#lib/api.ts';
+import { fmtDate } from '#lib/api.ts';
 import { gameOf } from '#lib/filter.ts';
 
 export type Group = 'Clips' | 'Settings' | 'Help';
@@ -157,7 +158,7 @@ export function clipItems(clips: Clip[]): Item[] {
 			id: 'clip:' + c.path,
 			group: 'Clips' as const,
 			title: c.name,
-			sub: [game !== 'Other' ? game : null, d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }), ...c.tags.map((t) => '#' + t)].filter(Boolean).join('  ·  '),
+			sub: [game !== 'Other' ? game : null, fmtDate(c.modified), ...c.tags.map((t) => '#' + t)].filter(Boolean).join('  ·  '),
 			keywords: `${game} ${c.tags.join(' ')} ${iso} ${month} ${month.slice(0, 3)} ${d.getDate()} ${c.favorite ? 'favorite starred' : ''}`,
 			to: `/trim?path=${encodeURIComponent(c.path)}`,
 			thumb: c.thumb

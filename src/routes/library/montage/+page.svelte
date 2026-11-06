@@ -3,7 +3,7 @@
 	import { onMount } from 'svelte';
 	import { listen } from '@tauri-apps/api/event';
 	import { open } from '@tauri-apps/plugin-dialog';
-	import { api, fileUrl, fmtDuration, type Clip } from '#lib/api.ts';
+	import { api, fileUrl, fmtClock, fmtDuration, type Clip } from '#lib/api.ts';
 	import { app, inApp, refreshClips, toast } from '#lib/stores/app.svelte.ts';
 	import { draft, timeline, totalLength, MAX_TOTAL } from '#lib/montage.svelte.ts';
 	import Segmented from '#lib/components/Segmented.svelte';
@@ -143,7 +143,7 @@
 			</div>
 			<div class="ruler num" aria-hidden="true">
 				{#each Array.from({ length: Math.min(12, Math.floor(total / Math.max(1, Math.ceil(total / 10))) + 1) }, (_, i) => i * Math.max(1, Math.ceil(total / 10))) as s (s)}
-					<span style="left: {(s / total) * 100}%">{fmtDuration(s)}</span>
+					<span style="left: {(s / total) * 100}%">{fmtClock(s)}</span>
 				{/each}
 			</div>
 			<p class="hint">{order === 'manual' ? 'Drag pieces to reorder. ' : ''}{max ? `Each clip gives up to ${max}s, centred on its best highlight or ending where you saved it.` : 'Whole clips.'}</p>

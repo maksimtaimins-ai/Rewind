@@ -1,6 +1,6 @@
 <!-- Markers set this session. Each row turns its marker into a clip of a chosen length. -->
 <script lang="ts">
-	import { fmtDuration, type MarkerInfo } from '#lib/api.ts';
+	import { fmtDuration, fmtTime, type MarkerInfo } from '#lib/api.ts';
 	import Segmented from './Segmented.svelte';
 
 	let {
@@ -17,7 +17,7 @@
 		const c = choice[id] ?? 30;
 		return Math.min(maxSecs, Math.max(1, c === 'custom' ? (custom[id] ?? 20) : c));
 	};
-	const clock = (ms: number) => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+	const clock = (ms: number) => fmtTime(ms, true);
 	const ago = (s: number) => (s < 60 ? `${Math.round(s)}s ago` : `${fmtDuration(s)} ago`);
 	// Newest first: the moment you just marked is the one you want.
 	const rows = $derived([...markers].reverse());

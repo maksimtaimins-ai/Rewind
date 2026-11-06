@@ -3,7 +3,7 @@
   status pills. Applied by the layout (appearance.ts, themes.ts).
 -->
 <script lang="ts">
-	import type { Settings } from '#lib/api.ts';
+	import { fmtBytes, fmtDate, fmtDuration, type Settings } from '#lib/api.ts';
 	import { app, updateSettings } from '#lib/stores/app.svelte.ts';
 	import Row from './Row.svelte';
 	import Segmented from './Segmented.svelte';
@@ -56,7 +56,72 @@
 	<Toggle checked={look.status_pills} label="Status pills" onchange={(v) => set((a) => (a.status_pills = v))} />
 </Row>
 
+<h3 id="appearance-meta">Dates, times and sizes</h3>
+<Row id="s-time-format" label="Time" hint="12 or 24 hour clock.">
+	<Segmented
+		label="Time format"
+		value={look.time_format}
+		options={[
+			{ value: 'system' as const, label: 'System' },
+			{ value: '12h' as const, label: '12-hour' },
+			{ value: '24h' as const, label: '24-hour' }
+		]}
+		onchange={(v) => set((a) => (a.time_format = v))}
+	/>
+</Row>
+<Row id="s-date-format" label="Date" hint="Shown on clips, sessions and search. Example: {fmtDate(Date.now() - 5 * 86_400_000)}.">
+	<select value={look.date_format} onchange={(e) => set((a) => (a.date_format = e.currentTarget.value as Look['date_format']))} aria-label="Date format">
+		<option value="friendly">Today, Yesterday, Nov 5</option>
+		<option value="iso">2026-11-05</option>
+		<option value="dmy">05/11/2026</option>
+		<option value="mdy">11/05/2026</option>
+		<option value="relative">5 days ago</option>
+	</select>
+</Row>
+<Row id="s-duration-format" label="Length" hint="How a clip's length is written. Example: {fmtDuration(83)}.">
+	<Segmented
+		label="Duration format"
+		value={look.duration_format}
+		options={[
+			{ value: 'clock' as const, label: '1:23' },
+			{ value: 'words' as const, label: '1m 23s' },
+			{ value: 'seconds' as const, label: '83s' }
+		]}
+		onchange={(v) => set((a) => (a.duration_format = v))}
+	/>
+</Row>
+<Row id="s-size-format" label="File sizes" hint="Example: {fmtBytes(1_234_567_890)}.">
+	<Segmented
+		label="File size format"
+		value={look.size_format}
+		options={[
+			{ value: 'si' as const, label: 'KB / MB / GB' },
+			{ value: 'iec' as const, label: 'KiB / MiB / GiB' }
+		]}
+		onchange={(v) => set((a) => (a.size_format = v))}
+	/>
+</Row>
+<Row id="s-language" label="Language" hint="More languages will come later.">
+	<select value={look.language} aria-label="Language" onchange={() => {}}>
+		<option value="en">English</option>
+	</select>
+</Row>
+
 <style>
+	select {
+		height: 32px;
+		padding: 0 8px;
+		border: 0;
+		border-radius: var(--r-1);
+		background: var(--sunken);
+		outline: none;
+	}
+	h3 {
+		margin: 24px 0 4px;
+		font-size: 13px;
+		font-weight: 600;
+		color: var(--muted);
+	}
 	.swatches {
 		display: flex;
 		align-items: center;

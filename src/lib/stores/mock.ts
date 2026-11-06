@@ -46,7 +46,7 @@ export function mockSettings(): Settings {
 			events: { clip_saved: true, marker: true, screenshot: true, update: true, benchmark: false },
 			sounds: { clip_saved: 'blip', marker: 'none', screenshot: 'none', update: 'none', benchmark: 'none' }
 		},
-		appearance: { accent: '', font: 'theme', ui_scale: 100, status_pills: false },
+		appearance: { accent: '', font: 'theme', ui_scale: 100, status_pills: false, time_format: 'system', date_format: 'friendly', duration_format: 'clock', size_format: 'si', language: 'en' },
 		naming: { clip_template: '{game} {date} {time}', folder_mode: 'flat', folder_template: '{game}/{year}-{month}' },
 		library: {
 			session_gap_mins: 30,

@@ -1,4 +1,5 @@
 import { invoke, convertFileSrc } from '@tauri-apps/api/core';
+import { fmt } from './format.svelte.ts';
 
 export type Codec = 'h264' | 'hevc';
 export type EncoderChoice = 'auto' | 'nvenc' | 'amf' | 'qsv' | 'software';
@@ -152,6 +153,11 @@ export interface Settings {
 		ui_scale: number;
 		/** Encoder / FPS / game / buffer pills on the dashboard. */
 		status_pills: boolean;
+		time_format: 'system' | '12h' | '24h';
+		date_format: 'friendly' | 'iso' | 'dmy' | 'mdy' | 'relative';
+		duration_format: 'clock' | 'words' | 'seconds';
+		size_format: 'si' | 'iec';
+		language: 'en';
 	};
 	/** Clip file name template; tokens in naming.ts. */
 	naming: { clip_template: string; folder_mode: 'flat' | 'game' | 'date' | 'game_date' | 'custom'; folder_template: string };
@@ -575,25 +581,72 @@ export const api = {
 
 export const fileUrl = (path: string) => convertFileSrc(path);
 
+/** A length of time, written as the user chose (1:23, 1m 23s or 83s). */
 export function fmtDuration(secs: number): string {
 	const s = Math.max(0, Math.round(secs));
-	const m = Math.floor(s / 60);
-	return `${m}:${String(s % 60).padStart(2, '0')}`;
+	if (fmt.duration === 'seconds') return `${s}s`;
+	const h = Math.floor(s / 3600);
+	const m = Math.floor((s % 3600) / 60);
+	if (fmt.duration === 'words') return h ? `${h}h ${m}m ${s % 60}s` : m ? `${m}m ${s % 60}s` : `${s}s`;
+	return h ? `${h}:${String(m).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}` : `${m}:${String(s % 60).padStart(2, '0')}`;
+}
+
+/** A position in a clip, always m:ss: it's a clock, not a length. */
+export function fmtClock(secs: number): string {
+	const s = Math.max(0, Math.round(secs));
+	return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
 export function fmtBytes(n: number): string {
-	if (n >= 1e9) return `${(n / 1e9).toFixed(1)} GB`;
-	if (n >= 1e6) return `${(n / 1e6).toFixed(1)} MB`;
-	return `${Math.max(1, Math.round(n / 1e3))} KB`;
+	const k = fmt.size === 'iec' ? 1024 : 1000;
+	const u = fmt.size === 'iec' ? ['KiB', 'MiB', 'GiB'] : ['KB', 'MB', 'GB'];
+	if (n >= k ** 3) return `${(n / k ** 3).toFixed(1)} ${u[2]}`;
+	if (n >= k ** 2) return `${(n / k ** 2).toFixed(1)} ${u[1]}`;
+	return `${Math.max(1, Math.round(n / k))} ${u[0]}`;
 }
 
-export function fmtWhen(ms: number): string {
+const hour12 = () => (fmt.time === 'system' ? undefined : fmt.time === '12h');
+
+/** Time of day, in the chosen 12 or 24 hour style. */
+export function fmtTime(ms: number, seconds = false): string {
+	return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', ...(seconds ? { second: '2-digit' } : {}), hour12: hour12() });
+}
+
+const p2 = (n: number) => String(n).padStart(2, '0');
+
+/** A calendar date in the chosen style (no time). */
+export function fmtDate(ms: number): string {
 	const d = new Date(ms);
 	const now = new Date();
-	const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-	if (d.toDateString() === now.toDateString()) return `Today, ${time}`;
-	const y = new Date(now);
-	y.setDate(now.getDate() - 1);
-	if (d.toDateString() === y.toDateString()) return `Yesterday, ${time}`;
-	return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${time}`;
+	const days = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() - new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()) / 86_400_000);
+	switch (fmt.date) {
+		case 'iso':
+			return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+		case 'dmy':
+			return `${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()}`;
+		case 'mdy':
+			return `${p2(d.getMonth() + 1)}/${p2(d.getDate())}/${d.getFullYear()}`;
+		case 'relative': {
+			if (days <= 0) return 'Today';
+			if (days === 1) return 'Yesterday';
+			if (days < 14) return `${days} days ago`;
+			if (days < 60) return `${Math.floor(days / 7)} weeks ago`;
+			if (days < 365) return `${Math.floor(days / 30)} months ago`;
+			const y = Math.floor(days / 365);
+			return `${y} ${y === 1 ? 'year' : 'years'} ago`;
+		}
+		default:
+			if (days <= 0) return 'Today';
+			if (days === 1) return 'Yesterday';
+			return d.toLocaleDateString([], { month: 'short', day: 'numeric', ...(d.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }) });
+	}
+}
+
+/** Date and time: "Today, 14:03", "2026-11-05, 14:03", "5 days ago". */
+export function fmtWhen(ms: number): string {
+	const date = fmtDate(ms);
+	const today = date === 'Today';
+	// "5 days ago" already says when; a clock time next to it adds nothing.
+	if (fmt.date === 'relative' && !today) return date;
+	return `${date}, ${fmtTime(ms)}`;
 }

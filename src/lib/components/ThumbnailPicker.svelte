@@ -1,6 +1,6 @@
 <!-- Mini scrubber for choosing a clip's thumbnail frame. -->
 <script lang="ts">
-	import { fileUrl, fmtDuration } from '#lib/api.ts';
+	import { fileUrl, fmtClock } from '#lib/api.ts';
 	import { inApp } from '#lib/stores/app.svelte.ts';
 
 	let {
@@ -51,7 +51,7 @@
 		<button class="step" aria-label="Previous frame" onclick={() => seek(t - 1 / 60)}>‹</button>
 		<input type="range" min="0" max={duration} step="0.001" value={t} oninput={(e) => seek(Number(e.currentTarget.value))} aria-label="Thumbnail frame time" />
 		<button class="step" aria-label="Next frame" onclick={() => seek(t + 1 / 60)}>›</button>
-		<span class="num time">{fmtDuration(t)}.{String(Math.floor((t % 1) * 100)).padStart(2, '0')}</span>
+		<span class="num time">{fmtClock(t)}.{String(Math.floor((t % 1) * 100)).padStart(2, '0')}</span>
 	</div>
 	<div class="buttons">
 		<button class="secondary" onclick={() => dialog?.close()}>Cancel</button>
