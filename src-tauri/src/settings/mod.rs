@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-pub const SETTINGS_VERSION: u32 = 25;
+pub const SETTINGS_VERSION: u32 = 26;
 
 /// Allowed range for [`BufferSettings::seconds`].
 pub const MIN_BUFFER_SECS: u32 = 10;
@@ -107,12 +107,68 @@ pub struct HudSettings {
     pub y: Option<i32>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Density {
+    Compact,
+    Comfortable,
+    Spacious,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LibraryLayout {
+    Grid,
+    List,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LibrarySort {
+    Newest,
+    Oldest,
+    Name,
+    Duration,
+    Game,
+    Size,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ThumbStyle {
+    Square,
+    /// 16:9, cropped to fill.
+    Wide,
+    /// The whole frame, uncropped, letterboxed in a 16:9 tile.
+    Original,
+}
+
+/// What each library tile shows. Name is always shown.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TileMeta {
+    pub duration: bool,
+    pub date: bool,
+    pub game: bool,
+    pub tags: bool,
+    pub size: bool,
+}
+
+pub const MIN_TILE_PX: u32 = 120;
+pub const MAX_TILE_PX: u32 = 400;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LibrarySettings {
     /// Clips saved within this many minutes of each other form one session.
     pub session_gap_mins: u32,
     /// Deleted clips are kept this many days before they're gone for good.
     pub purge_days: u32,
+    /// Smallest tile width in the grid, pixels (120-400).
+    pub tile_size: u32,
+    pub density: Density,
+    pub layout: LibraryLayout,
+    pub sort: LibrarySort,
+    pub thumb_style: ThumbStyle,
+    pub meta: TileMeta,
 }
 
 /// Clip player behaviour. Frontend-only: the engine never reads it.
@@ -610,7 +666,16 @@ impl Default for Settings {
                 folder_mode: crate::naming::FolderMode::Flat,
                 folder_template: "{game}/{year}-{month}".into(),
             },
-            library: LibrarySettings { session_gap_mins: 30, purge_days: 30 },
+            library: LibrarySettings {
+                session_gap_mins: 30,
+                purge_days: 30,
+                tile_size: 340,
+                density: Density::Comfortable,
+                layout: LibraryLayout::Grid,
+                sort: LibrarySort::Newest,
+                thumb_style: ThumbStyle::Wide,
+                meta: TileMeta { duration: true, date: true, game: false, tags: true, size: false },
+            },
             audio: vec![
                 AudioTrack { name: "Desktop".into(), enabled: true, source: AudioSource::System, volume: 1.0 },
                 AudioTrack {
@@ -752,6 +817,7 @@ impl Settings {
         self.buffer.extra_slots.resize(EXTRA_SLOTS, BufferSlot { enabled: false, seconds: 60, hotkey: String::new() });
         self.library.session_gap_mins = self.library.session_gap_mins.clamp(1, 24 * 60);
         self.library.purge_days = self.library.purge_days.clamp(1, 365);
+        self.library.tile_size = self.library.tile_size.clamp(MIN_TILE_PX, MAX_TILE_PX);
         if ![2, 3, 5].contains(&self.slow_mo.seconds) {
             self.slow_mo.seconds = 3;
         }
@@ -864,6 +930,7 @@ fn migrate(value: &mut toml::Table) -> Result<()> {
             }
         }
     }
+    // v25 -> v26: `library` gains view preferences (the old look); defaults fill them in.
     // v24 -> v25: `naming.folder_mode` and `folder_template` added (flat, as before).
     // v23 -> v24: `naming` added (the old "{game} {date} {time}" names).
     // v22 -> v23: `playback` added (fullscreen off); defaults fill it in.
@@ -1203,6 +1270,16 @@ enabled = true
         assert_eq!(s.dashboard[0].id, "disk");
         assert!(!s.dashboard[0].enabled);
         assert!(s.dashboard.iter().find(|w| w.id == "save").unwrap().enabled);
+    }
+
+    #[test]
+    fn library_view_defaults_and_clamp() {
+        let s = parse("version = 25\n").unwrap();
+        assert_eq!((s.library.tile_size, s.library.layout, s.library.sort), (340, LibraryLayout::Grid, LibrarySort::Newest));
+        assert!(s.library.meta.duration && s.library.meta.date && s.library.meta.tags && !s.library.meta.size);
+        let s = parse("version = 26\n[library]\ntile_size = 9999\nsort = \"size\"\ndensity = \"compact\"\n").unwrap();
+        assert_eq!((s.library.tile_size, s.library.sort, s.library.density), (MAX_TILE_PX, LibrarySort::Size, Density::Compact));
+        assert_eq!(parse("version = 26\n[library]\ntile_size = 3\n").unwrap().library.tile_size, MIN_TILE_PX);
     }
 
     #[test]

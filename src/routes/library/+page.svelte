@@ -16,7 +16,7 @@
 	import VirtualGrid from '#lib/components/VirtualGrid.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Segmented from '#lib/components/Segmented.svelte';
-	import { allTags, applyFilters, emptyFilters, gameOf, isFiltering, isHighlight, isMontage, type DateRange, type LengthRange, type LibraryTab } from '#lib/filter.ts';
+	import { allTags, applyFilters, emptyFilters, gameOf, isFiltering, isHighlight, isMontage, sortClips, type DateRange, type LengthRange, type LibraryTab } from '#lib/filter.ts';
 	import RecentlyDeleted from '#lib/components/RecentlyDeleted.svelte';
 	import { defaultSessionName, groupSessions } from '#lib/sessions.ts';
 	import { postToDiscord, sendToPeer } from '#lib/share.ts';
@@ -55,17 +55,26 @@
 	const isClipTab = $derived(tab !== 'screenshots' && tab !== 'deleted');
 
 	const base = $derived(tab === 'highlights' ? app.clips.filter(isHighlight) : tab === 'montages' ? app.clips.filter(isMontage) : app.clips);
-	const shown = $derived(applyFilters(base, f));
+	const view = $derived(app.settings?.library);
+	const sort = $derived(view?.sort ?? 'newest');
+	const asList = $derived(view?.layout === 'list');
+	const tileMin = $derived(asList ? 9999 : (view?.tile_size ?? 340));
+	const gap = $derived(view?.density === 'compact' ? 8 : view?.density === 'spacious' ? 24 : 16);
+	const shown = $derived(sortClips(applyFilters(base, f), sort));
 	const tags = $derived(allTags(app.clips));
 	// On All, favorites are pinned above the sessions instead of inside them.
 	const pin = $derived(tab === 'all');
 	const favorites = $derived(pin ? shown.filter((c) => c.favorite) : []);
 	// Sessions come from every clip so their keys (and names) don't shift while filtering.
-	const sessions = $derived(
-		groupSessions(app.clips, app.settings?.library.session_gap_mins ?? 30)
-			.map((s) => ({ ...s, shown: s.clips.filter((c) => (!pin || !c.favorite) && shown.includes(c)) }))
-			.filter((s) => s.shown.length)
-	);
+	// Any sort but newest/oldest has no use for time-based sessions: one flat list.
+	const sessioned = $derived(sort === 'newest' || sort === 'oldest');
+	const sessions = $derived.by(() => {
+		const list = groupSessions(app.clips, app.settings?.library.session_gap_mins ?? 30)
+			.map((s) => ({ ...s, shown: sortClips(s.clips.filter((c) => (!pin || !c.favorite) && shown.includes(c)), sort) }))
+			.filter((s) => s.shown.length);
+		return sort === 'oldest' ? list.reverse() : list;
+	});
+	const flat = $derived(pin ? shown.filter((c) => !c.favorite) : shown);
 	const games = $derived.by(() => {
 		const m = new Map<string, Clip[]>();
 		for (const c of shown) m.set(gameOf(c), [...(m.get(gameOf(c)) ?? []), c]);
@@ -335,9 +344,9 @@
 	{#snippet tiles(list: Clip[])}
 		{#if list.length >= VIRTUAL_AT}
 			<!-- A long list renders only the rows on screen. -->
-			<VirtualGrid items={list} key={(c) => c.path} item={clipTile} threshold={VIRTUAL_AT} minWidth={340} gap={16} />
+			<VirtualGrid items={list} key={(c) => c.path} item={clipTile} threshold={VIRTUAL_AT} minWidth={tileMin} {gap} />
 		{:else}
-			<div class="grid">
+			<div class="grid" style:--tile="{tileMin}px" style:--gap="{gap}px">
 				{#each list as c, i (c.path)}
 					<div class="cell" in:fly|global={{ y: 6, duration: ms(220), delay: ms(Math.min(i, 16) * 30), easing: enter }} out:collapse animate:flip={{ duration: ms(260), easing: standard }}>
 						{@render clipTile(c)}
@@ -396,7 +405,16 @@
 				{@render tiles(favorites)}
 			</section>
 		{/if}
-		{#each sessions as sess (sess.key)}
+		{#if !sessioned && flat.length}
+				<section class="session" aria-label="All clips">
+					<div class="sess-head">
+						<h2 class="sess-title">All clips</h2>
+						<span class="count"><span class="num">{flat.length}</span> {flat.length === 1 ? 'clip' : 'clips'}</span>
+					</div>
+					{@render tiles(flat)}
+				</section>
+			{/if}
+			{#each sessioned ? sessions : [] as sess (sess.key)}
 			{@const open = !collapsed[sess.key]}
 			<section class="session" aria-label={sessionName(sess.key, sess.start)}>
 				<div class="sess-head">
@@ -859,8 +877,8 @@
 	}
 	.grid {
 		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-		gap: var(--s-4);
+		grid-template-columns: repeat(auto-fill, minmax(min(var(--tile, 340px), 100%), 1fr));
+		gap: var(--gap, var(--s-4));
 	}
 	.empty {
 		color: var(--muted);

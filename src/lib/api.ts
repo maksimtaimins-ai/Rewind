@@ -60,6 +60,7 @@ export interface DiscordWebhook {
 	limit_mb: 10 | 25;
 }
 
+export type LibrarySort = 'newest' | 'oldest' | 'name' | 'duration' | 'game' | 'size';
 export type FpsMode = 'fixed' | 'display';
 export type DashboardWidgetId = 'save' | 'buffer' | 'recent' | 'disk' | 'counters' | 'status' | 'playtime';
 
@@ -101,7 +102,17 @@ export interface Settings {
 	playback: { fullscreen_on_open: boolean };
 	/** Clip file name template; tokens in naming.ts. */
 	naming: { clip_template: string; folder_mode: 'flat' | 'game' | 'date' | 'game_date' | 'custom'; folder_template: string };
-	library: { session_gap_mins: number; purge_days: number };
+	library: {
+		session_gap_mins: number;
+		purge_days: number;
+		/** Smallest tile width, px (120-400). */
+		tile_size: number;
+		density: 'compact' | 'comfortable' | 'spacious';
+		layout: 'grid' | 'list';
+		sort: LibrarySort;
+		thumb_style: 'square' | 'wide' | 'original';
+		meta: { duration: boolean; date: boolean; game: boolean; tags: boolean; size: boolean };
+	};
 	audio: AudioTrack[];
 	hotkeys: Hotkeys;
 	/** Off: profiles are never applied. */

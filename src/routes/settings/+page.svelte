@@ -15,6 +15,7 @@
 	import WatchFolders from '#lib/components/WatchFolders.svelte';
 	import BenchReportView from '#lib/components/BenchReport.svelte';
 	import KeystrokeOverlay from '#lib/components/KeystrokeOverlay.svelte';
+	import LibraryView from '#lib/components/LibraryView.svelte';
 	import FileNaming from '#lib/components/FileNaming.svelte';
 	import GameProfiles from '#lib/components/GameProfiles.svelte';
 	import PerformanceList from '#lib/components/PerformanceList.svelte';
@@ -485,6 +486,7 @@
 				<input class="numbox num" type="number" min="1" max="365" value={s.library.purge_days} onchange={(e) => set((x) => (x.library.purge_days = Math.min(365, Math.max(1, num(e)))))} aria-label="Days to keep deleted clips" />
 				<span class="unit">days</span>
 			</Row>
+			<LibraryView />
 		</section>
 
 		<section id="storage">

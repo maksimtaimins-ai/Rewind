@@ -5,8 +5,9 @@
 </script>
 
 <script lang="ts">
-	import { fileUrl, fmtDuration, fmtWhen, type Clip } from '#lib/api.ts';
-	import { inApp } from '#lib/stores/app.svelte.ts';
+	import { fileUrl, fmtBytes, fmtDuration, fmtWhen, type Clip } from '#lib/api.ts';
+	import { app, inApp } from '#lib/stores/app.svelte.ts';
+	import { gameOf } from '#lib/filter.ts';
 	import TagChip from './TagChip.svelte';
 	import { inview } from '#lib/inview.ts';
 
@@ -42,13 +43,28 @@
 	const thumb = $derived(clip.thumb && inApp ? `${fileUrl(clip.thumb)}?v=${clip.thumb_rev}` : null);
 	// Thumbnails are fetched and decoded only once the tile is near the viewport.
 	let near = $state(false);
+	// What a tile shows is up to Settings → Library.
+	const view = $derived(app.settings?.library);
+	const meta = $derived(view?.meta ?? { duration: true, date: true, game: false, tags: true, size: false });
+	const list = $derived(view?.layout === 'list');
+	const pad = $derived(view?.density === 'compact' ? 'var(--s-2)' : view?.density === 'spacious' ? 'var(--s-4)' : 'var(--s-3)');
+	const activate = (e: MouseEvent) => (selecting || e.ctrlKey || e.shiftKey ? onselect() : onopen());
 	const star = 'M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z';
 </script>
 
-<article class="tile" class:selected oncontextmenu={oncontextmenu && ((e) => (e.preventDefault(), oncontextmenu(e)))}>
+{#snippet facts()}
+	<span class="sub">
+		{#if meta.duration}<span class="num">{fmtDuration(clip.duration)}</span>{/if}
+		{#if meta.date}<span>{fmtWhen(clip.modified)}</span>{/if}
+		{#if meta.game}<span class="game">{gameOf(clip)}</span>{/if}
+		{#if meta.size}<span class="num">{fmtBytes(clip.size)}</span>{/if}
+	</span>
+{/snippet}
+
+<article class="tile" class:selected class:list class:sq={view?.thumb_style === 'square'} class:orig={view?.thumb_style === 'original'} style:--pad={pad} oncontextmenu={oncontextmenu && ((e) => (e.preventDefault(), oncontextmenu(e)))}>
 	<button
 		class="frame"
-		onclick={(e) => (selecting || e.ctrlKey || e.shiftKey ? onselect() : onopen())}
+		onclick={activate}
 		aria-label="{selecting ? 'Select' : 'Open'} {clip.name}"
 	>
 		<div class="art" use:inview={{ onenter: () => (near = true) }}>
@@ -61,7 +77,7 @@
 		<!-- Name and length sit on a scrim at the bottom of the thumbnail. -->
 		<span class="shade">
 			<span class="name" title={clip.name}>{clip.name}</span>
-			<span class="sub"><span class="num">{fmtDuration(clip.duration)}</span><span>{fmtWhen(clip.modified)}</span></span>
+			{@render facts()}
 		</span>
 		{#if selecting}
 			<span class="check" aria-hidden="true">
@@ -72,6 +88,20 @@
 			<span class="fav-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d={star} /></svg></span>
 		{/if}
 	</button>
+	{#if list}
+		<!-- List rows: the facts sit beside the thumbnail instead of on it. -->
+		<div class="info">
+			<button class="lname" onclick={activate} title={clip.name}>{clip.name}</button>
+			{@render facts()}
+			{#if meta.tags && clip.tags.length}
+				<div class="ltags">
+					{#each clip.tags.slice(0, 5) as t (t)}
+						<TagChip tag={t} active={activeTags.includes(t)} onclick={ontag && (() => ontag(t))} />
+					{/each}
+				</div>
+			{/if}
+		</div>
+	{/if}
 	{#if !selecting}
 		<div class="actions">
 			<button class="act" aria-label="Play {clip.name}" title="Play" onclick={onopen}>
@@ -106,7 +136,7 @@
 			{/if}
 		</div>
 	{/if}
-	{#if clip.tags.length && !selecting}
+	{#if meta.tags && clip.tags.length && !selecting && !list}
 		<div class="tags" style:left={clip.favorite ? '32px' : '8px'}>
 			{#each clip.tags.slice(0, 3) as t (t)}
 				<TagChip tag={t} active={activeTags.includes(t)} onclick={ontag && (() => ontag(t))} />
@@ -155,6 +185,87 @@
 		background: var(--sunken);
 		cursor: pointer;
 	}
+	.sq .frame {
+		aspect-ratio: 1 / 1;
+	}
+	/* Whole frame, uncropped, in the same 16:9 box so rows keep one height. */
+	.orig img {
+		object-fit: contain;
+		background: var(--media);
+	}
+	.shade .sub {
+		flex-wrap: wrap;
+		row-gap: 0;
+	}
+	.game {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.info {
+		display: none;
+	}
+	.tile.list {
+		display: grid;
+		grid-template-columns: 144px minmax(0, 1fr) auto;
+		align-items: center;
+		column-gap: var(--s-4);
+	}
+	.tile.list:hover,
+	.tile.list:focus-within {
+		transform: none;
+	}
+	.list .frame {
+		width: 144px;
+	}
+	.list .shade {
+		display: none;
+	}
+	.list .info {
+		display: grid;
+		gap: 4px;
+		min-width: 0;
+	}
+	.lname {
+		justify-self: start;
+		max-width: 100%;
+		padding: 0;
+		border: 0;
+		background: none;
+		color: var(--text);
+		font: inherit;
+		font-weight: 600;
+		text-align: left;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		cursor: pointer;
+	}
+	.info .sub {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--s-3);
+		font-size: 12px;
+		color: var(--muted);
+	}
+	.ltags {
+		display: flex;
+		gap: 4px;
+		flex-wrap: wrap;
+	}
+	.list .actions {
+		position: static;
+		opacity: 1;
+		pointer-events: auto;
+	}
+	.list .act {
+		background: var(--sunken);
+		color: var(--muted);
+	}
+	.list .act:hover {
+		color: var(--text);
+		background: var(--line);
+	}
 	.selected .frame {
 		outline: 2px solid var(--text);
 		outline-offset: 2px;
@@ -179,7 +290,7 @@
 		inset: auto 0 0 0;
 		display: grid;
 		gap: 2px;
-		padding: 40px var(--s-3) var(--s-3);
+		padding: 40px var(--pad, var(--s-3)) var(--pad, var(--s-3));
 		text-align: left;
 		background: linear-gradient(to top, rgb(0 0 0 / 0.82), rgb(0 0 0 / 0.5) 55%, transparent);
 		color: var(--on-scrim);

@@ -36,7 +36,16 @@ export function mockSettings(): Settings {
 		slow_mo: { seconds: 3, speed: 0.25 },
 		playback: { fullscreen_on_open: false },
 		naming: { clip_template: '{game} {date} {time}', folder_mode: 'flat', folder_template: '{game}/{year}-{month}' },
-		library: { session_gap_mins: 30, purge_days: 30 },
+		library: {
+			session_gap_mins: 30,
+			purge_days: 30,
+			tile_size: 340,
+			density: 'comfortable',
+			layout: 'grid',
+			sort: 'newest',
+			thumb_style: 'wide',
+			meta: { duration: true, date: true, game: false, tags: true, size: false }
+		},
 		audio: [
 			{ name: 'Desktop', enabled: true, source: { kind: 'system' }, volume: 1 },
 			{ name: 'Microphone', enabled: false, source: { kind: 'mic', device_id: null }, volume: 1 },

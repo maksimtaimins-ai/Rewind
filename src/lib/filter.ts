@@ -1,5 +1,6 @@
 // Library filtering: pure functions so the page stays declarative.
-import type { Clip } from '#lib/api.ts';
+import type { Clip, LibrarySort } from '#lib/api.ts';
+import { app } from '#lib/stores/app.svelte.ts';
 
 export type DateRange = 'today' | 'week' | 'month' | 'all' | 'custom';
 export type LengthRange = 'any' | 'short' | 'medium' | 'long' | 'xlong';
@@ -92,8 +93,31 @@ export const isHighlight = (c: Clip) => c.favorite || !!c.highlights?.length;
 export const isMontage = (c: Clip) =>
 	/^Montage\b/i.test(c.name) || / merged$/i.test(c.name) || c.tags.some((t) => /^(montage|merge|merged)$/i.test(t));
 
-/** The game a clip came from: its name minus the trailing timestamp ("Valorant 2026-10-28 20-11-03"). */
+/**
+ * The game a clip came from. With per-game folders it is the folder; otherwise
+ * the name minus its trailing timestamp ("Valorant 2026-10-28 20-11-03"),
+ * which is what the default name template produces.
+ */
 export function gameOf(c: Clip): string {
+	const root = app.settings?.clips_dir;
+	if (root && c.path.toLowerCase().startsWith(root.toLowerCase())) {
+		const parts = c.path.slice(root.length).split(/[\\/]/).filter(Boolean);
+		if (parts.length > 1 && /^(game|game_date)$/.test(app.settings?.naming.folder_mode ?? '')) return parts[0];
+	}
 	const g = c.name.replace(/\s+\d{4}-\d{2}-\d{2}[ _]\d{2}-\d{2}-\d{2}.*$/, '').trim();
 	return g && g !== c.name ? g : 'Other';
+}
+
+/** `list` newest first (as the library delivers it) reordered by `sort`. */
+export function sortClips(list: Clip[], sort: LibrarySort): Clip[] {
+	const byNew = (a: Clip, b: Clip) => b.modified - a.modified;
+	const cmp: Record<LibrarySort, (a: Clip, b: Clip) => number> = {
+		newest: byNew,
+		oldest: (a, b) => -byNew(a, b),
+		name: (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }) || byNew(a, b),
+		duration: (a, b) => b.duration - a.duration || byNew(a, b),
+		game: (a, b) => gameOf(a).localeCompare(gameOf(b)) || byNew(a, b),
+		size: (a, b) => b.size - a.size || byNew(a, b)
+	};
+	return sort === 'newest' ? list : [...list].sort(cmp[sort]);
 }
