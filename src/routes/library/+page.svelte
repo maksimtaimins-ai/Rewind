@@ -13,6 +13,7 @@
 	import { app, inApp, refreshClips, setFavorite, setTags, toast } from '#lib/stores/app.svelte.ts';
 	import ClipTile from '#lib/components/ClipTile.svelte';
 	import Keycap from '#lib/components/Keycap.svelte';
+	import VirtualGrid from '#lib/components/VirtualGrid.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Segmented from '#lib/components/Segmented.svelte';
 	import { allTags, applyFilters, emptyFilters, gameOf, isFiltering, isHighlight, isMontage, type DateRange, type LengthRange, type LibraryTab } from '#lib/filter.ts';
@@ -21,6 +22,9 @@
 	import { postToDiscord, sendToPeer } from '#lib/share.ts';
 	import type { LanPeer } from '#lib/api.ts';
 	import { draft } from '#lib/montage.svelte.ts';
+
+	/** Sessions this long render only the rows on screen. */
+	const VIRTUAL_AT = 100;
 
 	let selecting = $state(false);
 	let selected = $state<string[]>([]);
@@ -312,26 +316,35 @@
 	</div>
 	{/if}
 
+	{#snippet clipTile(c: Clip)}
+		<ClipTile
+			clip={c}
+			{selecting}
+			selected={selected.includes(c.path)}
+			onopen={() => goto(`/trim?path=${encodeURIComponent(c.path)}`)}
+			onselect={() => toggle(c)}
+			onfavorite={(v) => setFavorite(c.path, v)}
+			ondelete={() => removeOne(c)}
+			onedittags={(e) => editTags(c, e)}
+			ontag={toggleTag}
+			activeTags={f.tags}
+			oncontextmenu={(e) => openMenu(c, e)}
+		/>
+	{/snippet}
+
 	{#snippet tiles(list: Clip[])}
-		<div class="grid">
-			{#each list as c, i (c.path)}
-				<div class="cell" in:fly|global={{ y: 6, duration: ms(220), delay: ms(Math.min(i, 16) * 30), easing: enter }} out:collapse animate:flip={{ duration: ms(260), easing: standard }}>
-					<ClipTile
-						clip={c}
-						{selecting}
-						selected={selected.includes(c.path)}
-						onopen={() => goto(`/trim?path=${encodeURIComponent(c.path)}`)}
-						onselect={() => toggle(c)}
-						onfavorite={(v) => setFavorite(c.path, v)}
-						ondelete={() => removeOne(c)}
-						onedittags={(e) => editTags(c, e)}
-						ontag={toggleTag}
-						activeTags={f.tags}
-						oncontextmenu={(e) => openMenu(c, e)}
-					/>
-				</div>
-			{/each}
-		</div>
+		{#if list.length >= VIRTUAL_AT}
+			<!-- A long list renders only the rows on screen. -->
+			<VirtualGrid items={list} key={(c) => c.path} item={clipTile} threshold={VIRTUAL_AT} />
+		{:else}
+			<div class="grid">
+				{#each list as c, i (c.path)}
+					<div class="cell" in:fly|global={{ y: 6, duration: ms(220), delay: ms(Math.min(i, 16) * 30), easing: enter }} out:collapse animate:flip={{ duration: ms(260), easing: standard }}>
+						{@render clipTile(c)}
+					</div>
+				{/each}
+			</div>
+		{/if}
 	{/snippet}
 
 	<!-- Old and new tab content share one grid cell, so they crossfade while the new one slides in. -->
