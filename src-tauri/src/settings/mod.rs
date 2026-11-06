@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-pub const SETTINGS_VERSION: u32 = 30;
+pub const SETTINGS_VERSION: u32 = 31;
 
 /// Allowed range for [`BufferSettings::seconds`].
 pub const MIN_BUFFER_SECS: u32 = 10;
@@ -294,6 +294,43 @@ impl TraySettings {
         }
     }
 }
+
+/// When a situational profile is in force.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "kind")]
+pub enum Trigger {
+    /// A game is running (as game profiles detect it).
+    GameDetected,
+    /// No game is running.
+    Idle,
+    /// This executable has focus.
+    AppFocused { exe: String },
+    OnBattery,
+    PluggedIn,
+    /// Local time, `HH:MM`. `from` later than `to` wraps past midnight.
+    TimeOfDay { from: String, to: String },
+}
+
+/// Settings that switch in by circumstance rather than by game. Every `None`
+/// (or `false`) keeps what the settings and any game profile say. A game
+/// profile wins over a situational one where both set the same thing.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SituationalProfile {
+    pub name: String,
+    pub enabled: bool,
+    pub trigger: Trigger,
+    pub fps: Option<u32>,
+    pub height: Option<u32>,
+    pub bitrate_kbps: Option<u32>,
+    pub codec: Option<Codec>,
+    pub buffer_seconds: Option<u32>,
+    /// Its own hotkeys instead of the global ones.
+    pub hotkeys: Option<Hotkeys>,
+    /// Keystroke recording and the live overlay off while it is in force.
+    pub overlays_off: bool,
+}
+
+pub const MAX_SITUATIONAL: usize = 12;
 
 /// At most this many custom macros.
 pub const MAX_MACROS: usize = 10;
@@ -753,6 +790,8 @@ pub struct Settings {
     pub tray: TraySettings,
     /// Custom hotkey chains. Empty (the default) costs nothing.
     pub macros: Vec<Macro>,
+    /// Situational profiles. Empty (the default) costs nothing.
+    pub situational: Vec<SituationalProfile>,
     pub library: LibrarySettings,
     pub audio: Vec<AudioTrack>,
     pub hotkeys: Hotkeys,
@@ -815,6 +854,7 @@ impl Default for Settings {
             playback: PlaybackSettings { fullscreen_on_open: false },
             tray: TraySettings::standard(),
             macros: Vec::new(),
+            situational: Vec::new(),
             notifications: NotificationSettings {
                 position: ToastPosition::BottomRight,
                 duration_secs: 4,
@@ -1029,6 +1069,24 @@ impl Settings {
         }
         self.sanitize_dashboard();
         self.tray.sanitize();
+        self.situational.truncate(MAX_SITUATIONAL);
+        for p in &mut self.situational {
+            p.name = p.name.trim().chars().take(40).collect();
+            if p.name.is_empty() {
+                p.name = "Profile".into();
+            }
+            p.fps = p.fps.map(|v| v.clamp(10, 240));
+            p.bitrate_kbps = p.bitrate_kbps.map(|v| v.clamp(500, 200_000));
+            p.buffer_seconds = p.buffer_seconds.map(|v| v.clamp(MIN_BUFFER_SECS, MAX_BUFFER_SECS));
+            if let Trigger::TimeOfDay { from, to } = &mut p.trigger {
+                if crate::situational::parse_time(from).is_none() {
+                    *from = "22:00".into();
+                }
+                if crate::situational::parse_time(to).is_none() {
+                    *to = "06:00".into();
+                }
+            }
+        }
         self.macros.truncate(MAX_MACROS);
         for (i, m) in self.macros.iter_mut().enumerate() {
             m.name = m.name.trim().chars().take(40).collect();
@@ -1129,6 +1187,7 @@ fn migrate(value: &mut toml::Table) -> Result<()> {
             }
         }
     }
+    // v30 -> v31: `situational` added (none).
     // v29 -> v30: `macros` added (none).
     // v28 -> v29: `tray` added (the menu it always had; left click opens the window).
     // v27 -> v28: `notifications` added. The old `play_sound_on_save` became the
@@ -1558,6 +1617,30 @@ enabled = true
         }
         s.sanitize();
         assert_eq!(s.macros.len(), MAX_MACROS);
+    }
+
+    #[test]
+    fn situational_default_empty_roundtrip_and_sanitized() {
+        assert!(parse("version = 30\n").unwrap().situational.is_empty());
+        let mut s = Settings::default();
+        s.situational.push(SituationalProfile {
+            name: "".into(),
+            enabled: true,
+            trigger: Trigger::TimeOfDay { from: "25:99".into(), to: "07:30".into() },
+            fps: Some(9999),
+            height: None,
+            bitrate_kbps: None,
+            codec: Some(Codec::Hevc),
+            buffer_seconds: Some(1),
+            hotkeys: None,
+            overlays_off: true,
+        });
+        s.situational.push(SituationalProfile { trigger: Trigger::AppFocused { exe: "code.exe".into() }, name: "Code".into(), fps: None, buffer_seconds: None, codec: None, overlays_off: false, ..s.situational[0].clone() });
+        s.sanitize();
+        let p = &s.situational[0];
+        assert_eq!((p.name.as_str(), p.fps, p.buffer_seconds), ("Profile", Some(240), Some(MIN_BUFFER_SECS)));
+        assert_eq!(p.trigger, Trigger::TimeOfDay { from: "22:00".into(), to: "07:30".into() });
+        assert_eq!(parse(&toml::to_string_pretty(&s).unwrap()).unwrap().situational, s.situational);
     }
 
     #[test]

@@ -23,6 +23,7 @@ pub mod platform;
 pub mod profiles;
 pub mod recycled;
 pub mod settings;
+pub mod situational;
 pub mod share;
 pub mod storage;
 pub mod watch;

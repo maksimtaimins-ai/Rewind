@@ -55,6 +55,8 @@ pub struct Status {
     pub privacy: bool,
     /// The buffer was paused by hand (tray or macro).
     pub manual_pause: bool,
+    /// Name of the situational profile in force.
+    pub situation: Option<String>,
     pub markers: Vec<MarkerInfo>,
     /// A save waiting for its post-roll to finish, if any.
     pub post_roll: Option<PostRollStatus>,
@@ -220,6 +222,8 @@ struct Inner {
     last_save: Mutex<Option<LastSave>>,
     /// Most recently written clip of any kind, for "favorite last clip".
     last_clip: Mutex<Option<PathBuf>>,
+    /// The situational profile in force, if any.
+    situational: Mutex<Option<settings::SituationalProfile>>,
     /// Saves finished (written or failed), for macros waiting on one.
     save_seq: AtomicU64,
     last_save_failed: AtomicBool,
@@ -276,6 +280,7 @@ impl Engine {
             next_marker: AtomicU64::new(1),
             last_save: Mutex::new(None),
             last_clip: Mutex::new(None),
+            situational: Mutex::new(None),
             save_seq: AtomicU64::new(0),
             last_save_failed: AtomicBool::new(false),
             save_tx,
@@ -386,7 +391,13 @@ impl Engine {
 
     /// `s` with a game profile and the performance settings applied.
     fn compute_effective(&self, s: &Settings, profile: Option<&settings::GameProfile>) -> Settings {
-        let mut e = profiles::effective(s, profile);
+        // Situational first; a game's own profile then wins where both set a value.
+        let situational = self.inner.situational.lock().clone();
+        let base = match &situational {
+            Some(p) => crate::situational::apply(s, p),
+            None => s.clone(),
+        };
+        let mut e = profiles::effective(&base, profile);
         let hz = (e.performance.fps_mode == settings::FpsMode::Display)
             .then(|| capture::capture_monitor(&e).and_then(|m| capture::refresh_hz(&m.name)))
             .flatten();
@@ -993,6 +1004,7 @@ impl Engine {
             profile,
             privacy: self.inner.flags.privacy.load(Ordering::Relaxed),
             manual_pause: self.inner.flags.manual_pause.load(Ordering::Relaxed),
+            situation: self.inner.situational.lock().as_ref().map(|p| p.name.clone()),
             markers,
             post_roll,
             error,
@@ -1072,6 +1084,37 @@ impl Engine {
         self.inner.events.notice(Level::Info, &msg);
     }
 
+    /// Switch the situational profile in or out when the circumstances changed.
+    fn follow_situation(&self, s: &Settings) {
+        let want = if crate::situational::any_on(s) {
+            let now = chrono::Local::now().time();
+            use chrono::Timelike;
+            let ctx = crate::situational::Context {
+                game_running: self.inner.game.lock().is_some(),
+                focused_exe: if crate::situational::needs_focus(s) { platform::foreground().map(|f| f.exe) } else { None },
+                on_battery: crate::situational::needs_power(s) && crate::perf::on_battery().unwrap_or(false),
+                minutes: now.hour() * 60 + now.minute(),
+            };
+            crate::situational::active(s, &ctx).cloned()
+        } else {
+            None
+        };
+        if *self.inner.situational.lock() == want {
+            return;
+        }
+        let msg = match (&want, self.inner.situational.lock().as_ref()) {
+            (Some(p), _) => format!("Using the {} profile", p.name),
+            (None, Some(p)) => format!("{} ended: back to your usual settings", p.name),
+            (None, None) => return,
+        };
+        *self.inner.situational.lock() = want;
+        let profile = self.inner.profile.lock().clone();
+        let effective = self.compute_effective(s, profile.as_ref());
+        self.switch_effective(effective.clone());
+        self.inner.events.profile_changed(&effective);
+        self.inner.events.notice(Level::Info, &msg);
+    }
+
     fn control_loop(&self) {
         let mut detector = Detector::default();
         let mut last_detect = Instant::now() - Duration::from_secs(10);
@@ -1139,6 +1182,10 @@ impl Engine {
                 // Profiles off: stop here, nothing is looked up or switched.
                 if s.profiles_enabled {
                     self.follow_profile(&s, exe.as_deref());
+                }
+                // Same: with no situational profile on (and none left over), nothing runs.
+                if crate::situational::any_on(&s) || self.inner.situational.lock().is_some() {
+                    self.follow_situation(&s);
                 }
             }
 

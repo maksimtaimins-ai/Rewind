@@ -35,6 +35,7 @@ export function mockSettings(): Settings {
 		slow_mo: { seconds: 3, speed: 0.25 },
 		playback: { fullscreen_on_open: false },
 		macros: [],
+		situational: [],
 		tray: {
 			items: ['open', 'save', 'marker', 'screenshot', 'library', 'settings', 'folder', 'pause', 'quit'].map((id) => ({ id: id as never, enabled: ['open', 'save', 'folder', 'quit'].includes(id) })),
 			left_click: 'open_window'
@@ -153,6 +154,7 @@ export function mockStatus(): Status {
 		profile: 'Counter-Strike 2',
 		privacy: false,
 		manual_pause: false,
+		situation: null,
 		markers: [
 			{ id: 1, ago: 340, at_ms: Date.now() - 340e3, in_buffer: false },
 			{ id: 2, ago: 21.6, at_ms: Date.now() - 21.6e3, in_buffer: true },

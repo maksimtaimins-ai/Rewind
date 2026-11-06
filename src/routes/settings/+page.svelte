@@ -15,6 +15,7 @@
 	import WatchFolders from '#lib/components/WatchFolders.svelte';
 	import BenchReportView from '#lib/components/BenchReport.svelte';
 	import KeystrokeOverlay from '#lib/components/KeystrokeOverlay.svelte';
+	import SituationalProfiles from '#lib/components/SituationalProfiles.svelte';
 	import Macros from '#lib/components/Macros.svelte';
 	import TrayMenu from '#lib/components/TrayMenu.svelte';
 	import NotificationSettings from '#lib/components/NotificationSettings.svelte';
@@ -68,7 +69,7 @@
 			['library', 'Library'],
 			['storage', 'Storage'],
 			['sharing', 'Sharing'],
-			['games', 'Game profiles'],
+			['games', 'Profiles'],
 			['help', 'Help'],
 			['advanced', 'Advanced']
 		].filter(([id]) => pro || id !== 'advanced')
@@ -583,8 +584,11 @@
 		</section>
 
 		<section id="games">
-			<h2>Game profiles</h2>
+			<h2>Profiles</h2>
+			<h3 id="game-profiles">Per game</h3>
 			<GameProfiles />
+			<h3 id="situational">Situational</h3>
+			<SituationalProfiles />
 		</section>
 
 		<section id="help">

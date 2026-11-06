@@ -60,6 +60,25 @@ export interface DiscordWebhook {
 	limit_mb: 10 | 25;
 }
 
+export type Trigger =
+	| { kind: 'game_detected' | 'idle' | 'on_battery' | 'plugged_in' }
+	| { kind: 'app_focused'; exe: string }
+	| { kind: 'time_of_day'; from: string; to: string };
+
+/** Settings that switch in by circumstance; null/false keeps the usual value. */
+export interface SituationalProfile {
+	name: string;
+	enabled: boolean;
+	trigger: Trigger;
+	fps: number | null;
+	height: number | null;
+	bitrate_kbps: number | null;
+	codec: Codec | null;
+	buffer_seconds: number | null;
+	hotkeys: Hotkeys | null;
+	overlays_off: boolean;
+}
+
 export type MacroStep =
 	| { kind: 'save_clip' | 'set_marker' | 'screenshot' | 'slow_mo' | 'extend_last' | 'open_last_clip' | 'toggle_hud' | 'pause_buffer' }
 	| { kind: 'run_export'; preset: ExportPreset }
@@ -107,6 +126,8 @@ export interface Settings {
 	post_roll: { enabled: boolean; seconds: number };
 	slow_mo: { seconds: 2 | 3 | 5; speed: number };
 	playback: { fullscreen_on_open: boolean };
+	/** Circumstance-based profiles, first match wins. Empty = nothing runs. */
+	situational: SituationalProfile[];
 	/** Custom hotkey chains, up to ten. */
 	macros: { name: string; hotkey: string; enabled: boolean; steps: MacroStep[] }[];
 	tray: {
@@ -352,6 +373,8 @@ export interface Status {
 	privacy: boolean;
 	/** Paused by hand (tray or macro). */
 	manual_pause: boolean;
+	/** Situational profile in force. */
+	situation: string | null;
 	/** Markers set this session, oldest first. */
 	markers: MarkerInfo[];
 	/** A save still recording its post-roll. */
