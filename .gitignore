@@ -10,3 +10,6 @@ src-tauri/target/release/bundle/nsis/*.exe
 src-tauri/target/release/bundle/nsis/*.sig
 src-tauri/target/release/bundle/nsis/latest.json
 src-tauri/target/release/bundle/nsis/*/
+
+# graphify
+graphify-out/
