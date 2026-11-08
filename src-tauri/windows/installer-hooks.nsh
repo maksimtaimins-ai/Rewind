@@ -168,16 +168,10 @@ Function ${un}RewindStopApp
     ${RewindLog} "user chose retry"
   ${Loop}
 
-  ; Orphaned WebView2 helpers of this app (matched by the bundle id in their
-  ; user-data path, so other apps' WebView2 is left alone). They hold the
-  ; profile folder, not the exe, so this is best effort.
-  ${If} $5 = 1
-  ${AndIf} $RewindRes = 1
-    nsExec::ExecToStack `"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Get-CimInstance Win32_Process | Where-Object { $$_.Name -eq 'msedgewebview2.exe' -and $$_.CommandLine -like '*${BUNDLEID}*' } | ForEach-Object { Stop-Process -Id $$_.ProcessId -Force -ErrorAction SilentlyContinue }"`
-    Pop $0
-    Pop $1
-    ${RewindLog} "webview2 helper cleanup exit code $0"
-  ${EndIf}
+  ; No PowerShell / WebView2-helper kill here on purpose: an unsigned
+  ; installer that runs "powershell -ExecutionPolicy Bypass ... Stop-Process
+  ; -Force" is scored as malware by Defender's ML (Trojan:Win32/Bearfoos.A!ml).
+  ; Orphaned WebView2 helpers exit by themselves once the app is gone.
 
   Pop $5
   Pop $4

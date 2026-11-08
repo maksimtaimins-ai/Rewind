@@ -100,7 +100,8 @@ impl HookThread {
 }
 
 /// A text box somewhere has the blinking caret (chat, a browser field, a
-/// login form): keys typed now shouldn't be recorded.
+/// login form): keys typed now shouldn't be recorded. This is a privacy
+/// guard: it only checks whether a caret exists, never reads field contents.
 fn typing_in_text_field() -> bool {
     unsafe {
         let fg = GetForegroundWindow();

@@ -45,10 +45,10 @@
       "nsis"
     ],
     "publisher": "Rewind",
-    "shortDescription": "Local-only instant replay",
+    "shortDescription": "Local screen clipping app",
     "longDescription": "Rewind keeps the last few minutes of your screen in memory and saves clips on a hotkey. No account, no cloud, no telemetry.",
     "category": "Video",
-    "copyright": "",
+    "copyright": "Copyright (c) 2026 maksimtaimins-ai",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
